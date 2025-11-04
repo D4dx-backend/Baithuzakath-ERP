@@ -2,9 +2,53 @@ const express = require('express');
 const router = express.Router();
 const beneficiaryAuthController = require('../controllers/beneficiaryAuthController');
 const beneficiaryApplicationController = require('../controllers/beneficiaryApplicationController');
+const beneficiaryController = require('../controllers/beneficiaryController');
 const { authenticate, authorize } = require('../middleware/auth');
 const { validateRequest } = require('../middleware/validation');
 const { body, param, query } = require('express-validator');
+
+// Admin routes for beneficiary management (require admin authentication)
+router.get('/', 
+  authenticate, 
+  authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'), 
+  beneficiaryController.getBeneficiaries
+);
+
+router.get('/export', 
+  authenticate, 
+  authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'), 
+  beneficiaryController.exportBeneficiaries
+);
+
+router.get('/:id', 
+  authenticate, 
+  authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'), 
+  beneficiaryController.getBeneficiary
+);
+
+router.post('/', 
+  authenticate, 
+  authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'), 
+  beneficiaryController.createBeneficiary
+);
+
+router.put('/:id', 
+  authenticate, 
+  authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'), 
+  beneficiaryController.updateBeneficiary
+);
+
+router.delete('/:id', 
+  authenticate, 
+  authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'), 
+  beneficiaryController.deleteBeneficiary
+);
+
+router.patch('/:id/verify', 
+  authenticate, 
+  authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'), 
+  beneficiaryController.verifyBeneficiary
+);
 
 // Authentication routes (no auth required)
 router.post('/auth/send-otp', [

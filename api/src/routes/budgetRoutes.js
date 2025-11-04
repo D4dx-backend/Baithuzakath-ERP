@@ -152,4 +152,25 @@ router.get('/by-category',
   budgetController.getBudgetByCategory
 );
 
+/**
+ * @swagger
+ * /api/budget/analytics:
+ *   get:
+ *     summary: Get budget analytics and insights
+ *     tags: [Budget]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Budget analytics retrieved successfully
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: Insufficient permissions
+ */
+router.get('/analytics', 
+  hasPermission('finances.read.regional'),
+  budgetController.getBudgetAnalytics
+);
+
 module.exports = router;

@@ -92,15 +92,27 @@ router.get('/',
       // Build query for interviews
       let query = {};
 
-      // Apply user scope filtering
-      const userScope = await RBACMiddleware.getUserScope(req.user);
-      if (userScope.regions && userScope.regions.length > 0) {
-        query.$or = [
-          { state: { $in: userScope.regions } },
-          { district: { $in: userScope.regions } },
-          { area: { $in: userScope.regions } },
-          { unit: { $in: userScope.regions } }
-        ];
+      // Apply user scope filtering (bypass for super_admin and state_admin)
+      const isSuperAdmin = req.user.role === 'super_admin';
+      const isStateAdmin = req.user.role === 'state_admin';
+      
+      if (!isSuperAdmin && !isStateAdmin) {
+        const userScope = await RBACMiddleware.getUserScope(req.user);
+        if (userScope.regions && userScope.regions.length > 0) {
+          // Since interviews don't have direct region fields, we need to filter through applications
+          const Application = require('../models/Application');
+          const applicationsInScope = await Application.find({
+            $or: [
+              { state: { $in: userScope.regions } },
+              { district: { $in: userScope.regions } },
+              { area: { $in: userScope.regions } },
+              { unit: { $in: userScope.regions } }
+            ]
+          }).select('_id');
+          
+          const applicationIds = applicationsInScope.map(app => app._id);
+          query.application = { $in: applicationIds };
+        }
       }
 
       // Filter by status
@@ -156,7 +168,8 @@ router.get('/',
       const interviewData = filteredInterviews.map(interview => ({
         id: interview._id,
         interviewNumber: interview.interviewNumber,
-        applicationId: interview.application.applicationNumber,
+        applicationId: interview.application._id,
+        applicationNumber: interview.application.applicationNumber,
         applicantName: interview.application.beneficiary.name,
         applicantPhone: interview.application.beneficiary.phone,
         projectName: interview.application.project?.name || 'N/A',
@@ -523,7 +536,7 @@ router.put('/:applicationId',
 
 /**
  * @swagger
- * /api/interviews/{applicationId}/complete:
+ * /api/interviews/{id}/complete:
  *   patch:
  *     summary: Mark interview as completed
  *     tags: [Interviews]
@@ -531,10 +544,11 @@ router.put('/:applicationId',
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
- *         name: applicationId
+ *         name: id
  *         required: true
  *         schema:
  *           type: string
+ *         description: Interview ID or Application ID
  *     requestBody:
  *       required: true
  *       content:
@@ -553,22 +567,58 @@ router.put('/:applicationId',
  *       200:
  *         description: Interview completed successfully
  */
-router.patch('/:applicationId/complete',
+router.patch('/:id/complete',
   authenticate,
   RBACMiddleware.hasPermission('interviews.update'),
   async (req, res) => {
     try {
-      const { applicationId } = req.params;
+      const { id } = req.params;
       const { result, notes } = req.body;
 
-      const application = await Application.findOne({
-        $or: [
-          { _id: applicationId },
-          { applicationNumber: applicationId }
-        ]
-      });
+      console.log('🔍 Completing interview with ID:', id);
+      console.log('📝 Request data:', { result, notes });
+
+      let interview = null;
+      let application = null;
+
+      // First, try to find by interview ID
+      if (id.match(/^[0-9a-fA-F]{24}$/)) {
+        interview = await Interview.findById(id);
+        console.log('📋 Found interview by ID:', interview ? interview.interviewNumber : 'Not found');
+        
+        if (interview) {
+          // Get the application for this interview
+          application = await Application.findById(interview.application);
+          console.log('📄 Found application:', application ? application.applicationNumber : 'Not found');
+        }
+      }
+
+      // If not found by interview ID, try to find by application ID/number
+      if (!interview) {
+        console.log('🔍 Trying to find by application ID/number:', id);
+        
+        application = await Application.findOne({
+          $or: [
+            { _id: id },
+            { applicationNumber: id }
+          ]
+        });
+
+        if (application) {
+          console.log('📄 Found application:', application.applicationNumber);
+          
+          // Find the interview for this application (scheduled or completed for editing)
+          interview = await Interview.findOne({ 
+            application: application._id,
+            status: { $in: ['scheduled', 'completed'] }
+          });
+          
+          console.log('📋 Found scheduled interview:', interview ? interview.interviewNumber : 'Not found');
+        }
+      }
 
       if (!application) {
+        console.log('❌ Application not found');
         return res.status(404).json({
           success: false,
           message: 'Application not found',
@@ -576,9 +626,19 @@ router.patch('/:applicationId/complete',
         });
       }
 
+      if (!interview) {
+        console.log('❌ No interview found');
+        return res.status(404).json({
+          success: false,
+          message: 'Interview not found',
+          timestamp: new Date().toISOString()
+        });
+      }
+
       // Check permission
       const hasPermission = await RBACMiddleware.checkApplicationAccess(req.user, application);
       if (!hasPermission) {
+        console.log('❌ Access denied');
         return res.status(403).json({
           success: false,
           message: 'Access denied for this application',
@@ -586,30 +646,419 @@ router.patch('/:applicationId/complete',
         });
       }
 
-      // Update interview completion
-      application.status = 'interview_completed';
+      console.log('✅ Completing interview:', interview.interviewNumber);
+
+      // Update the Interview document
+      const wasAlreadyCompleted = interview.status === 'completed';
+      interview.status = 'completed';
+      interview.result = result;
+      if (!wasAlreadyCompleted) {
+        interview.completedAt = new Date();
+        interview.completedBy = req.user._id;
+      }
+      if (notes) {
+        interview.notes = notes;
+      }
+      await interview.save();
+
+      console.log('✅ Interview updated successfully', wasAlreadyCompleted ? '(edited)' : '(completed)');
+
+      // Also update the application status and interview info
+      if (result === 'passed') {
+        application.status = 'approved'; // Move to approved status if interview passed
+      } else {
+        application.status = 'rejected'; // Move to rejected status if interview failed
+      }
+      
+      if (!application.interview) {
+        application.interview = {};
+      }
       application.interview.result = result;
-      application.interview.completedAt = new Date();
+      if (!wasAlreadyCompleted) {
+        application.interview.completedAt = new Date();
+      }
       if (notes) {
         application.interview.notes = notes;
       }
 
+      // Save distribution timeline if provided (for approved applications)
+      if (result === 'passed' && req.body.distributionTimeline && Array.isArray(req.body.distributionTimeline)) {
+        application.distributionTimeline = req.body.distributionTimeline;
+        console.log('💰 Distribution timeline saved:', req.body.distributionTimeline.length, 'phases');
+      }
+
       await application.save();
+
+      console.log('✅ Application updated successfully');
+
+      // If interview passed, create payment schedule/disbursement
+      if (result === 'passed' && application.requestedAmount) {
+        try {
+          const Payment = require('../models/Payment');
+          
+          // Create payments based on distribution timeline if available
+          if (application.distributionTimeline && application.distributionTimeline.length > 0) {
+            console.log('💰 Creating payments from distribution timeline:', application.distributionTimeline.length, 'phases');
+            
+            for (let i = 0; i < application.distributionTimeline.length; i++) {
+              const timeline = application.distributionTimeline[i];
+              const paymentCount = await Payment.countDocuments();
+              const year = new Date().getFullYear();
+              const paymentNumber = `PAY${year}${String(paymentCount + 1).padStart(6, '0')}`;
+
+              const payment = new Payment({
+                paymentNumber,
+                application: application._id,
+                beneficiary: application.beneficiary,
+                project: application.project,
+                scheme: application.scheme,
+                amount: timeline.amount,
+                type: 'installment',
+                method: 'bank_transfer',
+                status: 'pending',
+                installment: {
+                  number: i + 1,
+                  totalInstallments: application.distributionTimeline.length,
+                  description: timeline.description || `Phase ${i + 1}`
+                },
+                timeline: {
+                  expectedCompletionDate: new Date(timeline.expectedDate),
+                  approvedAt: new Date()
+                },
+                approvals: [{
+                  level: 'finance',
+                  approver: req.user._id,
+                  status: 'approved',
+                  approvedAt: new Date(),
+                  comments: 'Approved after successful interview'
+                }],
+                metadata: {
+                  notes: `Approved after interview. ${notes || ''}`.trim()
+                },
+                initiatedBy: req.user._id
+              });
+
+              await payment.save();
+              console.log('✅ Payment record created:', paymentNumber, 'for phase', i + 1);
+            }
+          } else {
+            // Create single payment if no distribution timeline
+            const paymentCount = await Payment.countDocuments();
+            const year = new Date().getFullYear();
+            const paymentNumber = `PAY${year}${String(paymentCount + 1).padStart(6, '0')}`;
+
+            const payment = new Payment({
+              paymentNumber,
+              application: application._id,
+              beneficiary: application.beneficiary,
+              project: application.project,
+              scheme: application.scheme,
+              amount: application.requestedAmount,
+              type: 'full_payment',
+              method: 'bank_transfer',
+              status: 'pending',
+              timeline: {
+                expectedCompletionDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+                approvedAt: new Date()
+              },
+              approvals: [{
+                level: 'finance',
+                approver: req.user._id,
+                status: 'approved',
+                approvedAt: new Date(),
+                comments: 'Approved after successful interview'
+              }],
+              metadata: {
+                notes: `Approved after interview. ${notes || ''}`.trim()
+              },
+              initiatedBy: req.user._id
+            });
+
+            await payment.save();
+            console.log('✅ Payment record created:', paymentNumber);
+          }
+        } catch (paymentError) {
+          console.error('⚠️ Error creating payment record:', paymentError);
+          // Don't fail the interview completion if payment creation fails
+        }
+      }
 
       res.json({
         success: true,
         message: 'Interview completed successfully',
         data: {
-          interview: application.interview
+          interviewId: interview._id,
+          interviewNumber: interview.interviewNumber,
+          applicationId: application._id,
+          applicationNumber: application.applicationNumber,
+          result: interview.result,
+          completedAt: interview.completedAt,
+          notes: interview.notes
         },
         timestamp: new Date().toISOString()
       });
 
     } catch (error) {
-      console.error('Error completing interview:', error);
+      console.error('❌ Error completing interview:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        id: req.params.id,
+        body: req.body
+      });
       res.status(500).json({
         success: false,
         message: 'Failed to complete interview',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /api/interviews/interview/{interviewId}/complete:
+ *   patch:
+ *     summary: Mark interview as completed by interview ID
+ *     tags: [Interviews]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: interviewId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Interview ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - result
+ *             properties:
+ *               result:
+ *                 type: string
+ *                 enum: [passed, failed]
+ *               notes:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Interview completed successfully
+ */
+router.patch('/interview/:interviewId/complete',
+  authenticate,
+  RBACMiddleware.hasPermission('interviews.update'),
+  async (req, res) => {
+    try {
+      const { interviewId } = req.params;
+      const { result, notes } = req.body;
+
+      console.log('🔍 Completing interview by ID:', interviewId);
+      console.log('📝 Request data:', { result, notes });
+
+      // Find the interview by ID
+      const interview = await Interview.findById(interviewId);
+      
+      if (!interview) {
+        console.log('❌ Interview not found');
+        return res.status(404).json({
+          success: false,
+          message: 'Interview not found',
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      console.log('📋 Found interview:', interview.interviewNumber);
+
+      // Get the application for this interview
+      const application = await Application.findById(interview.application);
+      
+      if (!application) {
+        console.log('❌ Application not found');
+        return res.status(404).json({
+          success: false,
+          message: 'Application not found for this interview',
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      console.log('📄 Found application:', application.applicationNumber);
+
+      // Check if interview is in a completable state (allow editing of completed interviews)
+      if (interview.status !== 'scheduled' && interview.status !== 'completed') {
+        console.log('❌ Interview not in completable state:', interview.status);
+        return res.status(400).json({
+          success: false,
+          message: `Interview is ${interview.status} and cannot be completed or edited`,
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      // Check permission
+      const hasPermission = await RBACMiddleware.checkApplicationAccess(req.user, application);
+      if (!hasPermission) {
+        console.log('❌ Access denied');
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied for this application',
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      console.log('✅ Completing interview:', interview.interviewNumber);
+
+      // Check if interview was already completed (for editing)
+      const wasAlreadyCompleted = interview.status === 'completed';
+
+      // Use the interview model's complete method
+      await interview.complete(result, notes, req.user._id);
+
+      console.log('✅ Interview completed successfully', wasAlreadyCompleted ? '(edited)' : '(completed)');
+
+      // Update application status
+      if (result === 'passed') {
+        application.status = 'approved';
+      } else {
+        application.status = 'rejected';
+      }
+      
+      if (!application.interview) {
+        application.interview = {};
+      }
+      application.interview.result = result;
+      if (!wasAlreadyCompleted) {
+        application.interview.completedAt = new Date();
+      }
+      if (notes) {
+        application.interview.notes = notes;
+      }
+
+      // Save distribution timeline if provided (for approved applications)
+      if (result === 'passed' && req.body.distributionTimeline && Array.isArray(req.body.distributionTimeline)) {
+        application.distributionTimeline = req.body.distributionTimeline;
+        console.log('💰 Distribution timeline saved:', req.body.distributionTimeline.length, 'phases');
+      }
+
+      await application.save();
+
+      console.log('✅ Application updated successfully');
+
+      // If interview passed, create payment schedule/disbursement (only if not already created)
+      if (result === 'passed' && application.requestedAmount && !wasAlreadyCompleted) {
+        try {
+          const Payment = require('../models/Payment');
+          
+          // Create payments based on distribution timeline if available
+          if (application.distributionTimeline && application.distributionTimeline.length > 0) {
+            console.log('💰 Creating payments from distribution timeline:', application.distributionTimeline.length, 'phases');
+            
+            for (let i = 0; i < application.distributionTimeline.length; i++) {
+              const timeline = application.distributionTimeline[i];
+              const paymentCount = await Payment.countDocuments();
+              const year = new Date().getFullYear();
+              const paymentNumber = `PAY${year}${String(paymentCount + 1).padStart(6, '0')}`;
+
+              const payment = new Payment({
+                paymentNumber,
+                application: application._id,
+                beneficiary: application.beneficiary,
+                project: application.project,
+                scheme: application.scheme,
+                amount: timeline.amount,
+                type: 'installment',
+                method: 'bank_transfer',
+                status: 'pending',
+                installment: {
+                  number: i + 1,
+                  totalInstallments: application.distributionTimeline.length,
+                  description: timeline.description || `Phase ${i + 1}`
+                },
+                timeline: {
+                  expectedCompletionDate: new Date(timeline.expectedDate),
+                  approvedAt: new Date()
+                },
+                approvals: [{
+                  level: 'finance',
+                  approver: req.user._id,
+                  status: 'approved',
+                  approvedAt: new Date(),
+                  comments: 'Approved after successful interview'
+                }],
+                metadata: {
+                  notes: `Approved after interview. ${notes || ''}`.trim()
+                },
+                initiatedBy: req.user._id
+              });
+
+              await payment.save();
+              console.log('✅ Payment record created:', paymentNumber, 'for phase', i + 1);
+            }
+          } else {
+            // Create single payment if no distribution timeline
+            const paymentCount = await Payment.countDocuments();
+            const year = new Date().getFullYear();
+            const paymentNumber = `PAY${year}${String(paymentCount + 1).padStart(6, '0')}`;
+
+            const payment = new Payment({
+              paymentNumber,
+              application: application._id,
+              beneficiary: application.beneficiary,
+              project: application.project,
+              scheme: application.scheme,
+              amount: application.requestedAmount,
+              type: 'full_payment',
+              method: 'bank_transfer',
+              status: 'pending',
+              timeline: {
+                expectedCompletionDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                approvedAt: new Date()
+              },
+              approvals: [{
+                level: 'finance',
+                approver: req.user._id,
+                status: 'approved',
+                approvedAt: new Date(),
+                comments: 'Approved after successful interview'
+              }],
+              metadata: {
+                notes: `Approved after interview. ${notes || ''}`.trim()
+              },
+              initiatedBy: req.user._id
+            });
+
+            await payment.save();
+            console.log('✅ Payment record created:', paymentNumber);
+          }
+        } catch (paymentError) {
+          console.error('⚠️ Error creating payment record:', paymentError);
+        }
+      }
+
+      res.json({
+        success: true,
+        message: 'Interview completed successfully',
+        data: {
+          interviewId: interview._id,
+          interviewNumber: interview.interviewNumber,
+          applicationId: application._id,
+          applicationNumber: application.applicationNumber,
+          result: interview.result,
+          completedAt: interview.completedAt,
+          notes: interview.notes
+        },
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      console.error('❌ Error completing interview:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to complete interview',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined,
         timestamp: new Date().toISOString()
       });
     }

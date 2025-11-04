@@ -2,6 +2,7 @@ const authService = require('../services/authService');
 const dxingSmsService = require('../services/dxingSmsService');
 const { User } = require('../models');
 const ResponseHelper = require('../utils/responseHelper');
+const { logActivity } = require('../middleware/activityLogger');
 
 class AuthController {
   /**
@@ -26,9 +27,30 @@ class AuthController {
       // Generate and send OTP
       const result = await authService.generateAndSendOTP(phone, purpose);
 
+      // Log OTP request activity
+      await logActivity(req, {
+        action: 'otp_requested',
+        resource: 'auth',
+        description: `OTP requested for phone ${phone} (${purpose})`,
+        details: { phone, purpose },
+        status: 'success',
+        severity: 'low'
+      });
+
       return ResponseHelper.success(res, result, 'OTP sent successfully');
     } catch (error) {
       console.error('❌ Send OTP Error:', error);
+      
+      // Log failed OTP request
+      await logActivity(req, {
+        action: 'otp_request_failed',
+        resource: 'auth',
+        description: `Failed OTP request: ${error.message}`,
+        details: { error: error.message, phone: req.body.phone },
+        status: 'failed',
+        severity: 'medium'
+      });
+      
       return ResponseHelper.error(res, error.message, 400);
     }
   }

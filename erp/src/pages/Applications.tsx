@@ -40,6 +40,13 @@ interface Application {
     _id: string;
     name: string;
     code: string;
+    distributionTimeline?: Array<{
+      description: string;
+      percentage: number;
+      daysFromApproval: number;
+      requiresVerification: boolean;
+      notes?: string;
+    }>;
   };
   project?: {
     _id: string;
@@ -390,22 +397,41 @@ export default function Applications() {
     setCurrentPage(1);
   };
 
-  // Function to get the appropriate action button based on application status
+  // Function to get the appropriate action button based on application status and scheme requirements
   const getActionButton = (app: Application) => {
+    // Check if scheme requires interview
+    const requiresInterview = app.scheme?.requiresInterview || false;
+
     switch (app.status) {
       case 'pending':
       case 'under_review':
       case 'field_verification':
-        // Show shortlist button for applications that can be scheduled for interview
-        return (
-          <Button variant="outline" size="sm" onClick={() => {
-            setSelectedApp(app);
-            setShowShortlistModal(true);
-          }} className="flex-1">
-            <UserCheck className="mr-2 h-4 w-4" />
-            Schedule Interview
-          </Button>
-        );
+        if (requiresInterview) {
+          // Show schedule interview button for schemes that require interviews
+          return (
+            <Button variant="outline" size="sm" onClick={() => {
+              setSelectedApp(app);
+              setShowShortlistModal(true);
+            }} className="flex-1">
+              <UserCheck className="mr-2 h-4 w-4" />
+              Schedule Interview
+            </Button>
+          );
+        } else {
+          // Show direct approve/reject buttons for schemes that don't require interviews
+          return (
+            <>
+              <Button variant="outline" size="sm" onClick={() => handleViewApplication(app, "approve")} className="flex-1">
+                <CheckCircle className="mr-2 h-4 w-4" />
+                Approve
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => handleViewApplication(app, "reject")} className="flex-1">
+                <XCircle className="mr-2 h-4 w-4" />
+                Reject
+              </Button>
+            </>
+          );
+        }
       
       case 'interview_scheduled':
         // Show reschedule button for scheduled interviews
@@ -449,16 +475,31 @@ export default function Applications() {
         );
       
       default:
-        // Default shortlist button
-        return (
-          <Button variant="outline" size="sm" onClick={() => {
-            setSelectedApp(app);
-            setShowShortlistModal(true);
-          }} className="flex-1">
-            <UserCheck className="mr-2 h-4 w-4" />
-            Shortlist
-          </Button>
-        );
+        // Default action based on interview requirement
+        if (requiresInterview) {
+          return (
+            <Button variant="outline" size="sm" onClick={() => {
+              setSelectedApp(app);
+              setShowShortlistModal(true);
+            }} className="flex-1">
+              <UserCheck className="mr-2 h-4 w-4" />
+              Schedule Interview
+            </Button>
+          );
+        } else {
+          return (
+            <>
+              <Button variant="outline" size="sm" onClick={() => handleViewApplication(app, "approve")} className="flex-1">
+                <CheckCircle className="mr-2 h-4 w-4" />
+                Approve
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => handleViewApplication(app, "reject")} className="flex-1">
+                <XCircle className="mr-2 h-4 w-4" />
+                Reject
+              </Button>
+            </>
+          );
+        }
     }
   };
 

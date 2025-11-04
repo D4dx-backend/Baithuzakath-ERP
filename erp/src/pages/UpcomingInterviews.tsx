@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Calendar, Clock, MapPin, Users, FileText, CheckCircle, XCircle, CalendarCheck, Loader2, AlertCircle, Link as LinkIcon } from "lucide-react";
+import { Calendar, Clock, MapPin, Users, FileText, CheckCircle, XCircle, CalendarCheck, Loader2, AlertCircle, Link as LinkIcon, Edit } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,12 +8,13 @@ import { ReportsModal } from "@/components/modals/ReportsModal";
 import { ApplicationViewModal } from "@/components/modals/ApplicationViewModal";
 import { toast } from "@/hooks/use-toast";
 import { useRBAC } from "@/hooks/useRBAC";
-import { interviews } from "@/lib/api";
+import { interviews, applications } from "@/lib/api";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface Interview {
   id: string;
-  applicationId: string;
+  applicationId: string; // MongoDB _id
+  applicationNumber?: string; // Human-readable application number
   applicantName: string;
   applicantPhone: string;
   projectName: string;
@@ -53,6 +54,8 @@ export default function UpcomingInterviews() {
   const [showViewModal, setShowViewModal] = useState(false);
   const [modalMode, setModalMode] = useState<"view" | "approve" | "reject">("view");
   const [selectedInterview, setSelectedInterview] = useState<Interview | null>(null);
+  const [selectedApplication, setSelectedApplication] = useState<any>(null);
+  const [loadingApplication, setLoadingApplication] = useState(false);
 
   // Load interviews data
   useEffect(() => {
@@ -106,21 +109,69 @@ export default function UpcomingInterviews() {
     );
   }
 
-  const handleViewForApproval = (interview: Interview) => {
+  const handleViewForApproval = async (interview: Interview) => {
     setSelectedInterview(interview);
     setModalMode("view");
+    setLoadingApplication(true);
     setShowViewModal(true);
+    
+    try {
+      // Fetch the full application data
+      const response = await applications.getById(interview.applicationId);
+      if (response.success) {
+        // Override the status for interview context - scheduled interviews should show as pending for approval
+        const applicationData = {
+          ...response.data,
+          status: interview.status === "scheduled" ? "pending" : 
+                  interview.status === "completed" ? 
+                    (interview.result === "passed" ? "approved" : "rejected") : 
+                    interview.status === "cancelled" ? "rejected" : response.data.status
+        };
+        setSelectedApplication(applicationData);
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to load application details",
+          variant: "destructive",
+        });
+        // Fallback to constructed application object
+        setSelectedApplication(getApplicationFromInterview(interview));
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: "Failed to load application details",
+        variant: "destructive",
+      });
+      // Fallback to constructed application object
+      setSelectedApplication(getApplicationFromInterview(interview));
+    } finally {
+      setLoadingApplication(false);
+    }
   };
 
-  const handleApprove = async (id: string, remarks: string) => {
+  const handleApprove = async (applicationId: string, remarks: string, distributionTimeline?: any[]) => {
     try {
-      const response = await interviews.complete(id, { 
+      // Find the interview by applicationId to get the correct interview ID
+      const interview = interviewList.find(i => i.applicationId === applicationId);
+      if (!interview) {
+        toast({
+          title: "Error",
+          description: "Interview not found",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const response = await interviews.complete(interview.applicationId, { 
         result: 'passed',
-        notes: remarks 
+        notes: remarks,
+        distributionTimeline: distributionTimeline // Include distribution timeline
       });
       
       if (response.success) {
         await loadInterviews(); // Reload interviews
+        setShowViewModal(false); // Close modal
         toast({
           title: "Interview Completed",
           description: `Interview has been marked as passed successfully.`,
@@ -141,15 +192,27 @@ export default function UpcomingInterviews() {
     }
   };
 
-  const handleReject = async (id: string, remarks: string) => {
+  const handleReject = async (applicationId: string, remarks: string) => {
     try {
-      const response = await interviews.complete(id, { 
+      // Find the interview by applicationId to get the correct interview ID
+      const interview = interviewList.find(i => i.applicationId === applicationId);
+      if (!interview) {
+        toast({
+          title: "Error",
+          description: "Interview not found",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const response = await interviews.complete(interview.applicationId, { 
         result: 'failed',
         notes: remarks 
       });
       
       if (response.success) {
         await loadInterviews(); // Reload interviews
+        setShowViewModal(false); // Close modal
         toast({
           title: "Interview Completed",
           description: `Interview has been marked as failed.`,
@@ -176,25 +239,84 @@ export default function UpcomingInterviews() {
     setShowReportsModal(true);
   };
 
+  const handleEditCompleted = async (interview: Interview) => {
+    setSelectedInterview(interview);
+    setModalMode("edit"); // Use edit mode for completed interviews
+    setLoadingApplication(true);
+    setShowViewModal(true);
+    
+    try {
+      // Fetch the full application data
+      const response = await applications.getById(interview.applicationId);
+      if (response.success) {
+        // Keep the original status for editing
+        const applicationData = {
+          ...response.data,
+          status: response.data.status // Keep original status, don't override
+        };
+        setSelectedApplication(applicationData);
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to load application details",
+          variant: "destructive",
+        });
+        setSelectedApplication(getApplicationFromInterview(interview));
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: "Failed to load application details",
+        variant: "destructive",
+      });
+      setSelectedApplication(getApplicationFromInterview(interview));
+    } finally {
+      setLoadingApplication(false);
+    }
+  };
+
   // Convert interview to application format for modal
   const getApplicationFromInterview = (interview: Interview) => {
     return {
-      id: interview.applicationId,
-      applicantName: interview.applicantName,
-      scheme: interview.schemeName,
-      project: interview.projectName,
-      appliedDate: interview.date,
+      _id: interview.applicationId,
+      applicationNumber: interview.applicationNumber || interview.applicationId,
+      beneficiary: {
+        name: interview.applicantName,
+        phone: interview.applicantPhone,
+        email: `${interview.applicantName.toLowerCase().replace(/\s+/g, '.')}@email.com`, // Generated email
+      },
+      scheme: {
+        name: interview.schemeName,
+      },
+      project: {
+        name: interview.projectName,
+      },
+      state: {
+        name: interview.state,
+      },
+      district: {
+        name: interview.district,
+      },
+      area: {
+        name: interview.area,
+      },
+      unit: {
+        name: interview.unit,
+      },
+      requestedAmount: 50000, // This should ideally come from the actual application data
       status: interview.status === "completed" ? 
         (interview.result === "passed" ? "approved" : "rejected") : 
-        interview.status === "cancelled" ? "rejected" : "pending",
-      amount: 50000, // This should come from the actual application data
+        interview.status === "cancelled" ? "rejected" : 
+        interview.status === "scheduled" ? "pending" : "under_review",
+      createdAt: interview.date,
+      notes: interview.notes,
     };
   };
 
   const filteredInterviews = interviewList.filter((interview) => {
     const matchesSearch =
       interview.applicantName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      interview.applicationId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (interview.applicationNumber || interview.applicationId).toLowerCase().includes(searchQuery.toLowerCase()) ||
       interview.projectName.toLowerCase().includes(searchQuery.toLowerCase());
     
     const matchesStatus = statusFilter === "all" || interview.status === statusFilter;
@@ -241,8 +363,14 @@ export default function UpcomingInterviews() {
     <div className="space-y-6">
       <ApplicationViewModal
         open={showViewModal}
-        onOpenChange={setShowViewModal}
-        application={selectedInterview ? getApplicationFromInterview(selectedInterview) : null}
+        onOpenChange={(open) => {
+          setShowViewModal(open);
+          if (!open) {
+            setSelectedApplication(null);
+            setSelectedInterview(null);
+          }
+        }}
+        application={selectedApplication}
         mode={modalMode}
         onApprove={handleApprove}
         onReject={handleReject}
@@ -312,7 +440,7 @@ export default function UpcomingInterviews() {
               <div className="flex items-start justify-between">
                 <div className="space-y-1">
                   <CardTitle className="text-xl">{interview.applicantName}</CardTitle>
-                  <p className="text-sm text-muted-foreground">{interview.applicationId}</p>
+                  <p className="text-sm text-muted-foreground">{interview.applicationNumber || interview.applicationId}</p>
                   <p className="text-xs text-muted-foreground">📞 {interview.applicantPhone}</p>
                 </div>
                 <Badge className={getStatusColor(interview.status)}>
@@ -422,6 +550,29 @@ export default function UpcomingInterviews() {
                   >
                     <CheckCircle className="mr-2 h-4 w-4" />
                     View & Approve
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="flex-1"
+                    onClick={() => handleAddNotes(interview)}
+                  >
+                    <FileText className="mr-2 h-4 w-4" />
+                    Add Notes
+                  </Button>
+                </div>
+              )}
+
+              {interview.status === "completed" && (
+                <div className="flex gap-2 pt-2">
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => handleEditCompleted(interview)}
+                  >
+                    <Edit className="mr-2 h-4 w-4" />
+                    Edit Decision
                   </Button>
                   <Button 
                     size="sm" 

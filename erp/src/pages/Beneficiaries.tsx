@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Filter, Eye, Edit, Trash2, CheckCircle, UserCheck } from 'lucide-react';
+import { Plus, Search, Filter, Eye, Edit, Trash2, CheckCircle, UserCheck, Download, ChevronDown } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { Pagination } from '../components/ui/pagination';
 import { BeneficiaryModal } from '../components/modals/BeneficiaryModal';
 import { DeleteBeneficiaryModal } from '../components/modals/DeleteBeneficiaryModal';
-import { api } from '../lib/api';
+import { beneficiaries as beneficiariesApi, locations, projects, schemes } from '../lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { useRBAC } from '@/hooks/useRBAC';
 
@@ -25,6 +25,9 @@ interface Beneficiary {
   createdBy: { name: string };
   createdAt: string;
   applications: string[];
+  source?: 'direct' | 'interview'; // Track if beneficiary came from approved interview
+  interviewId?: string; // Reference to interview if applicable
+  approvedAt?: string; // When the interview was approved
 }
 
 interface PaginationInfo {
@@ -32,6 +35,11 @@ interface PaginationInfo {
   pages: number;
   total: number;
   limit: number;
+}
+
+interface FilterOption {
+  _id: string;
+  name: string;
 }
 
 const Beneficiaries: React.FC = () => {
@@ -55,9 +63,113 @@ const Beneficiaries: React.FC = () => {
   // Filters and search
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [districtFilter, setDistrictFilter] = useState('');
+  const [areaFilter, setAreaFilter] = useState('');
+  const [unitFilter, setUnitFilter] = useState('');
+  const [genderFilter, setGenderFilter] = useState('');
+  const [projectFilter, setProjectFilter] = useState('');
+  const [schemeFilter, setSchemeFilter] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
+  
+  // Filter options data
+  const [districts, setDistricts] = useState<FilterOption[]>([]);
+  const [areas, setAreas] = useState<FilterOption[]>([]);
+  const [units, setUnits] = useState<FilterOption[]>([]);
+  const [projects, setProjects] = useState<FilterOption[]>([]);
+  const [schemes, setSchemes] = useState<FilterOption[]>([]);
+  
+  // Modals
+  const [showBeneficiaryModal, setShowBeneficiaryModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [selectedBeneficiary, setSelectedBeneficiary] = useState<Beneficiary | null>(null);
+  const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
 
-  // Access denied check
+  const fetchBeneficiaries = async (page = 1) => {
+    try {
+      setLoading(true);
+      const params = {
+        page: page.toString(),
+        limit: pagination.limit.toString(),
+        ...(search && { search }),
+        ...(statusFilter && { status: statusFilter }),
+        ...(districtFilter && { district: districtFilter }),
+        ...(areaFilter && { area: areaFilter }),
+        ...(unitFilter && { unit: unitFilter }),
+        ...(genderFilter && { gender: genderFilter }),
+        ...(projectFilter && { project: projectFilter }),
+        ...(schemeFilter && { scheme: schemeFilter }),
+        includeApprovedInterviews: true // Include approved interview applicants as beneficiaries
+      };
+
+      const response = await beneficiariesApi.getAll(params);
+      if (response.success) {
+        setBeneficiaries(response.data.beneficiaries);
+        setPagination(response.data.pagination);
+      } else {
+        throw new Error(response.message || 'Failed to fetch beneficiaries');
+      }
+    } catch (error) {
+      console.error('Error fetching beneficiaries:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch beneficiaries",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchFilterOptions = async () => {
+    try {
+      // Fetch districts, areas, units, projects, and schemes for filters
+      const [districtsRes, areasRes, unitsRes, projectsRes, schemesRes] = await Promise.all([
+        locations.getByType('district'),
+        locations.getByType('area'),
+        locations.getByType('unit'),
+        projects.getAll({ limit: 1000 }), // Get all projects for filter
+        schemes.getActive() // Get active schemes for filter
+      ]);
+
+      if (districtsRes.success) {
+        setDistricts(districtsRes.data.locations || []);
+      }
+      if (areasRes.success) {
+        setAreas(areasRes.data.locations || []);
+      }
+      if (unitsRes.success) {
+        setUnits(unitsRes.data.locations || []);
+      }
+      if (projectsRes.success) {
+        setProjects(projectsRes.data.projects || []);
+      }
+      if (schemesRes.success) {
+        setSchemes(schemesRes.data.schemes || []);
+      }
+    } catch (error) {
+      console.error('Error fetching filter options:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (canViewBeneficiaries) {
+      fetchBeneficiaries();
+      fetchFilterOptions();
+    }
+  }, [canViewBeneficiaries]);
+
+  useEffect(() => {
+    if (!canViewBeneficiaries) return;
+    
+    const timeoutId = setTimeout(() => {
+      fetchBeneficiaries(1);
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [search, statusFilter, districtFilter, areaFilter, unitFilter, genderFilter, projectFilter, schemeFilter, canViewBeneficiaries]);
+
+  // Access denied check - moved after all hooks
   if (!canViewBeneficiaries) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -71,49 +183,6 @@ const Beneficiaries: React.FC = () => {
       </div>
     );
   }
-  
-  // Modals
-  const [showBeneficiaryModal, setShowBeneficiaryModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [selectedBeneficiary, setSelectedBeneficiary] = useState<Beneficiary | null>(null);
-  const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
-
-  const fetchBeneficiaries = async (page = 1) => {
-    try {
-      setLoading(true);
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: pagination.limit.toString(),
-        ...(search && { search }),
-        ...(statusFilter && { status: statusFilter })
-      });
-
-      const response = await api.get(`/beneficiaries?${params}`);
-      setBeneficiaries(response.data.beneficiaries);
-      setPagination(response.data.pagination);
-    } catch (error) {
-      console.error('Error fetching beneficiaries:', error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch beneficiaries",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchBeneficiaries();
-  }, []);
-
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      fetchBeneficiaries(1);
-    }, 300);
-
-    return () => clearTimeout(timeoutId);
-  }, [search, statusFilter]);
 
   const handlePageChange = (page: number) => {
     fetchBeneficiaries(page);
@@ -144,7 +213,7 @@ const Beneficiaries: React.FC = () => {
 
   const handleVerifyBeneficiary = async (beneficiary: Beneficiary) => {
     try {
-      await api.patch(`/beneficiaries/${beneficiary._id}/verify`);
+      await beneficiariesApi.verify(beneficiary._id);
       toast({
         title: "Success",
         description: "Beneficiary verified successfully"
@@ -176,6 +245,55 @@ const Beneficiaries: React.FC = () => {
     }
   };
 
+  const handleExport = async (format: 'excel' | 'csv' = 'excel') => {
+    try {
+      setExportLoading(true);
+      
+      // Build export parameters with current filters
+      const exportParams = {
+        ...(search && { search }),
+        ...(statusFilter && { status: statusFilter }),
+        ...(districtFilter && { district: districtFilter }),
+        ...(areaFilter && { area: areaFilter }),
+        ...(unitFilter && { unit: unitFilter }),
+        ...(genderFilter && { gender: genderFilter }),
+        ...(projectFilter && { project: projectFilter }),
+        ...(schemeFilter && { scheme: schemeFilter }),
+        includeApprovedInterviews: true,
+        format
+      };
+
+      const response = await beneficiariesApi.export(exportParams);
+      
+      if (response.success) {
+        // Create download link
+        const url = window.URL.createObjectURL(response.data);
+        const link = document.createElement('a');
+        link.href = url;
+        const extension = format === 'excel' ? 'xlsx' : 'csv';
+        link.setAttribute('download', `beneficiaries-${new Date().toISOString().split('T')[0]}.${extension}`);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+        
+        toast({
+          title: "Success",
+          description: `Beneficiaries exported successfully as ${format.toUpperCase()}`
+        });
+      }
+    } catch (error) {
+      console.error('Error exporting beneficiaries:', error);
+      toast({
+        title: "Error",
+        description: "Failed to export beneficiaries",
+        variant: "destructive"
+      });
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     const variants = {
       active: 'bg-green-100 text-green-800',
@@ -189,14 +307,6 @@ const Beneficiaries: React.FC = () => {
     return `${beneficiary.state.name} > ${beneficiary.district.name} > ${beneficiary.area.name} > ${beneficiary.unit.name}`;
   };
 
-  if (loading && beneficiaries.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -205,11 +315,43 @@ const Beneficiaries: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900">Beneficiaries</h1>
           <p className="text-gray-600">Manage beneficiary registrations and applications</p>
         </div>
-        <Button onClick={handleCreateBeneficiary} className="flex items-center gap-2">
-          <Plus className="h-4 w-4" />
-          Add Beneficiary
-        </Button>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Button
+              variant="outline"
+              onClick={() => handleExport('excel')}
+              disabled={exportLoading}
+              className="flex items-center gap-2"
+            >
+              <Download className="h-4 w-4" />
+              {exportLoading ? 'Exporting...' : 'Export Excel'}
+            </Button>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => handleExport('csv')}
+            disabled={exportLoading}
+            className="flex items-center gap-2"
+          >
+            <Download className="h-4 w-4" />
+            {exportLoading ? 'Exporting...' : 'Export CSV'}
+          </Button>
+          {canCreateBeneficiaries && (
+            <Button onClick={handleCreateBeneficiary} className="flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              Add Beneficiary
+            </Button>
+          )}
+        </div>
       </div>
+
+      {/* Loading State */}
+      {loading && beneficiaries.length === 0 ? (
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        </div>
+      ) : (
+        <>
 
       {/* Search and Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
@@ -251,7 +393,116 @@ const Beneficiaries: React.FC = () => {
                 <option value="pending">Pending</option>
               </select>
             </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                District
+              </label>
+              <select
+                value={districtFilter}
+                onChange={(e) => setDistrictFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Districts</option>
+                {districts.map((district) => (
+                  <option key={district._id} value={district._id}>
+                    {district.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Area
+              </label>
+              <select
+                value={areaFilter}
+                onChange={(e) => setAreaFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Areas</option>
+                {areas.map((area) => (
+                  <option key={area._id} value={area._id}>
+                    {area.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Unit
+              </label>
+              <select
+                value={unitFilter}
+                onChange={(e) => setUnitFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Units</option>
+                {units.map((unit) => (
+                  <option key={unit._id} value={unit._id}>
+                    {unit.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Gender
+              </label>
+              <select
+                value={genderFilter}
+                onChange={(e) => setGenderFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Genders</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Project
+              </label>
+              <select
+                value={projectFilter}
+                onChange={(e) => setProjectFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Projects</option>
+                {projects.map((project) => (
+                  <option key={project._id} value={project._id}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Scheme
+              </label>
+              <select
+                value={schemeFilter}
+                onChange={(e) => setSchemeFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Schemes</option>
+                {schemes.map((scheme) => (
+                  <option key={scheme._id} value={scheme._id}>
+                    {scheme.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          
           <div className="flex gap-2">
             <Button
               variant="outline"
@@ -259,6 +510,12 @@ const Beneficiaries: React.FC = () => {
               onClick={() => {
                 setSearch('');
                 setStatusFilter('');
+                setDistrictFilter('');
+                setAreaFilter('');
+                setUnitFilter('');
+                setGenderFilter('');
+                setProjectFilter('');
+                setSchemeFilter('');
               }}
             >
               Clear Filters
@@ -329,8 +586,18 @@ const Beneficiaries: React.FC = () => {
                         {beneficiary.isVerified && (
                           <CheckCircle className="h-4 w-4 text-green-500" />
                         )}
+                        {beneficiary.source === 'interview' && (
+                          <Badge variant="outline" className="text-xs bg-blue-50 text-blue-600 border-blue-200">
+                            Interview Approved
+                          </Badge>
+                        )}
                       </div>
                       <div className="text-sm text-gray-500">{beneficiary.phone}</div>
+                      {beneficiary.source === 'interview' && beneficiary.approvedAt && (
+                        <div className="text-xs text-blue-600">
+                          Approved: {new Date(beneficiary.approvedAt).toLocaleDateString()}
+                        </div>
+                      )}
                     </div>
                   </td>
                   <td className="px-6 py-4">
@@ -405,13 +672,20 @@ const Beneficiaries: React.FC = () => {
         )}
       </div>
 
-      {/* Pagination */}
-      {pagination.pages > 1 && (
-        <Pagination
-          currentPage={pagination.current}
-          totalPages={pagination.pages}
-          onPageChange={handlePageChange}
-        />
+      {/* Pagination Info */}
+      {pagination.total > 0 && (
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-gray-700">
+            Showing {((pagination.current - 1) * pagination.limit) + 1} to {Math.min(pagination.current * pagination.limit, pagination.total)} of {pagination.total} beneficiaries
+          </div>
+          {pagination.pages > 1 && (
+            <Pagination
+              currentPage={pagination.current}
+              totalPages={pagination.pages}
+              onPageChange={handlePageChange}
+            />
+          )}
+        </div>
       )}
 
       {/* Modals */}
@@ -428,6 +702,8 @@ const Beneficiaries: React.FC = () => {
           beneficiary={selectedBeneficiary}
           onClose={handleDeleteModalClose}
         />
+      )}
+      </>
       )}
     </div>
   );

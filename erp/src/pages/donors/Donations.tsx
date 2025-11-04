@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { DonationModal } from "@/components/modals/DonationModal";
 import { DonorModal } from "@/components/modals/DonorModal";
 import { DonorSearch } from "@/components/donors/DonorSearch";
-import { useDonations } from "@/hooks/useDonations";
+import { useRecentDonations } from "@/hooks/useDonations";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useRBAC } from "@/hooks/useRBAC";
@@ -22,13 +22,8 @@ export default function Donations() {
   const [newlyCreatedDonor, setNewlyCreatedDonor] = useState<Donor | null>(null);
   const [newDonorStep, setNewDonorStep] = useState<'donor' | 'donation'>('donor');
 
-  // Get recent donations
-  const { data: donationsData, isLoading } = useDonations({
-    page: 1,
-    limit: 20,
-    sortBy: 'createdAt',
-    sortOrder: 'desc'
-  });
+  // Get recent donations (last 20)
+  const { data: donationsData, isLoading } = useRecentDonations(20);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -218,26 +213,26 @@ export default function Donations() {
             <div className="text-center py-8">
               <p className="text-muted-foreground">Loading donations...</p>
             </div>
-          ) : (donationsData?.items?.length || donationsData?.data?.items?.length) ? (
+          ) : (donationsData?.donations?.length) ? (
             <div className="space-y-4">
-              {(donationsData?.items || donationsData?.data?.items || []).map((donation) => (
+              {(donationsData?.donations || []).map((donation) => (
                 <div key={donation.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <Avatar className="h-10 w-10">
                         <AvatarFallback className="bg-gradient-to-r from-green-500 to-blue-600 text-white">
-                          {donation.isAnonymous ? '?' : (donation.donor?.name?.charAt(0) || 'D')}
+                          {donation.donor?.name ? donation.donor.name.charAt(0) : '?'}
                         </AvatarFallback>
                       </Avatar>
                       <div>
                         <h4 className="font-medium">
-                          {donation.isAnonymous ? 'Anonymous Donor' : donation.donor?.name || 'Unknown Donor'}
+                          {donation.donor?.name || 'Anonymous Donor'}
                         </h4>
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                          <span>{new Date(donation.date || donation.createdAt).toLocaleDateString()}</span>
+                          <span>{new Date(donation.createdAt).toLocaleDateString()}</span>
                           <span>Method: {donation.method}</span>
                           <span>Purpose: {donation.purpose}</span>
-                          {donation.mode && <span>Mode: {donation.mode}</span>}
+                          {donation.donationNumber && <span>#{donation.donationNumber}</span>}
                         </div>
                       </div>
                     </div>

@@ -10,7 +10,7 @@ import {
   Phone, 
   MapPin, 
   Calendar, 
-  DollarSign, 
+  IndianRupee, 
   TrendingUp, 
   Award,
   Edit,
@@ -143,7 +143,7 @@ export const DonorDetails: React.FC<DonorDetailsProps> = ({ donorId, onEdit }) =
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5 text-green-600" />
+              <IndianRupee className="h-5 w-5 text-green-600" />
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total Donated</p>
                 <p className="text-2xl font-bold">

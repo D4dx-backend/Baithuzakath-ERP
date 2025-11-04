@@ -2,7 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, DollarSign, Target, Users, MapPin, Clock } from "lucide-react";
+import { Calendar, IndianRupee, Target, Users, MapPin, Clock } from "lucide-react";
 import { type Project } from "@/lib/api";
 
 interface ProjectDetailsModalProps {
@@ -93,7 +93,7 @@ export function ProjectDetailsModal({ open, onOpenChange, project }: ProjectDeta
             <Card>
               <CardContent className="p-4">
                 <div className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5 text-green-600" />
+                  <IndianRupee className="h-5 w-5 text-green-600" />
                   <div>
                     <p className="text-sm text-muted-foreground">Total Budget</p>
                     <p className="text-lg font-semibold">{formatCurrency(project.budget.total)}</p>

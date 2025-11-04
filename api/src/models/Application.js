@@ -83,6 +83,98 @@ const applicationSchema = new mongoose.Schema({
     type: String
   },
   
+  // Distribution Timeline (for installment payments)
+  distributionTimeline: [{
+    description: {
+      type: String,
+      required: true
+    },
+    amount: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+    percentage: {
+      type: Number,
+      required: true,
+      min: 0,
+      max: 100
+    },
+    expectedDate: {
+      type: Date,
+      required: true
+    },
+    status: {
+      type: String,
+      enum: ['pending', 'scheduled', 'processing', 'completed', 'failed'],
+      default: 'pending'
+    },
+    actualDate: Date,
+    paymentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Payment'
+    },
+    notes: String
+  }],
+
+  // Application Workflow Stages (from scheme configuration)
+  applicationStages: [{
+    name: {
+      type: String,
+      required: true
+    },
+    description: String,
+    order: {
+      type: Number,
+      required: true
+    },
+    isRequired: {
+      type: Boolean,
+      default: true
+    },
+    allowedRoles: [{
+      type: String,
+      enum: ['super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin', 'project_coordinator', 'scheme_coordinator']
+    }],
+    autoTransition: {
+      type: Boolean,
+      default: false
+    },
+    transitionConditions: String,
+    completedAt: Date,
+    completedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    status: {
+      type: String,
+      enum: ['pending', 'in_progress', 'completed', 'skipped'],
+      default: 'pending'
+    },
+    notes: String
+  }],
+
+  // Current Stage in the workflow
+  currentStage: {
+    type: String,
+    default: 'Application Received'
+  },
+
+  // Stage History for tracking
+  stageHistory: [{
+    stageName: String,
+    status: String,
+    timestamp: {
+      type: Date,
+      default: Date.now
+    },
+    updatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    notes: String
+  }],
+  
   // Interview Information
   interview: {
     scheduledDate: {

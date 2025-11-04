@@ -33,6 +33,15 @@ async function runSeed() {
       case 'schemes':
         await SeedData.seedSchemes();
         break;
+      case 'beneficiaries':
+        await SeedData.seedBeneficiaries();
+        break;
+      case 'applications':
+        await SeedData.seedApplications();
+        break;
+      case 'interviews':
+        await SeedData.seedInterviews();
+        break;
       case 'clear':
         await SeedData.clearAll();
         break;

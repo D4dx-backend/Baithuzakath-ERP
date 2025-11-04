@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
-import { Plus, Calendar, DollarSign, Target, Loader2, AlertCircle, FolderKanban } from "lucide-react";
+import { Plus, Calendar, IndianRupee, Target, Loader2, AlertCircle, FolderKanban, Activity, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProjectModal } from "@/components/modals/ProjectModal";
 import { ProjectDetailsModal } from "@/components/modals/ProjectDetailsModal";
 import { DeleteConfirmModal } from "@/components/modals/DeleteConfirmModal";
+import { ProjectStatusUpdatesModal } from "@/components/modals/ProjectStatusUpdatesModal";
+import { ProjectStagesConfigModal } from "@/components/modals/ProjectStagesConfigModal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -40,6 +42,8 @@ export default function Projects() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showStatusUpdatesModal, setShowStatusUpdatesModal] = useState(false);
+  const [showConfigureStagesModal, setShowConfigureStagesModal] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [projectList, setProjectList] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -108,6 +112,16 @@ export default function Projects() {
     setShowDeleteModal(true);
   };
 
+  const handleStatusUpdates = (project: Project) => {
+    setSelectedProject(project);
+    setShowStatusUpdatesModal(true);
+  };
+
+  const handleConfigureStages = (project: Project) => {
+    setSelectedProject(project);
+    setShowConfigureStagesModal(true);
+  };
+
   const handleDeleteConfirm = async () => {
     if (selectedProject) {
       try {
@@ -167,6 +181,18 @@ export default function Projects() {
         title="Delete Project"
         description="This will permanently delete this project and all associated data. This action cannot be undone."
         itemName={selectedProject?.title}
+      />
+      <ProjectStatusUpdatesModal
+        open={showStatusUpdatesModal}
+        onOpenChange={setShowStatusUpdatesModal}
+        project={selectedProject}
+        onSuccess={handleSave}
+      />
+      <ProjectStagesConfigModal
+        open={showConfigureStagesModal}
+        onOpenChange={setShowConfigureStagesModal}
+        project={selectedProject}
+        onSuccess={handleSave}
       />
       <div className="flex items-center justify-between">
         <div>
@@ -252,7 +278,7 @@ export default function Projects() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <DollarSign className="h-4 w-4 text-muted-foreground" />
+                          <IndianRupee className="h-4 w-4 text-muted-foreground" />
                           <div>
                             <p className="text-xs text-muted-foreground">Budget</p>
                             <p className="text-sm font-medium">₹{(project.budget.total / 100000).toFixed(1)}L</p>
@@ -294,6 +320,14 @@ export default function Projects() {
                       <div className="flex gap-2">
                         <Button variant="outline" size="sm" onClick={() => handleViewDetails(project)}>View Details</Button>
                         <Button variant="outline" size="sm" onClick={() => handleEdit(project)}>Edit</Button>
+                        <Button variant="outline" size="sm" onClick={() => handleStatusUpdates(project)}>
+                          <Activity className="mr-1 h-3 w-3" />
+                          Status Updates
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => handleConfigureStages(project)}>
+                          <Settings className="mr-1 h-3 w-3" />
+                          Configure
+                        </Button>
                         <Button variant="outline" size="sm" className="text-destructive" onClick={() => handleDeleteClick(project)}>Delete</Button>
                       </div>
                     </CardContent>

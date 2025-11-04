@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Calendar, DollarSign, Target, Users, Loader2, AlertCircle, Clock, Edit, Trash2, Eye, FileText } from "lucide-react";
+import { Plus, Calendar, IndianRupee, Target, Users, Loader2, AlertCircle, Clock, Edit, Trash2, Eye, FileText, Settings, GitBranch, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +9,8 @@ import { schemes as schemesApi, type Scheme } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
 import { SchemeModal } from "@/components/modals/SchemeModal";
 import { SchemeDetailsModal } from "@/components/modals/SchemeDetailsModal";
+import { TimelineConfigModal } from "@/components/modals/TimelineConfigModal";
+import { StagesConfigModal } from "@/components/modals/StagesConfigModal";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,6 +21,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { useNavigate } from "react-router-dom";
 import { useRBAC } from "@/hooks/useRBAC";
 
@@ -65,6 +72,9 @@ export default function Schemes() {
   const [deleting, setDeleting] = useState(false);
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [schemeForDetails, setSchemeForDetails] = useState<Scheme | null>(null);
+  const [timelineModalOpen, setTimelineModalOpen] = useState(false);
+  const [stagesModalOpen, setStagesModalOpen] = useState(false);
+  const [expandedSchemes, setExpandedSchemes] = useState<Set<string>>(new Set());
 
   // Check permissions
   const canViewSchemes = hasAnyPermission(['schemes.read.all', 'schemes.read.assigned']);
@@ -113,6 +123,8 @@ export default function Schemes() {
       setLoading(false);
     }
   };
+
+
 
   const formatCurrency = (amount: number) => {
     return `₹${(amount / 100000).toFixed(1)}L`;
@@ -174,6 +186,16 @@ export default function Schemes() {
     loadSchemes(); // Reload the list after create/edit
   };
 
+  const toggleSchemeExpansion = (schemeId: string) => {
+    const newExpanded = new Set(expandedSchemes);
+    if (newExpanded.has(schemeId)) {
+      newExpanded.delete(schemeId);
+    } else {
+      newExpanded.add(schemeId);
+    }
+    setExpandedSchemes(newExpanded);
+  };
+
   const handleViewDetails = (scheme: Scheme) => {
     setSchemeForDetails(scheme);
     setDetailsModalOpen(true);
@@ -184,6 +206,18 @@ export default function Schemes() {
     navigate(`/form-builder?schemeId=${scheme.id}&schemeName=${encodeURIComponent(scheme.name)}`);
   };
 
+  const handleConfigureTimeline = (scheme: Scheme) => {
+    // Open timeline configuration modal
+    setSelectedScheme(scheme);
+    setTimelineModalOpen(true);
+  };
+
+  const handleConfigureStages = (scheme: Scheme) => {
+    // Open stages configuration modal
+    setSelectedScheme(scheme);
+    setStagesModalOpen(true);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -192,11 +226,15 @@ export default function Schemes() {
           <h1 className="text-3xl font-bold">Schemes</h1>
           <p className="text-muted-foreground mt-1">Manage welfare schemes and programs</p>
         </div>
-        <Button onClick={handleCreateScheme} className="bg-gradient-primary shadow-glow">
-          <Plus className="mr-2 h-4 w-4" />
-          New Scheme
-        </Button>
+        {canCreateSchemes && (
+          <Button onClick={handleCreateScheme} className="bg-gradient-primary shadow-glow">
+            <Plus className="mr-2 h-4 w-4" />
+            New Scheme
+          </Button>
+        )}
       </div>
+
+
 
       {/* Content */}
       {loading ? (
@@ -221,182 +259,286 @@ export default function Schemes() {
         </Card>
       ) : (
         <div className="grid gap-6">
-          {schemeList.map((scheme) => (
-            <Card key={scheme.id} className="overflow-hidden hover:shadow-elegant transition-shadow">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl">{categoryIcons[scheme.category] || categoryIcons.other}</span>
-                      <div>
-                        <CardTitle className="text-xl">{scheme.name}</CardTitle>
-                        <p className="text-sm text-muted-foreground">{scheme.description}</p>
+          {schemeList.map((scheme) => {
+            const isExpanded = expandedSchemes.has(scheme.id);
+            return (
+              <Card key={scheme.id} className="overflow-hidden hover:shadow-elegant transition-shadow">
+                <Collapsible open={isExpanded} onOpenChange={() => toggleSchemeExpansion(scheme.id)}>
+                  <CollapsibleTrigger asChild>
+                    <CardHeader className="cursor-pointer hover:bg-muted/30 transition-colors">
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-2 flex-1">
+                          <div className="flex items-center gap-3">
+                            <span className="text-2xl">{categoryIcons[scheme.category] || categoryIcons.other}</span>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <CardTitle className="text-xl">{scheme.name}</CardTitle>
+                                {isExpanded ? (
+                                  <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                )}
+                              </div>
+                              <p className="text-sm text-muted-foreground">{scheme.description}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 mt-2">
+                            <Badge variant="outline" className="text-xs">
+                              {scheme.code}
+                            </Badge>
+                            <Badge variant="outline" className="text-xs capitalize">
+                              {scheme.category.replace('_', ' ')}
+                            </Badge>
+                            <Badge className={priorityColors[scheme.priority]} variant="outline">
+                              {scheme.priority}
+                            </Badge>
+                          </div>
+                          
+                          {/* Quick Stats - Always Visible */}
+                          <div className="grid gap-3 md:grid-cols-4 mt-3">
+                            <div className="flex items-center gap-2">
+                              <IndianRupee className="h-4 w-4 text-green-600" />
+                              <div>
+                                <p className="text-xs text-muted-foreground">Budget</p>
+                                <p className="text-sm font-medium">{formatCurrency(scheme.budget.total)}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Users className="h-4 w-4 text-blue-600" />
+                              <div>
+                                <p className="text-xs text-muted-foreground">Beneficiaries</p>
+                                <p className="text-sm font-medium">{scheme.statistics.totalBeneficiaries.toLocaleString()}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Target className="h-4 w-4 text-purple-600" />
+                              <div>
+                                <p className="text-xs text-muted-foreground">Applications</p>
+                                <p className="text-sm font-medium">{scheme.statistics.totalApplications}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Clock className="h-4 w-4 text-orange-600" />
+                              <div>
+                                <p className="text-xs text-muted-foreground">Days Left</p>
+                                <p className="text-sm font-medium">{scheme.daysRemainingForApplication}</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <Badge className={statusColors[scheme.status] || statusColors.draft}>
+                          {scheme.status.replace('_', ' ')}
+                        </Badge>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2 mt-2">
-                      <Badge variant="outline" className="text-xs">
-                        {scheme.code}
-                      </Badge>
-                      <Badge variant="outline" className="text-xs capitalize">
-                        {scheme.category.replace('_', ' ')}
-                      </Badge>
-                      <Badge className={priorityColors[scheme.priority]} variant="outline">
-                        {scheme.priority}
-                      </Badge>
-                    </div>
-                  </div>
-                  <Badge className={statusColors[scheme.status] || statusColors.draft}>
-                    {scheme.status.replace('_', ' ')}
-                  </Badge>
-                </div>
-              </CardHeader>
-              
-              <CardContent className="space-y-6">
-                {/* Key Metrics */}
-                <div className="grid gap-4 md:grid-cols-4">
-                  <div className="flex items-center gap-2">
-                    <DollarSign className="h-4 w-4 text-green-600" />
-                    <div>
-                      <p className="text-xs text-muted-foreground">Budget</p>
-                      <p className="text-sm font-medium">{formatCurrency(scheme.budget.total)}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4 text-blue-600" />
-                    <div>
-                      <p className="text-xs text-muted-foreground">Beneficiaries</p>
-                      <p className="text-sm font-medium">{scheme.statistics.totalBeneficiaries.toLocaleString()}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Target className="h-4 w-4 text-purple-600" />
-                    <div>
-                      <p className="text-xs text-muted-foreground">Applications</p>
-                      <p className="text-sm font-medium">{scheme.statistics.totalApplications}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-orange-600" />
-                    <div>
-                      <p className="text-xs text-muted-foreground">Days Left</p>
-                      <p className="text-sm font-medium">{scheme.daysRemainingForApplication}</p>
-                    </div>
-                  </div>
-                </div>
+                    </CardHeader>
+                  </CollapsibleTrigger>
+                  
+                  <CollapsibleContent>
+                    <CardContent className="space-y-6 pt-0">
+                      {/* Detailed Statistics */}
+                      <div className="grid gap-4 md:grid-cols-3">
+                        <div className="p-3 bg-blue-50 rounded-lg">
+                          <h4 className="font-medium text-blue-800 mb-2">Application Statistics</h4>
+                          <div className="space-y-1 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-blue-700">Total:</span>
+                              <span className="font-medium">{scheme.statistics.totalApplications}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-green-700">Approved:</span>
+                              <span className="font-medium">{scheme.statistics.approvedApplications}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-yellow-700">Pending:</span>
+                              <span className="font-medium">{scheme.statistics.pendingApplications}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-red-700">Rejected:</span>
+                              <span className="font-medium">{scheme.statistics.rejectedApplications}</span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="p-3 bg-green-50 rounded-lg">
+                          <h4 className="font-medium text-green-800 mb-2">Budget Details</h4>
+                          <div className="space-y-1 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-green-700">Total:</span>
+                              <span className="font-medium">{formatCurrency(scheme.budget.total)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-blue-700">Allocated:</span>
+                              <span className="font-medium">{formatCurrency(scheme.budget.allocated)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-orange-700">Spent:</span>
+                              <span className="font-medium">{formatCurrency(scheme.budget.spent)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-purple-700">Remaining:</span>
+                              <span className="font-medium">{formatCurrency(scheme.remainingBudget)}</span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="p-3 bg-purple-50 rounded-lg">
+                          <h4 className="font-medium text-purple-800 mb-2">Performance Metrics</h4>
+                          <div className="space-y-1 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-purple-700">Success Rate:</span>
+                              <span className="font-medium">{scheme.successRate}%</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-blue-700">Budget Utilization:</span>
+                              <span className="font-medium">{scheme.budgetUtilization}%</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-green-700">Total Beneficiaries:</span>
+                              <span className="font-medium">{scheme.statistics.totalBeneficiaries.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-orange-700">Amount Disbursed:</span>
+                              <span className="font-medium">{formatCurrency(scheme.statistics.totalAmountDisbursed)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
 
-                {/* Budget Utilization */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Budget Utilization</span>
-                    <span className="font-medium">{scheme.budgetUtilization}%</span>
-                  </div>
-                  <Progress value={scheme.budgetUtilization} className="h-2" />
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>Spent: {formatCurrency(scheme.budget.spent)}</span>
-                    <span>Remaining: {formatCurrency(scheme.remainingBudget)}</span>
-                  </div>
-                </div>
+                      {/* Progress Indicators */}
+                      <div className="grid gap-4 md:grid-cols-2">
+                        {/* Budget Utilization */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">Budget Utilization</span>
+                            <span className="font-medium">{scheme.budgetUtilization}%</span>
+                          </div>
+                          <Progress value={scheme.budgetUtilization} className="h-2" />
+                          <div className="flex justify-between text-xs text-muted-foreground">
+                            <span>Spent: {formatCurrency(scheme.budget.spent)}</span>
+                            <span>Remaining: {formatCurrency(scheme.remainingBudget)}</span>
+                          </div>
+                        </div>
 
-                {/* Application Success Rate */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Success Rate</span>
-                    <span className="font-medium">{scheme.successRate}%</span>
-                  </div>
-                  <Progress value={scheme.successRate} className="h-2" />
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>Approved: {scheme.statistics.approvedApplications}</span>
-                    <span>Pending: {scheme.statistics.pendingApplications}</span>
-                  </div>
-                </div>
+                        {/* Application Success Rate */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">Success Rate</span>
+                            <span className="font-medium">{scheme.successRate}%</span>
+                          </div>
+                          <Progress value={scheme.successRate} className="h-2" />
+                          <div className="flex justify-between text-xs text-muted-foreground">
+                            <span>Approved: {scheme.statistics.approvedApplications}</span>
+                            <span>Pending: {scheme.statistics.pendingApplications}</span>
+                          </div>
+                        </div>
+                      </div>
 
-                {/* Benefits & Eligibility */}
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="p-3 bg-green-50 rounded-lg">
-                    <h4 className="font-medium text-green-800 mb-1">Benefits</h4>
-                    <p className="text-sm text-green-700">
-                      {scheme.benefits.type === 'cash' && scheme.benefits.amount 
-                        ? `₹${scheme.benefits.amount.toLocaleString()} ${scheme.benefits.frequency.replace('_', ' ')}`
-                        : scheme.benefits.description
-                      }
-                    </p>
-                  </div>
-                  <div className="p-3 bg-blue-50 rounded-lg">
-                    <h4 className="font-medium text-blue-800 mb-1">Eligibility</h4>
-                    <p className="text-sm text-blue-700">
-                      {scheme.eligibility.ageRange?.min && scheme.eligibility.ageRange?.max
-                        ? `Age: ${scheme.eligibility.ageRange.min}-${scheme.eligibility.ageRange.max} years`
-                        : 'Age: Any'
-                      }
-                      {scheme.eligibility.incomeLimit && `, Income: ≤₹${scheme.eligibility.incomeLimit.toLocaleString()}`}
-                    </p>
-                  </div>
-                </div>
+                      {/* Benefits & Eligibility */}
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="p-3 bg-green-50 rounded-lg">
+                          <h4 className="font-medium text-green-800 mb-1">Benefits</h4>
+                          <p className="text-sm text-green-700">
+                            {scheme.benefits.type === 'cash' && scheme.benefits.amount 
+                              ? `₹${scheme.benefits.amount.toLocaleString()} ${scheme.benefits.frequency.replace('_', ' ')}`
+                              : scheme.benefits.description
+                            }
+                          </p>
+                        </div>
+                        <div className="p-3 bg-blue-50 rounded-lg">
+                          <h4 className="font-medium text-blue-800 mb-1">Eligibility</h4>
+                          <p className="text-sm text-blue-700">
+                            {scheme.eligibility.ageRange?.min && scheme.eligibility.ageRange?.max
+                              ? `Age: ${scheme.eligibility.ageRange.min}-${scheme.eligibility.ageRange.max} years`
+                              : 'Age: Any'
+                            }
+                            {scheme.eligibility.incomeLimit && `, Income: ≤₹${scheme.eligibility.incomeLimit.toLocaleString()}`}
+                          </p>
+                        </div>
+                      </div>
 
-                {/* Application Timeline */}
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-gray-600" />
-                    <div>
-                      <p className="text-sm font-medium">Application Period</p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatDate(scheme.applicationSettings.startDate)} - {formatDate(scheme.applicationSettings.endDate)}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium">Max Applications</p>
-                    <p className="text-xs text-muted-foreground">{scheme.applicationSettings.maxApplications}</p>
-                  </div>
-                </div>
+                      {/* Application Timeline */}
+                      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-gray-600" />
+                          <div>
+                            <p className="text-sm font-medium">Application Period</p>
+                            <p className="text-xs text-muted-foreground">
+                              {formatDate(scheme.applicationSettings.startDate)} - {formatDate(scheme.applicationSettings.endDate)}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-medium">Max Applications</p>
+                          <p className="text-xs text-muted-foreground">{scheme.applicationSettings.maxApplications}</p>
+                        </div>
+                      </div>
 
-                {/* Project & Coverage */}
-                <div className="flex items-center justify-between text-sm">
-                  <div>
-                    <span className="text-muted-foreground">Project: </span>
-                    <span className="font-medium">{scheme.project.name}</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Coverage: </span>
-                    <span className="font-medium">
-                      {scheme.targetRegions && scheme.targetRegions.length > 0 
-                        ? `${scheme.targetRegions.length} regions` 
-                        : "All regions"
-                      }
-                    </span>
-                  </div>
-                </div>
+                      {/* Project & Coverage */}
+                      <div className="flex items-center justify-between text-sm">
+                        <div>
+                          <span className="text-muted-foreground">Project: </span>
+                          <span className="font-medium">{scheme.project.name}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Coverage: </span>
+                          <span className="font-medium">
+                            {scheme.targetRegions && scheme.targetRegions.length > 0 
+                              ? `${scheme.targetRegions.length} regions` 
+                              : "All regions"
+                            }
+                          </span>
+                        </div>
+                      </div>
 
-                {/* Action Buttons */}
-                <div className="flex gap-2 pt-2 border-t">
-                  <Button variant="outline" size="sm" onClick={() => handleViewDetails(scheme)}>
-                    <Eye className="mr-1 h-3 w-3" />
-                    View Details
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => handleEditScheme(scheme)}>
-                    <Edit className="mr-1 h-3 w-3" />
-                    Edit
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => handleManageForm(scheme)}>
-                    <FileText className="mr-1 h-3 w-3" />
-                    Manage Form
-                  </Button>
-                  <Button variant="outline" size="sm">
-                    Applications
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                    onClick={() => handleDeleteScheme(scheme)}
-                  >
-                    <Trash2 className="mr-1 h-3 w-3" />
-                    Delete
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                      {/* Action Buttons */}
+                      <div className="flex flex-wrap gap-2 pt-2 border-t">
+                        <Button variant="outline" size="sm" onClick={() => handleViewDetails(scheme)}>
+                          <Eye className="mr-1 h-3 w-3" />
+                          View Details
+                        </Button>
+                        {canUpdateSchemes && (
+                          <Button variant="outline" size="sm" onClick={() => handleEditScheme(scheme)}>
+                            <Edit className="mr-1 h-3 w-3" />
+                            Edit
+                          </Button>
+                        )}
+                        {canManageSchemes && (
+                          <>
+                            <Button variant="outline" size="sm" onClick={() => handleManageForm(scheme)}>
+                              <FileText className="mr-1 h-3 w-3" />
+                              Manage Form
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => handleConfigureTimeline(scheme)}>
+                              <GitBranch className="mr-1 h-3 w-3" />
+                              Timeline
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => handleConfigureStages(scheme)}>
+                              <Settings className="mr-1 h-3 w-3" />
+                              Stages
+                            </Button>
+                          </>
+                        )}
+                        <Button variant="outline" size="sm" onClick={() => navigate(`/applications?scheme=${scheme.id}`)}>
+                          Applications
+                        </Button>
+                        {canManageSchemes && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                            onClick={() => handleDeleteScheme(scheme)}
+                          >
+                            <Trash2 className="mr-1 h-3 w-3" />
+                            Delete
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </CollapsibleContent>
+                </Collapsible>
+              </Card>
+            );
+          })}
         </div>
       )}
 
@@ -414,6 +556,22 @@ export default function Schemes() {
         open={detailsModalOpen}
         onOpenChange={setDetailsModalOpen}
         scheme={schemeForDetails}
+      />
+
+      {/* Timeline Configuration Modal */}
+      <TimelineConfigModal
+        open={timelineModalOpen}
+        onOpenChange={setTimelineModalOpen}
+        scheme={selectedScheme}
+        onSuccess={handleModalSuccess}
+      />
+
+      {/* Stages Configuration Modal */}
+      <StagesConfigModal
+        open={stagesModalOpen}
+        onOpenChange={setStagesModalOpen}
+        scheme={selectedScheme}
+        onSuccess={handleModalSuccess}
       />
 
       {/* Delete Confirmation Dialog */}

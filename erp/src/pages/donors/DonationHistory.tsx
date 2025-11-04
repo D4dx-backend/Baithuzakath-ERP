@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { History, Calendar, DollarSign, Filter, Download } from "lucide-react";
+import { History, Calendar, IndianRupee, Filter, Download } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { useDonations } from "@/hooks/useDonations";
+import { useDonationHistory } from "@/hooks/useDonations";
 
 export default function DonationHistory() {
   const [filters, setFilters] = useState({
@@ -18,8 +18,8 @@ export default function DonationHistory() {
     limit: 10,
   });
 
-  // Use proper donations hook
-  const { data: donationHistory, isLoading } = useDonations(filters);
+  // Use donation history hook for paginated data
+  const { data: donationHistory, isLoading } = useDonationHistory(filters);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -146,14 +146,14 @@ export default function DonationHistory() {
             <div className="text-center py-8">
               <p className="text-muted-foreground">Loading donation history...</p>
             </div>
-          ) : donationHistory?.data?.items?.length || donationHistory?.items?.length ? (
+          ) : donationHistory?.donations?.length ? (
             <div className="space-y-4">
-              {(donationHistory?.data?.items || donationHistory?.items || []).map((donation) => (
+              {(donationHistory?.donations || []).map((donation) => (
                 <div key={donation.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-r from-green-500 to-blue-600 text-white rounded-full">
-                        <DollarSign className="h-5 w-5" />
+                        <IndianRupee className="h-5 w-5" />
                       </div>
                       <div>
                         <h4 className="font-medium">
@@ -166,6 +166,7 @@ export default function DonationHistory() {
                           </span>
                           <span>Method: {donation.method}</span>
                           <span>Purpose: {donation.purpose}</span>
+                          {donation.donationNumber && <span>#{donation.donationNumber}</span>}
                         </div>
                       </div>
                     </div>
@@ -183,8 +184,45 @@ export default function DonationHistory() {
                       Receipt: {donation.receiptNumber}
                     </div>
                   )}
+                  {donation.notes && (
+                    <div className="mt-2 text-sm text-muted-foreground">
+                      Notes: {donation.notes}
+                    </div>
+                  )}
                 </div>
               ))}
+              
+              {/* Pagination */}
+              {donationHistory?.pagination && donationHistory.pagination.pages > 1 && (
+                <div className="flex items-center justify-between pt-4">
+                  <p className="text-sm text-muted-foreground">
+                    Showing {((donationHistory.pagination.current - 1) * donationHistory.pagination.limit) + 1} to{' '}
+                    {Math.min(donationHistory.pagination.current * donationHistory.pagination.limit, donationHistory.pagination.total)} of{' '}
+                    {donationHistory.pagination.total} donations
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setFilters(prev => ({ ...prev, page: Math.max(1, prev.page - 1) }))}
+                      disabled={donationHistory.pagination.current <= 1}
+                    >
+                      Previous
+                    </Button>
+                    <span className="text-sm">
+                      Page {donationHistory.pagination.current} of {donationHistory.pagination.pages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setFilters(prev => ({ ...prev, page: prev.page + 1 }))}
+                      disabled={donationHistory.pagination.current >= donationHistory.pagination.pages}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="text-center py-8">

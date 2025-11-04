@@ -2,11 +2,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { CheckCircle, XCircle, User, MapPin, Calendar, DollarSign, FileText, Phone, Mail, Download, Plus, Trash2, Clock } from "lucide-react";
+import { CheckCircle, XCircle, User, MapPin, Calendar, IndianRupee, FileText, Phone, Mail, Download, Plus, Trash2, Clock, AlertCircle } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 // Previous applications will be passed as prop or fetched from API
 
@@ -14,8 +14,8 @@ interface ApplicationViewModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   application: any;
-  mode?: "view" | "approve" | "reject";
-  onApprove?: (id: string, remarks: string) => void;
+  mode?: "view" | "approve" | "reject" | "edit";
+  onApprove?: (id: string, remarks: string, distributionTimeline?: any[]) => void;
   onReject?: (id: string, remarks: string) => void;
   previousApplications?: any[];
 }
@@ -37,6 +37,48 @@ export function ApplicationViewModal({
     { id: 1, phase: "First Installment", percentage: 40, date: "" },
   ]);
 
+  // Helper function to calculate date based on days from approval
+  const calculateDate = (daysFromApproval: number) => {
+    const today = new Date();
+    const futureDate = new Date(today);
+    futureDate.setDate(today.getDate() + daysFromApproval);
+    return futureDate.toISOString().split('T')[0];
+  };
+
+  // Load distribution timeline from application or scheme defaults
+  useEffect(() => {
+    if (application) {
+      // If application already has a distribution timeline, use it
+      if (application.distributionTimeline && application.distributionTimeline.length > 0) {
+        const existingTimeline = application.distributionTimeline.map((item: any, index: number) => ({
+          id: index + 1,
+          phase: item.description || item.phase || `Phase ${index + 1}`,
+          percentage: item.percentage || 0,
+          date: item.expectedDate ? new Date(item.expectedDate).toISOString().split('T')[0] : ""
+        }));
+        setDistributionTimeline(existingTimeline);
+      } 
+      // Otherwise, load default phases from the scheme with calculated dates
+      else if (application.scheme?.distributionTimeline && application.scheme.distributionTimeline.length > 0) {
+        const schemeDefaults = application.scheme.distributionTimeline.map((item: any, index: number) => ({
+          id: index + 1,
+          phase: item.description || `Phase ${index + 1}`,
+          percentage: item.percentage || 0,
+          date: calculateDate(item.daysFromApproval || 0) // Calculate date based on daysFromApproval
+        }));
+        setDistributionTimeline(schemeDefaults);
+      }
+      // Fallback to basic default if no scheme timeline exists
+      else {
+        setDistributionTimeline([
+          { id: 1, phase: "First Installment", percentage: 50, date: calculateDate(7) },
+          { id: 2, phase: "Second Installment", percentage: 30, date: calculateDate(60) },
+          { id: 3, phase: "Final Installment", percentage: 20, date: calculateDate(120) }
+        ]);
+      }
+    }
+  }, [application]);
+
   const addDistributionPhase = () => {
     setDistributionTimeline([
       ...distributionTimeline,
@@ -44,9 +86,21 @@ export function ApplicationViewModal({
         id: distributionTimeline.length + 1, 
         phase: `Installment ${distributionTimeline.length + 1}`, 
         percentage: 0, 
-        date: "" 
+        date: calculateDate(30) // Default to 30 days from today for new phases
       },
     ]);
+  };
+
+  const loadSchemeDefaults = () => {
+    if (application?.scheme?.distributionTimeline && application.scheme.distributionTimeline.length > 0) {
+      const schemeDefaults = application.scheme.distributionTimeline.map((item: any, index: number) => ({
+        id: index + 1,
+        phase: item.description || `Phase ${index + 1}`,
+        percentage: item.percentage || 0,
+        date: calculateDate(item.daysFromApproval || 0) // Calculate dates when loading defaults
+      }));
+      setDistributionTimeline(schemeDefaults);
+    }
   };
 
   const removeDistributionPhase = (id: number) => {
@@ -92,11 +146,35 @@ Status: ${application?.status || 'N/A'}
     window.URL.revokeObjectURL(url);
   };
 
-  if (!application) return null;
+  if (!application) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Loading Application Details...</DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Loading application details...</p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   const handleApprove = () => {
     if (onApprove) {
-      onApprove(application?._id || '', remarks);
+      // Convert distribution timeline to the format expected by the backend
+      const timelineData = distributionTimeline.map(phase => ({
+        description: phase.phase,
+        percentage: phase.percentage,
+        amount: Math.round((application?.requestedAmount || 0) * (phase.percentage / 100)),
+        expectedDate: phase.date
+      }));
+      
+      onApprove(application?._id || '', remarks, timelineData);
       setRemarks("");
       setShowAction(null);
       onOpenChange(false);
@@ -119,7 +197,6 @@ Status: ${application?.status || 'N/A'}
     rejected: { color: "bg-destructive/10 text-destructive border-destructive/20", label: "Rejected" },
     completed: { color: "bg-success/10 text-success border-success/20", label: "Completed" },
     review: { color: "bg-info/10 text-info border-info/20", label: "In Review" },
-    rejected: { color: "bg-destructive/10 text-destructive border-destructive/20", label: "Rejected" },
   };
 
   return (
@@ -128,7 +205,9 @@ Status: ${application?.status || 'N/A'}
         <DialogHeader>
           <div className="flex items-center justify-between">
             <DialogTitle>
-              {showAction === "approve" ? "Approve Application" : showAction === "reject" ? "Reject Application" : "Application Details"}
+              {showAction === "approve" ? (mode === "edit" ? "Change to Approved" : "Approve Application") : 
+               showAction === "reject" ? (mode === "edit" ? "Change to Rejected" : "Reject Application") : 
+               mode === "edit" ? "Edit Interview Decision" : "Application Details"}
             </DialogTitle>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={handleDownload}>
@@ -249,7 +328,7 @@ Status: ${application?.status || 'N/A'}
                 </div>
               </div>
               <div className="flex items-start gap-3">
-                <DollarSign className="h-5 w-5 text-muted-foreground mt-0.5" />
+                <IndianRupee className="h-5 w-5 text-muted-foreground mt-0.5" />
                 <div>
                   <p className="text-sm text-muted-foreground">Requested Amount</p>
                   <p className="font-medium text-lg">₹{application?.requestedAmount?.toLocaleString('en-IN') || '0'}</p>
@@ -264,7 +343,7 @@ Status: ${application?.status || 'N/A'}
               </div>
               {application?.approvedAmount && (
                 <div className="flex items-start gap-3">
-                  <DollarSign className="h-5 w-5 text-muted-foreground mt-0.5" />
+                  <IndianRupee className="h-5 w-5 text-muted-foreground mt-0.5" />
                   <div>
                     <p className="text-sm text-muted-foreground">Approved Amount</p>
                     <p className="font-medium text-lg text-success">₹{application.approvedAmount.toLocaleString('en-IN')}</p>
@@ -308,11 +387,25 @@ Status: ${application?.status || 'N/A'}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <Label className="text-base font-semibold">Money Distribution Timeline</Label>
-                  <Button variant="outline" size="sm" onClick={addDistributionPhase}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Phase
-                  </Button>
+                  <div className="flex gap-2">
+                    {application?.scheme?.distributionTimeline && application.scheme.distributionTimeline.length > 0 && (
+                      <Button variant="outline" size="sm" onClick={loadSchemeDefaults}>
+                        <Calendar className="h-4 w-4 mr-2" />
+                        Load Defaults
+                      </Button>
+                    )}
+                    <Button variant="outline" size="sm" onClick={addDistributionPhase}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Phase
+                    </Button>
+                  </div>
                 </div>
+                {application?.scheme?.distributionTimeline && application.scheme.distributionTimeline.length > 0 && (
+                  <div className="text-sm text-muted-foreground bg-blue-50 p-2 rounded border">
+                    <Clock className="h-4 w-4 inline mr-1" />
+                    Default phases from scheme "{application.scheme.name}" are loaded. You can modify them as needed.
+                  </div>
+                )}
                 <div className="space-y-3">
                   {distributionTimeline.map((phase, index) => (
                     <div key={phase.id} className="grid grid-cols-12 gap-2 items-start">
@@ -459,17 +552,28 @@ Status: ${application?.status || 'N/A'}
             </>
           )}
 
-          {/* Action Buttons - Only show in view mode */}
-          {application?.status === "pending" && !showAction && mode === "view" && (
+          {/* Action Buttons - Show in view mode or edit mode */}
+          {((application?.status === "pending" && mode === "view") || mode === "edit") && !showAction && (
             <>
               <Separator />
+              {mode === "edit" && (
+                <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <div className="flex items-center gap-2 text-amber-800">
+                    <AlertCircle className="h-4 w-4" />
+                    <span className="text-sm font-medium">Editing Completed Interview</span>
+                  </div>
+                  <p className="text-xs text-amber-700 mt-1">
+                    You can modify the decision and update the Money Distribution Timeline if needed.
+                  </p>
+                </div>
+              )}
               <div className="flex gap-3">
                 <Button 
                   className="flex-1 bg-success hover:bg-success/90"
                   onClick={() => setShowAction("approve")}
                 >
                   <CheckCircle className="mr-2 h-4 w-4" />
-                  Approve Application
+                  {mode === "edit" ? "Change to Approved" : "Approve Application"}
                 </Button>
                 <Button 
                   className="flex-1"
@@ -477,7 +581,7 @@ Status: ${application?.status || 'N/A'}
                   onClick={() => setShowAction("reject")}
                 >
                   <XCircle className="mr-2 h-4 w-4" />
-                  Reject Application
+                  {mode === "edit" ? "Change to Rejected" : "Reject Application"}
                 </Button>
               </div>
             </>
@@ -501,7 +605,7 @@ Status: ${application?.status || 'N/A'}
                 disabled={!remarks.trim()}
               >
                 {showAction === "approve" ? <CheckCircle className="mr-2 h-4 w-4" /> : <XCircle className="mr-2 h-4 w-4" />}
-                Confirm {showAction === "approve" ? "Approval" : "Rejection"}
+                {mode === "edit" ? "Update Decision" : `Confirm ${showAction === "approve" ? "Approval" : "Rejection"}`}
               </Button>
             </>
           ) : (

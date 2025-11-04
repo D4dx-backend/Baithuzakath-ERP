@@ -1,9 +1,13 @@
+// Load environment variables first
+require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
+const { activityLogger } = require('./middleware/activityLogger');
 
 const connectDB = require('./config/database');
 const config = require('./config/environment');
@@ -46,6 +50,12 @@ if (config.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
+// Activity logging middleware for all routes
+app.use(activityLogger({
+  skipEndpoints: ['/api/activity-logs'],
+  includeResponseData: false
+}));
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({
@@ -71,11 +81,15 @@ const applicationRoutes = require('./routes/applicationRoutes');
 const formConfigurationRoutes = require('./routes/formConfigurationRoutes');
 const budgetRoutes = require('./routes/budgetRoutes');
 const donorRoutes = require('./routes/donorRoutes');
+const donationRoutes = require('./routes/donationRoutes');
 const interviewRoutes = require('./routes/interviewRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const rbacRoutes = require('./routes/rbacRoutes');
+const activityLogRoutes = require('./routes/activityLogs');
+const masterDataRoutes = require('./routes/masterDataRoutes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -88,11 +102,15 @@ app.use('/api/beneficiary', beneficiaryApiRoutes); // New beneficiary-specific A
 app.use('/api/applications', applicationRoutes);
 app.use('/api/budget', budgetRoutes);
 app.use('/api/donors', donorRoutes);
+app.use('/api/donations', donationRoutes);
 app.use('/api/interviews', interviewRoutes);
+app.use('/api/payments', paymentRoutes);
 app.use('/api/reports', reportRoutes);
 
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/rbac', rbacRoutes);
+app.use('/api/activity-logs', activityLogRoutes);
+app.use('/api/master-data', masterDataRoutes);
 app.use('/api', formConfigurationRoutes);
 
 // 404 handler
@@ -110,6 +128,8 @@ const PORT = config.PORT;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT} in ${config.NODE_ENV} mode`);
   console.log(`📊 Health check: http://localhost:${PORT}/health`);
+  console.log(`🔑 JWT Secret loaded: ${config.JWT_SECRET ? 'YES' : 'NO'}`);
+  console.log(`🔑 JWT Secret (first 10 chars): ${config.JWT_SECRET ? config.JWT_SECRET.substring(0, 10) + '...' : 'NOT SET'}`);
 });
 
 module.exports = app;

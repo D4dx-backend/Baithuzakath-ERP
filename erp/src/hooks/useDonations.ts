@@ -27,11 +27,19 @@ export const useDonationStats = () => {
   });
 };
 
-export const useRecentDonations = (limit: number = 10) => {
+export const useRecentDonations = (limit: number = 20) => {
   return useQuery({
-    queryKey: ['donations', 'recent', limit],
+    queryKey: ['donors', 'recent-donations', limit],
     queryFn: () => donationService.getRecent(limit),
     staleTime: 2 * 60 * 1000, // 2 minutes
+  });
+};
+
+export const useDonationHistory = (filters?: DonationFilters) => {
+  return useQuery({
+    queryKey: ['donors', 'donation-history', filters],
+    queryFn: () => donationService.getHistory(filters),
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 };
 

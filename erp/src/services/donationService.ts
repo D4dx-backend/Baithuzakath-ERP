@@ -49,7 +49,7 @@ export interface DonationFilters {
 class DonationService {
   // Donation CRUD Operations
   async getAll(filters?: DonationFilters): Promise<PaginatedResponse<Donation>> {
-    const response = await donations.getAll(filters);
+    const response = await donations.getHistory(filters);
     return response.data || response;
   }
 
@@ -117,11 +117,17 @@ class DonationService {
     return response.data;
   }
 
-  async getRecent(limit: number = 10): Promise<ApiResponse<{
+  async getRecent(limit: number = 20): Promise<ApiResponse<{
     donations: Donation[];
+    summary: any;
   }>> {
     const response = await donations.getRecent(limit);
     return response.data;
+  }
+
+  async getHistory(filters?: DonationFilters): Promise<PaginatedResponse<Donation>> {
+    const response = await donations.getHistory(filters);
+    return response.data || response;
   }
 
   async getByDonor(donorId: string, filters?: DonationFilters): Promise<PaginatedResponse<Donation>> {

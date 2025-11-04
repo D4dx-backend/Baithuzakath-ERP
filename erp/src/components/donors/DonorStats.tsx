@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { 
   Users, 
-  DollarSign, 
+  IndianRupee, 
   TrendingUp, 
   Award,
   UserPlus,
@@ -122,7 +122,7 @@ export const DonorStats: React.FC = () => {
         <StatsCard
           title="Total Donations"
           value={formatCurrency(stats.overview.totalDonationsAmount)}
-          icon={DollarSign}
+          icon={IndianRupee}
           trend={{ value: 12, isPositive: true }}
           description={`${stats.overview.totalDonationsCount} donations`}
         />

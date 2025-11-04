@@ -52,7 +52,7 @@ router.use(authenticate);
  *         description: Access denied
  */
 router.get('/', 
-  authorize('state_admin', 'district_admin'),
+  authorize('super_admin', 'state_admin', 'district_admin'),
   formConfigurationController.getAllFormConfigurations
 );
 
@@ -96,7 +96,7 @@ router.get('/',
  *         description: Access denied
  */
 router.patch('/schemes/:schemeId/form-config/publish', 
-  authorize('state_admin', 'district_admin', 'project_coordinator'),
+  authorize('super_admin', 'state_admin', 'district_admin', 'project_coordinator'),
   formConfigurationController.togglePublishStatus
 );
 
@@ -125,7 +125,10 @@ router.patch('/schemes/:schemeId/form-config/publish',
  *       403:
  *         description: Access denied
  */
-router.get('/schemes/:schemeId/form-config/analytics', formConfigurationController.getFormAnalytics);
+router.get('/schemes/:schemeId/form-config/analytics', 
+  authorize('super_admin', 'state_admin', 'district_admin', 'project_coordinator', 'scheme_coordinator'),
+  formConfigurationController.getFormAnalytics
+);
 
 /**
  * @swagger
@@ -166,7 +169,7 @@ router.get('/schemes/:schemeId/form-config/analytics', formConfigurationControll
  *         description: Access denied
  */
 router.post('/schemes/:schemeId/form-config/duplicate', 
-  authorize('state_admin', 'district_admin', 'project_coordinator'),
+  authorize('super_admin', 'state_admin', 'district_admin', 'project_coordinator'),
   formConfigurationController.duplicateFormConfiguration
 );
 

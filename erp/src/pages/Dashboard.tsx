@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
-import { Users, FolderKanban, FileCheck, DollarSign, TrendingUp, TrendingDown, Loader2, AlertCircle, LayoutDashboard } from "lucide-react";
+import { Users, FolderKanban, FileCheck, IndianRupee, TrendingUp, TrendingDown, Loader2, AlertCircle, LayoutDashboard } from "lucide-react";
 import { StatsCard } from "@/components/ui/stats-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { dashboard } from "@/lib/api";
+import { dashboard, budgetApi, donationsApi } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
 import { useRBAC } from "@/hooks/useRBAC";
 
@@ -20,6 +20,9 @@ export default function Dashboard() {
   const { user } = useRBAC();
   const [overview, setOverview] = useState<any>(null);
   const [recentApplications, setRecentApplications] = useState<any[]>([]);
+  const [budgetOverview, setBudgetOverview] = useState<any>(null);
+  const [donationStats, setDonationStats] = useState<any>(null);
+  const [projectPerformance, setProjectPerformance] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -35,13 +38,19 @@ export default function Dashboard() {
       setLoading(true);
       setError(null);
 
-      const [overviewRes, applicationsRes] = await Promise.all([
+      const [overviewRes, applicationsRes, budgetRes, donationRes, projectRes] = await Promise.all([
         dashboard.getOverview(),
-        dashboard.getRecentApplications(5)
+        dashboard.getRecentApplications(5),
+        budgetApi.getOverview(),
+        donationsApi.getStats(),
+        budgetApi.getProjects()
       ]);
 
       if (overviewRes.success) setOverview(overviewRes.data.overview);
       if (applicationsRes.success) setRecentApplications(applicationsRes.data.applications);
+      if (budgetRes.success) setBudgetOverview(budgetRes.data.overview);
+      if (donationRes.success) setDonationStats(donationRes.data.stats);
+      if (projectRes.success) setProjectPerformance(projectRes.data.projects.slice(0, 3));
 
     } catch (err: any) {
       setError(err.message || 'Failed to load dashboard data');
@@ -107,7 +116,7 @@ export default function Dashboard() {
         <StatsCard
           title="Budget Utilization"
           value={formatCurrency(overview?.totalSpent || 0)}
-          icon={DollarSign}
+          icon={IndianRupee}
           trend={{ value: overview?.totalBudget > 0 ? Math.round((overview.totalSpent / overview.totalBudget) * 100) : 0, isPositive: false }}
         />
       </div>
@@ -143,14 +152,14 @@ export default function Dashboard() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Monthly Collection Summary</CardTitle>
+            <CardTitle>Financial Summary</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Total Collections</p>
-                  <p className="text-2xl font-bold">₹12,45,000</p>
+                  <p className="text-sm text-muted-foreground">Total Budget</p>
+                  <p className="text-2xl font-bold">{formatCurrency(budgetOverview?.totalBudget || 0)}</p>
                 </div>
                 <div className="rounded-full bg-gradient-secondary p-3">
                   <TrendingUp className="h-6 w-6 text-secondary-foreground" />
@@ -159,20 +168,24 @@ export default function Dashboard() {
               
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Online Donations</span>
-                  <span className="font-medium">₹8,50,000</span>
+                  <span className="text-muted-foreground">Total Allocated</span>
+                  <span className="font-medium">{formatCurrency(budgetOverview?.totalAllocated || 0)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Offline Collections</span>
-                  <span className="font-medium">₹3,95,000</span>
+                  <span className="text-muted-foreground">Total Disbursed</span>
+                  <span className="font-medium">{formatCurrency(budgetOverview?.totalDisbursed || 0)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Pending Payments</span>
+                  <span className="font-medium text-warning">{formatCurrency(budgetOverview?.totalPending || 0)}</span>
                 </div>
                 <div className="flex justify-between text-sm border-t pt-2">
-                  <span className="text-muted-foreground">Total Expenses</span>
-                  <span className="font-medium text-destructive">₹6,20,000</span>
+                  <span className="text-muted-foreground">Total Donations</span>
+                  <span className="font-medium text-success">{formatCurrency(donationStats?.overall?.totalAmount || 0)}</span>
                 </div>
                 <div className="flex justify-between text-sm font-bold border-t pt-2">
                   <span>Available Balance</span>
-                  <span className="text-success">₹6,25,000</span>
+                  <span className="text-success">{formatCurrency(budgetOverview?.availableBalance || 0)}</span>
                 </div>
               </div>
             </div>
@@ -182,30 +195,35 @@ export default function Dashboard() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Active Schemes by Project</CardTitle>
+          <CardTitle>Top Projects by Budget</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-3">
-            {[
-              { project: "Education Support", schemes: 8, applications: 245 },
-              { project: "Healthcare Initiative", schemes: 5, applications: 189 },
-              { project: "Housing Program", schemes: 6, applications: 156 },
-            ].map((item) => (
+            {projectPerformance.map((project) => (
               <div
-                key={item.project}
+                key={project.id}
                 className="rounded-lg border bg-muted/50 p-4 space-y-2 hover:shadow-elegant transition-shadow"
               >
-                <h4 className="font-semibold">{item.project}</h4>
+                <h4 className="font-semibold">{project.name}</h4>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Active Schemes</span>
-                  <span className="font-medium">{item.schemes}</span>
+                  <span className="text-muted-foreground">Total Budget</span>
+                  <span className="font-medium">{formatCurrency(project.totalBudget)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Utilization</span>
+                  <span className="font-medium">{project.utilizationRate?.toFixed(1) || 0}%</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Applications</span>
-                  <span className="font-medium">{item.applications}</span>
+                  <span className="font-medium">{project.applicationsCount || 0}</span>
                 </div>
               </div>
             ))}
+            {projectPerformance.length === 0 && (
+              <div className="col-span-3 text-center text-muted-foreground py-8">
+                No project data available
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

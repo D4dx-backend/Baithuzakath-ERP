@@ -13,7 +13,9 @@ const Payment = require('./Payment');
 const Dashboard = require('./Dashboard');
 const FormConfiguration = require('./FormConfiguration');
 const Donor = require('./Donor');
-
+const Donation = require('./Donation');
+const ActivityLog = require('./ActivityLog');
+const MasterData = require('./MasterData');
 
 // RBAC Models
 const Role = require('./Role');
@@ -35,6 +37,9 @@ module.exports = {
   Dashboard,
   FormConfiguration,
   Donor,
+  Donation,
+  ActivityLog,
+  MasterData,
 
   Role,
   Permission,

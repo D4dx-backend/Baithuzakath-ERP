@@ -2,6 +2,7 @@ const Application = require('../models/Application');
 const Beneficiary = require('../models/Beneficiary');
 const Scheme = require('../models/Scheme');
 const Project = require('../models/Project');
+const MasterData = require('../models/MasterData');
 const { validationResult } = require('express-validator');
 
 // Get all applications with pagination and search
@@ -56,10 +57,10 @@ const getApplications = async (req, res) => {
     const userRegionalFilter = getUserRegionalFilter(req.user);
     console.log('🔍 User regional filter:', userRegionalFilter);
     
-    // Temporarily disable regional filtering for debugging
-    // Object.assign(filter, userRegionalFilter);
+    // Apply regional filtering (super_admin and state_admin have no restrictions)
+    Object.assign(filter, userRegionalFilter);
     
-    console.log('🔍 Final filter (without regional restrictions):', filter);
+    console.log('🔍 Final filter:', filter);
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
     
@@ -69,7 +70,7 @@ const getApplications = async (req, res) => {
     
     const applications = await Application.find(filter)
       .populate('beneficiary', 'name phone')
-      .populate('scheme', 'name code maxAmount')
+      .populate('scheme', 'name code maxAmount distributionTimeline')
       .populate('project', 'name code')
       .populate('state', 'name code')
       .populate('district', 'name code')
@@ -112,7 +113,7 @@ const getApplication = async (req, res) => {
   try {
     const application = await Application.findById(req.params.id)
       .populate('beneficiary')
-      .populate('scheme')
+      .populate('scheme', 'name code maxAmount distributionTimeline')
       .populate('project')
       .populate('state', 'name code')
       .populate('district', 'name code')
@@ -123,18 +124,35 @@ const getApplication = async (req, res) => {
       .populate('approvedBy', 'name');
 
     if (!application) {
-      return res.status(404).json({ message: 'Application not found' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'Application not found',
+        timestamp: new Date().toISOString()
+      });
     }
 
     // Check if user has access to this application
     if (!hasAccessToApplication(req.user, application)) {
-      return res.status(403).json({ message: 'Access denied' });
+      return res.status(403).json({ 
+        success: false,
+        message: 'Access denied',
+        timestamp: new Date().toISOString()
+      });
     }
 
-    res.json(application);
+    res.json({
+      success: true,
+      message: 'Application retrieved successfully',
+      data: application,
+      timestamp: new Date().toISOString()
+    });
   } catch (error) {
     console.error('Error fetching application:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error',
+      timestamp: new Date().toISOString()
+    });
   }
 };
 
@@ -190,12 +208,21 @@ const createApplication = async (req, res) => {
       return res.status(403).json({ message: 'Access denied for this beneficiary' });
     }
 
+    // Generate distribution timeline based on scheme configuration
+    const distributionTimeline = await generateDistributionTimeline(schemeDoc, requestedAmount);
+
+    // Initialize application with scheme-based workflow stages
+    const applicationStages = getApplicationStagesFromScheme(schemeDoc);
+
     const application = new Application({
       beneficiary,
       scheme,
       project,
       requestedAmount,
       documents: documents || [],
+      distributionTimeline,
+      applicationStages, // Add the workflow stages
+      currentStage: applicationStages.length > 0 ? applicationStages[0].name : 'Application Received',
       state: beneficiaryDoc.state,
       district: beneficiaryDoc.district,
       area: beneficiaryDoc.area,
@@ -211,7 +238,7 @@ const createApplication = async (req, res) => {
 
     const populatedApplication = await Application.findById(application._id)
       .populate('beneficiary', 'name phone')
-      .populate('scheme', 'name code')
+      .populate('scheme', 'name code distributionTimeline')
       .populate('project', 'name code')
       .populate('createdBy', 'name');
 
@@ -270,7 +297,7 @@ const updateApplication = async (req, res) => {
 
     const updatedApplication = await Application.findById(application._id)
       .populate('beneficiary', 'name phone')
-      .populate('scheme', 'name code')
+      .populate('scheme', 'name code distributionTimeline')
       .populate('project', 'name code')
       .populate('createdBy', 'name')
       .populate('updatedBy', 'name');
@@ -318,7 +345,7 @@ const reviewApplication = async (req, res) => {
 
     const reviewedApplication = await Application.findById(application._id)
       .populate('beneficiary', 'name phone')
-      .populate('scheme', 'name code')
+      .populate('scheme', 'name code distributionTimeline')
       .populate('project', 'name code')
       .populate('reviewedBy', 'name');
 
@@ -365,11 +392,14 @@ const approveApplication = async (req, res) => {
     application.approvalComments = comments;
     application.updatedBy = req.user.id;
 
+    // Update distribution timeline with actual approved amount and dates
+    await updateDistributionTimelineOnApproval(application, approvedAmount);
+
     await application.save();
 
     const approvedApplication = await Application.findById(application._id)
       .populate('beneficiary', 'name phone')
-      .populate('scheme', 'name code')
+      .populate('scheme', 'name code distributionTimeline')
       .populate('project', 'name code')
       .populate('approvedBy', 'name');
 
@@ -423,9 +453,9 @@ const getUserRegionalFilter = (user) => {
   
   const filter = {};
   
-  // Super admin has access to all applications
-  if (user.role === 'super_admin') {
-    console.log('🔍 Super admin - no restrictions');
+  // Super admin and state admin have access to all applications
+  if (user.role === 'super_admin' || user.role === 'state_admin') {
+    console.log(`🔍 ${user.role} - no restrictions`);
     return filter; // No restrictions
   }
   
@@ -434,11 +464,7 @@ const getUserRegionalFilter = (user) => {
     const regions = user.adminScope.regions;
     console.log('🔍 User has regions:', regions);
     
-    if (user.role === 'state_admin') {
-      // State admin can see applications from their state
-      filter.state = { $in: regions };
-      console.log('🔍 State admin filter applied:', filter);
-    } else if (user.role === 'district_admin') {
+    if (user.role === 'district_admin') {
       // District admin can see applications from their district
       filter.district = { $in: regions };
       console.log('🔍 District admin filter applied:', filter);
@@ -459,15 +485,13 @@ const getUserRegionalFilter = (user) => {
 };
 
 const hasAccessToApplication = (user, application) => {
-  if (user.role === 'super_admin') return true;
+  if (user.role === 'super_admin' || user.role === 'state_admin') return true;
   
   // Check if user has access based on their adminScope.regions
   if (user.adminScope?.regions && user.adminScope.regions.length > 0) {
     const userRegions = user.adminScope.regions.map(r => r.toString());
     
-    if (user.role === 'state_admin') {
-      return userRegions.includes(application.state?.toString());
-    } else if (user.role === 'district_admin') {
+    if (user.role === 'district_admin') {
       return userRegions.includes(application.district?.toString());
     } else if (user.role === 'area_admin') {
       return userRegions.includes(application.area?.toString());
@@ -512,6 +536,325 @@ const isValidStatusTransition = (currentStatus, newStatus) => {
   return validTransitions[currentStatus]?.includes(newStatus) || false;
 };
 
+// Get application stages from scheme configuration
+const getApplicationStagesFromScheme = (scheme) => {
+  try {
+    let stages = [];
+
+    // Use scheme's custom stages if available
+    if (scheme.statusStages && scheme.statusStages.length > 0) {
+      stages = [...scheme.statusStages];
+    } else {
+      // Use default application stages
+      stages = [
+        {
+          name: "Application Received",
+          description: "Initial application submission and registration",
+          order: 1,
+          isRequired: true,
+          allowedRoles: ['super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'],
+          autoTransition: true,
+          transitionConditions: "Automatically set when application is submitted"
+        },
+        {
+          name: "Document Verification",
+          description: "Verification of submitted documents and eligibility",
+          order: 2,
+          isRequired: true,
+          allowedRoles: ['super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'],
+          autoTransition: false,
+          transitionConditions: ""
+        },
+        {
+          name: "Field Verification",
+          description: "Physical verification and field assessment",
+          order: 3,
+          isRequired: false,
+          allowedRoles: ['super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'],
+          autoTransition: false,
+          transitionConditions: ""
+        },
+        {
+          name: "Interview Process",
+          description: "Beneficiary interview and assessment",
+          order: 4,
+          isRequired: scheme.applicationSettings?.requiresInterview || false,
+          allowedRoles: ['super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin', 'scheme_coordinator'],
+          autoTransition: false,
+          transitionConditions: ""
+        },
+        {
+          name: "Final Review",
+          description: "Final review and decision making",
+          order: 5,
+          isRequired: true,
+          allowedRoles: ['super_admin', 'state_admin', 'district_admin', 'area_admin'],
+          autoTransition: false,
+          transitionConditions: ""
+        },
+        {
+          name: "Approved",
+          description: "Application approved for disbursement",
+          order: 6,
+          isRequired: true,
+          allowedRoles: ['super_admin', 'state_admin', 'district_admin', 'area_admin'],
+          autoTransition: false,
+          transitionConditions: ""
+        },
+        {
+          name: "Disbursement",
+          description: "Money disbursement to beneficiary",
+          order: 7,
+          isRequired: true,
+          allowedRoles: ['super_admin', 'state_admin', 'district_admin', 'area_admin'],
+          autoTransition: false,
+          transitionConditions: ""
+        },
+        {
+          name: "Completed",
+          description: "Application process completed successfully",
+          order: 8,
+          isRequired: true,
+          allowedRoles: ['super_admin', 'state_admin', 'district_admin', 'area_admin'],
+          autoTransition: true,
+          transitionConditions: "Automatically set when all disbursements are complete"
+        }
+      ];
+    }
+
+    // Modify stages based on scheme settings
+    if (!scheme.applicationSettings?.requiresInterview) {
+      // Mark interview stage as not required
+      stages = stages.map(stage => 
+        stage.name === "Interview Process" 
+          ? { ...stage, isRequired: false }
+          : stage
+      );
+    }
+
+    return stages.sort((a, b) => a.order - b.order);
+  } catch (error) {
+    console.error('Error getting application stages from scheme:', error);
+    return [];
+  }
+};
+
+// Generate distribution timeline based on scheme configuration
+const generateDistributionTimeline = async (scheme, requestedAmount) => {
+  try {
+    let timeline = [];
+
+    // First, check if scheme has its own distribution timeline
+    if (scheme.distributionTimeline && scheme.distributionTimeline.length > 0) {
+      timeline = scheme.distributionTimeline.map(step => ({
+        description: step.description,
+        amount: Math.round((requestedAmount * step.percentage) / 100),
+        percentage: step.percentage,
+        expectedDate: new Date(Date.now() + (step.daysFromApproval * 24 * 60 * 60 * 1000)),
+        status: 'pending',
+        notes: step.notes
+      }));
+    } else {
+      // Look for master data distribution timeline templates
+      const distributionTemplate = await MasterData.findOne({
+        type: 'distribution_timeline_templates',
+        status: 'active',
+        $or: [
+          { scope: 'global' },
+          { scope: 'scheme_specific', targetSchemes: scheme._id }
+        ]
+      }).sort({ scope: -1 }); // Prefer scheme-specific over global
+
+      if (distributionTemplate && distributionTemplate.configuration.distributionSteps) {
+        timeline = distributionTemplate.configuration.distributionSteps.map(step => ({
+          description: step.description,
+          amount: Math.round((requestedAmount * step.percentage) / 100),
+          percentage: step.percentage,
+          expectedDate: new Date(Date.now() + (step.daysFromApproval * 24 * 60 * 60 * 1000)),
+          status: 'pending',
+          notes: step.notes
+        }));
+      } else {
+        // Default timeline if no configuration found
+        timeline = [
+          {
+            description: 'Initial Payment',
+            amount: requestedAmount,
+            percentage: 100,
+            expectedDate: new Date(Date.now() + (30 * 24 * 60 * 60 * 1000)), // 30 days from now
+            status: 'pending',
+            notes: 'Full amount disbursement'
+          }
+        ];
+      }
+    }
+
+    return timeline;
+  } catch (error) {
+    console.error('Error generating distribution timeline:', error);
+    // Return default timeline on error
+    return [
+      {
+        description: 'Initial Payment',
+        amount: requestedAmount,
+        percentage: 100,
+        expectedDate: new Date(Date.now() + (30 * 24 * 60 * 60 * 1000)),
+        status: 'pending',
+        notes: 'Full amount disbursement'
+      }
+    ];
+  }
+};
+
+// Update distribution timeline when application is approved
+const updateDistributionTimelineOnApproval = async (application, approvedAmount) => {
+  try {
+    const approvalDate = new Date();
+    
+    // Get the latest scheme configuration to ensure we use current timeline settings
+    const Scheme = require('../models/Scheme');
+    const scheme = await Scheme.findById(application.scheme);
+    
+    if (scheme && scheme.distributionTimeline && scheme.distributionTimeline.length > 0) {
+      // Regenerate timeline based on current scheme configuration
+      application.distributionTimeline = scheme.distributionTimeline.map(step => ({
+        description: step.description,
+        amount: Math.round((approvedAmount * step.percentage) / 100),
+        percentage: step.percentage,
+        expectedDate: new Date(approvalDate.getTime() + (step.daysFromApproval * 24 * 60 * 60 * 1000)),
+        status: 'pending',
+        notes: step.notes || '',
+        isAutomatic: step.isAutomatic || false,
+        requiresVerification: step.requiresVerification !== false
+      }));
+    } else {
+      // Fallback: Update existing timeline with approved amount and recalculate dates from approval date
+      application.distributionTimeline = application.distributionTimeline.map(step => {
+        const updatedStep = { ...step };
+        
+        // Recalculate amount based on approved amount
+        updatedStep.amount = Math.round((approvedAmount * step.percentage) / 100);
+        
+        // Recalculate expected date from approval date
+        // Extract days from original expected date calculation
+        const originalDays = Math.ceil((step.expectedDate - application.createdAt) / (24 * 60 * 60 * 1000));
+        updatedStep.expectedDate = new Date(approvalDate.getTime() + (originalDays * 24 * 60 * 60 * 1000));
+        
+        return updatedStep;
+      });
+    }
+
+    // Add timeline update to stage history
+    if (!application.stageHistory) {
+      application.stageHistory = [];
+    }
+    
+    application.stageHistory.push({
+      stageName: 'Distribution Timeline Updated',
+      status: 'completed',
+      timestamp: approvalDate,
+      updatedBy: application.approvedBy,
+      notes: `Distribution timeline updated with approved amount: ₹${approvedAmount.toLocaleString()}`
+    });
+
+    return application.distributionTimeline;
+  } catch (error) {
+    console.error('Error updating distribution timeline:', error);
+    return application.distributionTimeline;
+  }
+};
+
+// Update all applications when scheme distribution timeline is modified
+const updateApplicationsDistributionTimeline = async (schemeId, newDistributionTimeline, updatedBy) => {
+  try {
+    const Application = require('../models/Application');
+    
+    // Find all approved applications for this scheme that haven't been completed
+    const applications = await Application.find({
+      scheme: schemeId,
+      status: { $in: ['approved', 'disbursed'] }, // Only update approved/disbursed applications
+      'distributionTimeline.status': { $ne: 'completed' } // Don't update if all payments are completed
+    });
+
+    console.log(`Found ${applications.length} applications to update for scheme ${schemeId}`);
+
+    const updatePromises = applications.map(async (application) => {
+      try {
+        // Regenerate timeline based on new scheme configuration
+        const updatedTimeline = newDistributionTimeline.map(step => {
+          // Find existing step to preserve payment status if already processed
+          const existingStep = application.distributionTimeline.find(
+            existing => existing.description === step.description || 
+                       existing.percentage === step.percentage
+          );
+
+          return {
+            description: step.description,
+            amount: Math.round((application.approvedAmount * step.percentage) / 100),
+            percentage: step.percentage,
+            expectedDate: existingStep && existingStep.status === 'completed' 
+              ? existingStep.expectedDate 
+              : new Date(application.approvedAt.getTime() + (step.daysFromApproval * 24 * 60 * 60 * 1000)),
+            status: existingStep ? existingStep.status : 'pending',
+            actualDate: existingStep ? existingStep.actualDate : undefined,
+            paymentId: existingStep ? existingStep.paymentId : undefined,
+            notes: step.notes || existingStep?.notes || '',
+            isAutomatic: step.isAutomatic || false,
+            requiresVerification: step.requiresVerification !== false
+          };
+        });
+
+        // Update the application
+        application.distributionTimeline = updatedTimeline;
+        
+        // Add to stage history
+        if (!application.stageHistory) {
+          application.stageHistory = [];
+        }
+        
+        application.stageHistory.push({
+          stageName: 'Distribution Timeline Updated',
+          status: 'completed',
+          timestamp: new Date(),
+          updatedBy: updatedBy,
+          notes: 'Distribution timeline updated due to scheme configuration change'
+        });
+
+        await application.save();
+        console.log(`Updated distribution timeline for application ${application._id}`);
+        
+        return { success: true, applicationId: application._id };
+      } catch (error) {
+        console.error(`Error updating application ${application._id}:`, error);
+        return { success: false, applicationId: application._id, error: error.message };
+      }
+    });
+
+    const results = await Promise.all(updatePromises);
+    const successful = results.filter(r => r.success).length;
+    const failed = results.filter(r => !r.success).length;
+
+    console.log(`Distribution timeline update completed: ${successful} successful, ${failed} failed`);
+    
+    return {
+      success: true,
+      updated: successful,
+      failed: failed,
+      total: applications.length,
+      results: results
+    };
+  } catch (error) {
+    console.error('Error updating applications distribution timeline:', error);
+    return {
+      success: false,
+      error: error.message,
+      updated: 0,
+      failed: 0,
+      total: 0
+    };
+  }
+};
+
 module.exports = {
   getApplications,
   getApplication,
@@ -519,5 +862,8 @@ module.exports = {
   updateApplication,
   reviewApplication,
   approveApplication,
-  deleteApplication
+  deleteApplication,
+  generateDistributionTimeline,
+  updateDistributionTimelineOnApproval,
+  updateApplicationsDistributionTimeline
 };
