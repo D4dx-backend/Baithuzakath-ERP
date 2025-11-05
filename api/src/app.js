@@ -7,6 +7,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
+const path = require('path');
 const { activityLogger } = require('./middleware/activityLogger');
 
 const connectDB = require('./config/database');
@@ -19,7 +20,9 @@ const app = express();
 connectDB();
 
 // Security middleware
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: false, // Disable CSP for serving static files
+}));
 app.use(cors({
   origin: config.NODE_ENV === 'development' 
     ? ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:8080', 'http://127.0.0.1:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080']
@@ -113,13 +116,64 @@ app.use('/api/activity-logs', activityLogRoutes);
 app.use('/api/master-data', masterDataRoutes);
 app.use('/api', formConfigurationRoutes);
 
-// 404 handler
-app.use('*', (req, res) => {
+// 404 handler for API routes - must come before static file serving
+app.use('/api/*', (req, res) => {
   res.status(404).json({
     success: false,
     message: `Route ${req.originalUrl} not found`
   });
 });
+
+// Serve static files from frontend build directory (only in production)
+if (config.NODE_ENV === 'production') {
+  const frontendBuildPath = path.join(__dirname, '../../erp/dist');
+  
+  // Serve static assets (JS, CSS, images, etc.) with correct MIME types
+  app.use(express.static(frontendBuildPath, {
+    setHeaders: (res, filePath) => {
+      // Ensure JavaScript files are served with correct MIME type
+      // This fixes the "application/octet-stream" error
+      if (filePath.endsWith('.js') || filePath.endsWith('.mjs')) {
+        res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+      } else if (filePath.endsWith('.json')) {
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      } else if (filePath.endsWith('.css')) {
+        res.setHeader('Content-Type', 'text/css; charset=utf-8');
+      } else if (filePath.endsWith('.svg')) {
+        res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8');
+      }
+      // Ensure proper caching headers for static assets
+      if (filePath.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000');
+      }
+    }
+  }));
+  
+  // Serve favicon.ico from public directory (before SPA fallback)
+  app.get('/favicon.ico', (req, res) => {
+    const faviconPath = path.join(__dirname, '../../erp/public/favicon.ico');
+    res.sendFile(faviconPath, (err) => {
+      if (err) {
+        res.status(404).end();
+      }
+    });
+  });
+  
+  // SPA fallback: serve index.html for all non-API routes (must be last)
+  app.get('*', (req, res, next) => {
+    // Skip API routes and health check
+    if (req.path.startsWith('/api') || req.path === '/health') {
+      return next();
+    }
+    
+    const indexPath = path.join(frontendBuildPath, 'index.html');
+    res.sendFile(indexPath, (err) => {
+      if (err) {
+        next(err);
+      }
+    });
+  });
+}
 
 // Error handling middleware
 app.use(errorHandler);
