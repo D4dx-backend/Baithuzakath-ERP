@@ -5,6 +5,7 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  base: "/",
   server: {
     host: "::",
     port: 8080,
@@ -23,11 +24,23 @@ export default defineConfig(({ mode }) => ({
     },
   },
   build: {
+    outDir: "dist",
+    assetsDir: "assets",
+    commonjsOptions: {
+      include: [/node_modules/],
+      transformMixedEsModules: true
+    },
     rollupOptions: {
       output: {
         manualChunks: undefined,
+        entryFileNames: "assets/[name]-[hash].js",
+        chunkFileNames: "assets/[name]-[hash].js",
+        assetFileNames: "assets/[name]-[hash].[ext]"
       }
     }
+  },
+  optimizeDeps: {
+    include: ['clsx', 'tailwind-merge', 'react', 'react-dom']
   },
   assetsInclude: ['**/*.js', '**/*.mjs'],
 }));
