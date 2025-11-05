@@ -17,7 +17,10 @@ export default defineConfig(({ mode }) => ({
       }
     }
   },
-  plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+  plugins: [
+    react(), 
+    mode === "development" && componentTagger()
+  ].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
@@ -26,10 +29,6 @@ export default defineConfig(({ mode }) => ({
   build: {
     outDir: "dist",
     assetsDir: "assets",
-    commonjsOptions: {
-      include: [/node_modules/],
-      transformMixedEsModules: true
-    },
     rollupOptions: {
       output: {
         manualChunks: undefined,
@@ -39,8 +38,10 @@ export default defineConfig(({ mode }) => ({
       }
     }
   },
-  optimizeDeps: {
-    include: ['clsx', 'tailwind-merge', 'react', 'react-dom']
+  esbuild: {
+    jsx: 'automatic',
   },
-  assetsInclude: ['**/*.js', '**/*.mjs'],
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'react/jsx-runtime']
+  },
 }));
