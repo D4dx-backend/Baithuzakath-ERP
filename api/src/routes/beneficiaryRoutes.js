@@ -7,12 +7,10 @@ const { authenticate, authorize } = require('../middleware/auth');
 const { validateRequest } = require('../middleware/validation');
 const { body, param, query } = require('express-validator');
 
-// Admin routes for beneficiary management (require admin authentication)
-router.get('/', 
-  authenticate, 
-  authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'), 
-  beneficiaryController.getBeneficiaries
-);
+// ============================================================================
+// ADMIN ROUTES FOR BENEFICIARY MANAGEMENT
+// These are defined FIRST and have their own authorization
+// ============================================================================
 
 router.get('/export', 
   authenticate, 
@@ -20,10 +18,10 @@ router.get('/export',
   beneficiaryController.exportBeneficiaries
 );
 
-router.get('/:id', 
+router.get('/', 
   authenticate, 
   authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'), 
-  beneficiaryController.getBeneficiary
+  beneficiaryController.getBeneficiaries
 );
 
 router.post('/', 
@@ -49,6 +47,18 @@ router.patch('/:id/verify',
   authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'), 
   beneficiaryController.verifyBeneficiary
 );
+
+// Admin GET /:id route - must come after other specific routes
+router.get('/:id', 
+  authenticate, 
+  authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'), 
+  beneficiaryController.getBeneficiary
+);
+
+// ============================================================================
+// BENEFICIARY-FACING ROUTES (Public & Protected)
+// These come AFTER admin routes
+// ============================================================================
 
 // Authentication routes (no auth required)
 router.post('/auth/send-otp', [
@@ -83,73 +93,117 @@ router.post('/auth/resend-otp', [
   validateRequest
 ], beneficiaryAuthController.resendOTP);
 
-// Protected routes (require authentication and beneficiary role)
-router.use(authenticate);
-router.use(authorize('beneficiary'));
-
-// Profile management
-router.get('/auth/profile', beneficiaryAuthController.getProfile);
-router.put('/auth/profile', [
-  body('name').optional().trim().isLength({ min: 2, max: 100 }),
-  body('profile.dateOfBirth').optional().isISO8601(),
-  body('profile.gender').optional().isIn(['male', 'female', 'other']),
-  validateRequest
-], beneficiaryAuthController.updateProfile);
+// Protected beneficiary routes (require authentication and beneficiary role)
+router.get('/auth/profile', 
+  authenticate, 
+  authorize('beneficiary'), 
+  beneficiaryAuthController.getProfile
+);
+router.put('/auth/profile', 
+  authenticate, 
+  authorize('beneficiary'),
+  [
+    body('name').optional().trim().isLength({ min: 2, max: 100 }),
+    body('profile.dateOfBirth').optional().isISO8601(),
+    body('profile.gender').optional().isIn(['male', 'female', 'other']),
+    validateRequest
+  ], 
+  beneficiaryAuthController.updateProfile
+);
 
 // Scheme routes
-router.get('/schemes', [
-  query('category').optional().trim(),
-  query('search').optional().trim(),
-  query('status').optional().isIn(['active', 'inactive', 'upcoming']),
-  validateRequest
-], beneficiaryApplicationController.getAvailableSchemes);
+router.get('/schemes', 
+  authenticate, 
+  authorize('beneficiary'),
+  [
+    query('category').optional().trim(),
+    query('search').optional().trim(),
+    query('status').optional().isIn(['active', 'inactive', 'upcoming']),
+    validateRequest
+  ], 
+  beneficiaryApplicationController.getAvailableSchemes
+);
 
-router.get('/schemes/:id', [
-  param('id').isMongoId().withMessage('Invalid scheme ID'),
-  validateRequest
-], beneficiaryApplicationController.getSchemeDetails);
+router.get('/schemes/:id', 
+  authenticate, 
+  authorize('beneficiary'),
+  [
+    param('id').isMongoId().withMessage('Invalid scheme ID'),
+    validateRequest
+  ], 
+  beneficiaryApplicationController.getSchemeDetails
+);
 
 // Application routes
-router.post('/applications', [
-  body('schemeId')
-    .notEmpty()
-    .withMessage('Scheme ID is required')
-    .isMongoId()
-    .withMessage('Invalid scheme ID'),
-  body('formData')
-    .notEmpty()
-    .withMessage('Form data is required')
-    .isObject()
-    .withMessage('Form data must be an object'),
-  body('documents').optional().isArray(),
-  validateRequest
-], beneficiaryApplicationController.submitApplication);
+router.post('/applications', 
+  authenticate, 
+  authorize('beneficiary'),
+  [
+    body('schemeId')
+      .notEmpty()
+      .withMessage('Scheme ID is required')
+      .isMongoId()
+      .withMessage('Invalid scheme ID'),
+    body('formData')
+      .notEmpty()
+      .withMessage('Form data is required')
+      .isObject()
+      .withMessage('Form data must be an object'),
+    body('documents').optional().isArray(),
+    validateRequest
+  ], 
+  beneficiaryApplicationController.submitApplication
+);
 
-router.get('/applications', [
-  query('status').optional().trim(),
-  query('page').optional().isInt({ min: 1 }),
-  query('limit').optional().isInt({ min: 1, max: 50 }),
-  validateRequest
-], beneficiaryApplicationController.getMyApplications);
+router.get('/applications', 
+  authenticate, 
+  authorize('beneficiary'),
+  [
+    query('status').optional().trim(),
+    query('page').optional().isInt({ min: 1 }),
+    query('limit').optional().isInt({ min: 1, max: 50 }),
+    validateRequest
+  ], 
+  beneficiaryApplicationController.getMyApplications
+);
 
-router.get('/applications/:id', [
-  param('id').isMongoId().withMessage('Invalid application ID'),
-  validateRequest
-], beneficiaryApplicationController.getApplicationDetails);
+router.get('/applications/:id', 
+  authenticate, 
+  authorize('beneficiary'),
+  [
+    param('id').isMongoId().withMessage('Invalid application ID'),
+    validateRequest
+  ], 
+  beneficiaryApplicationController.getApplicationDetails
+);
 
-router.put('/applications/:id/cancel', [
-  param('id').isMongoId().withMessage('Invalid application ID'),
-  body('reason').optional().trim().isLength({ max: 500 }),
-  validateRequest
-], beneficiaryApplicationController.cancelApplication);
+router.put('/applications/:id/cancel', 
+  authenticate, 
+  authorize('beneficiary'),
+  [
+    param('id').isMongoId().withMessage('Invalid application ID'),
+    body('reason').optional().trim().isLength({ max: 500 }),
+    validateRequest
+  ], 
+  beneficiaryApplicationController.cancelApplication
+);
 
 // Tracking routes
-router.get('/track/:applicationId', [
-  param('applicationId').notEmpty().withMessage('Application ID is required'),
-  validateRequest
-], beneficiaryApplicationController.trackApplication);
+router.get('/track/:applicationId', 
+  authenticate, 
+  authorize('beneficiary'),
+  [
+    param('applicationId').notEmpty().withMessage('Application ID is required'),
+    validateRequest
+  ], 
+  beneficiaryApplicationController.trackApplication
+);
 
 // Statistics
-router.get('/stats', beneficiaryApplicationController.getApplicationStats);
+router.get('/stats', 
+  authenticate, 
+  authorize('beneficiary'),
+  beneficiaryApplicationController.getApplicationStats
+);
 
 module.exports = router;

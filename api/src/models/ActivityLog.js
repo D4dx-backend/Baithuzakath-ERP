@@ -16,7 +16,7 @@ const activityLogSchema = new mongoose.Schema({
     required: true,
     enum: [
       // Authentication actions
-      'login', 'logout', 'login_failed', 'password_reset',
+      'login', 'logout', 'login_failed', 'password_reset', 'otp_requested', 'otp_verified',
       
       // User management
       'user_created', 'user_updated', 'user_deleted', 'user_activated', 'user_deactivated',
@@ -43,7 +43,7 @@ const activityLogSchema = new mongoose.Schema({
       
       // System actions
       'system_backup', 'system_restore', 'data_export', 'data_import',
-      'settings_updated', 'configuration_changed',
+      'settings_updated', 'configuration_changed', 'data_accessed',
       
       // Security actions
       'permission_denied', 'unauthorized_access', 'suspicious_activity'

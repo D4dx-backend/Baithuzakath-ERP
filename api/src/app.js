@@ -100,8 +100,8 @@ app.use('/api/sms', smsRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/schemes', schemeRoutes);
 app.use('/api/locations', locationRoutes);
-app.use('/api/beneficiaries', beneficiaryRoutes);
-app.use('/api/beneficiary', beneficiaryApiRoutes); // New beneficiary-specific API routes
+app.use('/api/beneficiary', beneficiaryApiRoutes); // Beneficiary-specific API routes (must come before /api/beneficiaries)
+app.use('/api/beneficiaries', beneficiaryRoutes); // Admin routes for beneficiary management
 app.use('/api/applications', applicationRoutes);
 app.use('/api/budget', budgetRoutes);
 app.use('/api/donors', donorRoutes);

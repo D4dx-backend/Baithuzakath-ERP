@@ -220,23 +220,8 @@ class UserController {
 
       await user.save();
 
-      // Send welcome notification via DXing SMS
-      try {
-        const dxingSmsService = require('../services/dxingSmsService');
-        await dxingSmsService.sendNotification(
-          user.phone,
-          `Welcome to Baithuzzakath Kerala! Your account has been created by ${currentUser.name}. Login using OTP with your phone number: ${user.phone}. Role: ${user.role}`,
-          { 
-            name: user.name, 
-            role: user.role,
-            createdBy: currentUser.name,
-            organization: 'Baithuzzakath Kerala'
-          }
-        );
-      } catch (notificationError) {
-        console.error('❌ Welcome SMS notification failed:', notificationError);
-        // Don't fail user creation if SMS fails
-      }
+      // Skip welcome SMS notification for testing
+      console.log(`📱 Welcome message for ${user.name} (${user.phone}): Account created by ${currentUser.name}. Role: ${user.role}`);
 
       // Remove sensitive data before sending response
       const userResponse = await User.findById(user._id)

@@ -43,10 +43,11 @@ export default function Login() {
     try {
       const response = await auth.requestOTP(phoneNumber, 'login');
       
-      // Store development OTP if provided
-      if (response.data?.developmentOTP) {
-        setDevelopmentOTP(response.data.developmentOTP);
-        setOtp(response.data.developmentOTP); // Auto-fill for convenience
+      // Store static OTP if provided
+      if (response.data?.staticOTP || response.data?.developmentOTP) {
+        const staticOTP = response.data?.staticOTP || response.data?.developmentOTP;
+        setDevelopmentOTP(staticOTP);
+        setOtp(staticOTP); // Auto-fill for convenience
       }
       
       toast({
@@ -107,10 +108,11 @@ export default function Login() {
     try {
       const response = await auth.requestOTP(phoneNumber, 'login');
       
-      // Store development OTP if provided
-      if (response.data?.developmentOTP) {
-        setDevelopmentOTP(response.data.developmentOTP);
-        setOtp(response.data.developmentOTP); // Auto-fill for convenience
+      // Store static OTP if provided
+      if (response.data?.staticOTP || response.data?.developmentOTP) {
+        const staticOTP = response.data?.staticOTP || response.data?.developmentOTP;
+        setDevelopmentOTP(staticOTP);
+        setOtp(staticOTP); // Auto-fill for convenience
       }
       
       toast({
@@ -238,12 +240,12 @@ export default function Login() {
               <div className="space-y-2">
                 <Label htmlFor="otp">Enter OTP</Label>
                 {developmentOTP && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-md p-3 text-center">
-                    <p className="text-sm text-blue-800 font-medium">
-                      Development OTP: <span className="font-mono text-lg">{developmentOTP}</span>
+                  <div className="bg-green-50 border border-green-200 rounded-md p-3 text-center">
+                    <p className="text-sm text-green-800 font-medium">
+                      Static OTP: <span className="font-mono text-lg">{developmentOTP}</span>
                     </p>
-                    <p className="text-xs text-blue-600 mt-1">
-                      This OTP is auto-filled for development convenience
+                    <p className="text-xs text-green-600 mt-1">
+                      This OTP is always 123456 for all logins
                     </p>
                   </div>
                 )}

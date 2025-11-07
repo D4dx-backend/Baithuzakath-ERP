@@ -1,6 +1,8 @@
 import { useState, useEffect, useContext, createContext, ReactNode } from 'react';
 import { useAuth } from './useAuth';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+
 interface Permission {
   _id: string;
   name: string;
@@ -65,7 +67,7 @@ export const RBACProvider = ({ children }: RBACProviderProps) => {
     setError(null);
 
     try {
-      const response = await fetch(`/api/rbac/users/${user.id}/roles`, {
+      const response = await fetch(`${API_BASE_URL}/rbac/users/${user.id}/roles`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -90,7 +92,7 @@ export const RBACProvider = ({ children }: RBACProviderProps) => {
     if (!user || !token) return;
 
     try {
-      const response = await fetch(`/api/rbac/users/${user.id}/permissions`, {
+      const response = await fetch(`${API_BASE_URL}/rbac/users/${user.id}/permissions`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

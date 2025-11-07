@@ -166,10 +166,10 @@ export default function Applications() {
   const itemsPerPage = 10;
 
   // Dynamic dropdown data
-  const [projects, setProjects] = useState<any[]>([]);
+  const [projectsList, setProjectsList] = useState<any[]>([]);
   const [districts, setDistricts] = useState<any[]>([]);
   const [areas, setAreas] = useState<any[]>([]);
-  const [schemes, setSchemes] = useState<any[]>([]);
+  const [schemesList, setSchemesList] = useState<any[]>([]);
 
   // Permission checks
   const canViewApplications = hasAnyPermission(['applications.read.all', 'applications.read.regional', 'applications.read.own']);
@@ -248,7 +248,7 @@ export default function Applications() {
       const projectsResponse = await projects.getAll({ limit: 100 });
       console.log('📋 Projects response:', projectsResponse);
       if (projectsResponse.success) {
-        setProjects(projectsResponse.data.projects || []);
+        setProjectsList(projectsResponse.data.projects || []);
         console.log('✅ Projects loaded:', projectsResponse.data.projects?.length || 0);
       }
 
@@ -256,7 +256,7 @@ export default function Applications() {
       const schemesResponse = await schemes.getAll({ limit: 100 });
       console.log('📋 Schemes response:', schemesResponse);
       if (schemesResponse.success) {
-        setSchemes(schemesResponse.data.schemes || []);
+        setSchemesList(schemesResponse.data.schemes || []);
         console.log('✅ Schemes loaded:', schemesResponse.data.schemes?.length || 0);
       }
 
@@ -529,7 +529,7 @@ export default function Applications() {
   // Dynamic dropdown options
   const projectOptions = [
     { value: "all", label: "All Projects" },
-    ...projects.map(project => ({
+    ...projectsList.map(project => ({
       value: project._id || project.id,
       label: project.name
     }))
@@ -553,7 +553,7 @@ export default function Applications() {
 
   const schemeOptions = [
     { value: "all", label: "All Schemes" },
-    ...schemes.map(scheme => ({
+    ...schemesList.map(scheme => ({
       value: scheme._id || scheme.id,
       label: scheme.name
     }))
@@ -561,10 +561,10 @@ export default function Applications() {
 
   // Debug dropdown options
   console.log('🔍 Dropdown options:', {
-    projects: projects.length,
+    projects: projectsList.length,
     districts: districts.length,
     areas: areas.length,
-    schemes: schemes.length,
+    schemes: schemesList.length,
     projectOptions: projectOptions.length,
     districtOptions: districtOptions.length,
     areaOptions: areaOptions.length,

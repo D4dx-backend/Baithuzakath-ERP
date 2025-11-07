@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Permissions API</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 4px;
+        }
+        .token-info {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+            word-break: break-all;
+        }
+        button {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #1976D2;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .success {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        .error {
+            color: #f44336;
+            font-weight: bold;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .permission-item {
+            padding: 8px;
+            margin: 5px 0;
+            background: #f0f0f0;
+            border-left: 3px solid #2196F3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Test RBAC Permissions API</h1>
+        
+        <div class="section">
+            <h2>Step 1: Check Your Token</h2>
+            <button onclick="checkToken()">Get Token from localStorage</button>
+            <div id="tokenInfo" class="token-info" style="display:none;">
+                <strong>Your Token:</strong>
+                <div id="tokenValue" style="margin-top: 10px; font-family: monospace; font-size: 12px;"></div>
+                <div id="tokenDecoded" style="margin-top: 10px;"></div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Step 2: Test Permissions Endpoint</h2>
+            <button onclick="testPermissionsEndpoint()" id="testBtn">Test GET /api/rbac/permissions</button>
+            <button onclick="testRolesEndpoint()">Test GET /api/rbac/roles</button>
+            <div id="result" class="result" style="display:none;"></div>
+        </div>
+
+        <div class="section">
+            <h2>Step 3: Test Current User Permissions</h2>
+            <button onclick="testCurrentUserPermissions()">Get My Permissions</button>
+            <div id="userPermResult" class="result" style="display:none;"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000/api';
+        let currentToken = null;
+
+        function checkToken() {
+            const token = localStorage.getItem('token');
+            const tokenInfo = document.getElementById('tokenInfo');
+            const tokenValue = document.getElementById('tokenValue');
+            const tokenDecoded = document.getElementById('tokenDecoded');
+
+            if (!token) {
+                alert('❌ No token found in localStorage. Please login first.');
+                return;
+            }
+
+            currentToken = token;
+            tokenInfo.style.display = 'block';
+            tokenValue.textContent = token;
+
+            // Try to decode token
+            try {
+                const parts = token.split('.');
+                const payload = JSON.parse(atob(parts[1]));
+                tokenDecoded.innerHTML = `
+                    <strong>Decoded Token:</strong><br>
+                    User ID: ${payload.userId}<br>
+                    Role: ${payload.role}<br>
+                    Issued: ${new Date(payload.iat * 1000).toLocaleString()}<br>
+                    Expires: ${new Date(payload.exp * 1000).toLocaleString()}
+                `;
+            } catch (error) {
+                tokenDecoded.innerHTML = '<span class="error">Failed to decode token</span>';
+            }
+        }
+
+        async function testPermissionsEndpoint() {
+            const resultDiv = document.getElementById('result');
+            const testBtn = document.getElementById('testBtn');
+            
+            if (!currentToken) {
+                checkToken();
+                if (!currentToken) return;
+            }
+
+            testBtn.disabled = true;
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '<p>⏳ Loading...</p>';
+
+            try {
+                const response = await fetch(`${API_BASE}/rbac/permissions`, {
+                    headers: {
+                        'Authorization': `Bearer ${currentToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <p class="success">✅ Success! Status: ${response.status}</p>
+                        <p><strong>Total Permissions:</strong> ${data.data.permissions.length}</p>
+                        <h3>Permissions by Module:</h3>
+                        <div id="permissionsList"></div>
+                    `;
+
+                    const permList = document.getElementById('permissionsList');
+                    const grouped = data.data.groupedPermissions;
+                    
+                    for (const [module, perms] of Object.entries(grouped)) {
+                        permList.innerHTML += `
+                            <div style="margin: 10px 0;">
+                                <strong>${module.toUpperCase()}</strong> (${perms.length} permissions)
+                                <div style="margin-left: 20px;">
+                                    ${perms.slice(0, 5).map(p => `
+                                        <div class="permission-item">
+                                            ${p.displayName} <span style="color: #666;">(${p.name})</span>
+                                        </div>
+                                    `).join('')}
+                                    ${perms.length > 5 ? `<p style="color: #666;">... and ${perms.length - 5} more</p>` : ''}
+                                </div>
+                            </div>
+                        `;
+                    }
+                } else {
+                    resultDiv.innerHTML = `
+                        <p class="error">❌ Error! Status: ${response.status}</p>
+                        <p><strong>Message:</strong> ${data.message}</p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <p class="error">❌ Request Failed!</p>
+                    <p>${error.message}</p>
+                `;
+            } finally {
+                testBtn.disabled = false;
+            }
+        }
+
+        async function testRolesEndpoint() {
+            const resultDiv = document.getElementById('result');
+            
+            if (!currentToken) {
+                checkToken();
+                if (!currentToken) return;
+            }
+
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '<p>⏳ Loading...</p>';
+
+            try {
+                const response = await fetch(`${API_BASE}/rbac/roles`, {
+                    headers: {
+                        'Authorization': `Bearer ${currentToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <p class="success">✅ Success! Status: ${response.status}</p>
+                        <p><strong>Total Roles:</strong> ${data.data.length}</p>
+                        <h3>Roles:</h3>
+                        ${data.data.map(role => `
+                            <div class="permission-item">
+                                <strong>${role.displayName}</strong> (${role.name})<br>
+                                <small>${role.description}</small><br>
+                                <small>Permissions: ${role.permissions.length} | Level: ${role.level}</small>
+                            </div>
+                        `).join('')}
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <p class="error">❌ Error! Status: ${response.status}</p>
+                        <p><strong>Message:</strong> ${data.message}</p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <p class="error">❌ Request Failed!</p>
+                    <p>${error.message}</p>
+                `;
+            }
+        }
+
+        async function testCurrentUserPermissions() {
+            const resultDiv = document.getElementById('userPermResult');
+            
+            if (!currentToken) {
+                checkToken();
+                if (!currentToken) return;
+            }
+
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '<p>⏳ Loading...</p>';
+
+            try {
+                // First get current user
+                const userResponse = await fetch(`${API_BASE}/auth/me`, {
+                    headers: {
+                        'Authorization': `Bearer ${currentToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!userResponse.ok) {
+                    throw new Error('Failed to get current user');
+                }
+
+                const userData = await userResponse.json();
+                const userId = userData.data._id;
+
+                // Then get user permissions
+                const permResponse = await fetch(`${API_BASE}/rbac/users/${userId}/permissions`, {
+                    headers: {
+                        'Authorization': `Bearer ${currentToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const permData = await permResponse.json();
+
+                if (permResponse.ok) {
+                    resultDiv.innerHTML = `
+                        <p class="success">✅ Success!</p>
+                        <p><strong>User:</strong> ${userData.data.name} (${userData.data.email})</p>
+                        <p><strong>Role:</strong> ${userData.data.role}</p>
+                        <p><strong>Total Permissions:</strong> ${permData.data.totalCount}</p>
+                        <h3>Permissions by Module:</h3>
+                        <div id="userPermList"></div>
+                    `;
+
+                    const permList = document.getElementById('userPermList');
+                    const grouped = permData.data.groupedPermissions;
+                    
+                    for (const [module, perms] of Object.entries(grouped)) {
+                        permList.innerHTML += `
+                            <div style="margin: 10px 0;">
+                                <strong>${module.toUpperCase()}</strong> (${perms.length} permissions)
+                            </div>
+                        `;
+                    }
+                } else {
+                    resultDiv.innerHTML = `
+                        <p class="error">❌ Error! Status: ${permResponse.status}</p>
+                        <p><strong>Message:</strong> ${permData.message}</p>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <p class="error">❌ Request Failed!</p>
+                    <p>${error.message}</p>
+                `;
+            }
+        }
+
+        // Auto-check token on load
+        window.onload = () => {
+            const token = localStorage.getItem('token');
+            if (token) {
+                checkToken();
+            }
+        };
+    </script>
+</body>
+</html>

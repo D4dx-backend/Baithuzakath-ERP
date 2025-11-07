@@ -11,7 +11,12 @@ const authenticate = async (req, res, next) => {
   try {
     const authHeader = req.header('Authorization');
     
+    console.log('🔍 AUTHENTICATION DEBUG:');
+    console.log('- Path:', req.path);
+    console.log('- Auth header exists:', !!authHeader);
+    
     if (!authHeader) {
+      console.log('❌ No auth header provided');
       return res.status(401).json({
         success: false,
         message: 'Access denied. No token provided.'
@@ -24,17 +29,24 @@ const authenticate = async (req, res, next) => {
       : authHeader;
 
     if (!token) {
+      console.log('❌ Invalid token format');
       return res.status(401).json({
         success: false,
         message: 'Access denied. Invalid token format.'
       });
     }
 
+    console.log('- Token (first 20 chars):', token.substring(0, 20) + '...');
+
     // Verify token
     const decoded = authService.verifyToken(token);
+    console.log('- Decoded userId:', decoded.userId);
+    console.log('- Decoded role:', decoded.role);
     
     // Get user from database
     const user = await User.findById(decoded.userId);
+    console.log('- User found in DB:', !!user);
+    console.log('- User role from DB:', user?.role);
     
     if (!user) {
       return res.status(401).json({

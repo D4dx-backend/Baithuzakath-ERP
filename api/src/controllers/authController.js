@@ -1,5 +1,4 @@
 const authService = require('../services/authService');
-const dxingSmsService = require('../services/dxingSmsService');
 const { User } = require('../models');
 const ResponseHelper = require('../utils/responseHelper');
 const { logActivity } = require('../middleware/activityLogger');
@@ -219,8 +218,9 @@ class AuthController {
         return ResponseHelper.error(res, 'New phone number and OTP are required', 400);
       }
 
-      // Validate phone number format
-      if (!dxingSmsService.validatePhoneNumber(newPhone)) {
+      // Validate phone number format (10-digit Indian mobile number)
+      const phoneRegex = /^[6-9]\d{9}$/;
+      if (!phoneRegex.test(newPhone)) {
         return ResponseHelper.error(res, 'Invalid phone number format', 400);
       }
 
@@ -331,9 +331,15 @@ class AuthController {
         return ResponseHelper.error(res, 'Access denied', 403);
       }
 
-      const testResult = await dxingSmsService.testConnection();
+      // SMS service disabled for testing
+      const testResult = {
+        success: true,
+        message: 'SMS service disabled - using static OTP mode',
+        mode: 'static_otp',
+        otp: '123456'
+      };
 
-      return ResponseHelper.success(res, testResult, 'SMS service test completed');
+      return ResponseHelper.success(res, testResult, 'SMS service test completed (static mode)');
     } catch (error) {
       console.error('❌ Test SMS Service Error:', error);
       return ResponseHelper.error(res, error.message, 500);

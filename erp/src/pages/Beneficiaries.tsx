@@ -3,10 +3,10 @@ import { Plus, Search, Filter, Eye, Edit, Trash2, CheckCircle, UserCheck, Downlo
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
-import { Pagination } from '../components/ui/pagination';
+import { SimplePagination as Pagination } from '../components/ui/pagination';
 import { BeneficiaryModal } from '../components/modals/BeneficiaryModal';
 import { DeleteBeneficiaryModal } from '../components/modals/DeleteBeneficiaryModal';
-import { beneficiaries as beneficiariesApi, locations, projects, schemes } from '../lib/api';
+import { beneficiaries as beneficiariesApi, locations, projects as projectsApi, schemes as schemesApi } from '../lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { useRBAC } from '@/hooks/useRBAC';
 
@@ -128,24 +128,24 @@ const Beneficiaries: React.FC = () => {
         locations.getByType('district'),
         locations.getByType('area'),
         locations.getByType('unit'),
-        projects.getAll({ limit: 1000 }), // Get all projects for filter
-        schemes.getActive() // Get active schemes for filter
+        projectsApi.getAll({ page: 1, limit: 1000 }), // Get all projects for filter
+        schemesApi.getActive() // Get active schemes for filter
       ]);
 
       if (districtsRes.success) {
-        setDistricts(districtsRes.data.locations || []);
+        setDistricts((districtsRes.data.locations || []).map((loc: any) => ({ _id: loc.id || loc._id, name: loc.name })));
       }
       if (areasRes.success) {
-        setAreas(areasRes.data.locations || []);
+        setAreas((areasRes.data.locations || []).map((loc: any) => ({ _id: loc.id || loc._id, name: loc.name })));
       }
       if (unitsRes.success) {
-        setUnits(unitsRes.data.locations || []);
+        setUnits((unitsRes.data.locations || []).map((loc: any) => ({ _id: loc.id || loc._id, name: loc.name })));
       }
-      if (projectsRes.success) {
-        setProjects(projectsRes.data.projects || []);
+      if (projectsRes.success && projectsRes.data) {
+        setProjects((projectsRes.data.projects || []).map((proj: any) => ({ _id: proj.id || proj._id, name: proj.name })));
       }
-      if (schemesRes.success) {
-        setSchemes(schemesRes.data.schemes || []);
+      if (schemesRes.success && schemesRes.data) {
+        setSchemes((schemesRes.data.schemes || []).map((scheme: any) => ({ _id: scheme.id || scheme._id, name: scheme.name })));
       }
     } catch (error) {
       console.error('Error fetching filter options:', error);
@@ -577,8 +577,8 @@ const Beneficiaries: React.FC = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {beneficiaries.map((beneficiary) => (
-                <tr key={beneficiary._id} className="hover:bg-gray-50">
+              {beneficiaries.map((beneficiary, index) => (
+                <tr key={`${beneficiary._id}-${index}`} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
                       <div className="text-sm font-medium text-gray-900 flex items-center gap-2">

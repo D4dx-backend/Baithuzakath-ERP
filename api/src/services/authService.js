@@ -2,8 +2,8 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { User } = require('../models');
-const dxingSmsService = require('./dxingSmsService');
 const config = require('../config/environment');
+const staticOTPConfig = require('../config/staticOTP');
 
 class AuthService {
   /**
@@ -88,8 +88,9 @@ class AuthService {
    */
   async generateAndSendOTP(phone, purpose = 'login') {
     try {
-      // Validate phone number format
-      if (!dxingSmsService.validatePhoneNumber(phone)) {
+      // Validate phone number format (10-digit Indian mobile number)
+      const phoneRegex = /^[6-9]\d{9}$/;
+      if (!phoneRegex.test(phone)) {
         throw new Error('Invalid phone number format. Please enter a valid 10-digit mobile number.');
       }
 
@@ -129,22 +130,17 @@ class AuthService {
         }
       }
 
-      // Generate OTP (use fixed OTP in development for testing)
-      const otp = config.NODE_ENV === 'development' ? '123456' : dxingSmsService.generateOTP(6);
+      // Generate OTP (use static OTP if enabled, otherwise generate dynamic OTP)
+      const otp = staticOTPConfig.USE_STATIC_OTP 
+        ? staticOTPConfig.STATIC_OTP 
+        : Math.floor(100000 + Math.random() * 900000).toString();
       
       // Send OTP via DXing SMS service
       let smsResult = { success: true, messageId: 'dev-test-message-id' };
       
-      if (config.NODE_ENV !== 'development') {
-        const userName = user?.name || 'User';
-        smsResult = await dxingSmsService.sendOTP(phone, otp, userName);
-        
-        if (!smsResult.success) {
-          throw new Error(`Failed to send OTP: ${smsResult.error || 'SMS service error'}`);
-        }
-      } else {
-        console.log(`🧪 DEVELOPMENT MODE: OTP for ${phone} is: ${otp}`);
-      }
+      // Always use static OTP mode for testing (no SMS service)
+      console.log(`🔑 STATIC OTP MODE: OTP for ${phone} is: ${otp}`);
+      smsResult = { success: true, messageId: 'static-otp-mode' };
 
       // Create or update user with OTP
       if (user) {
@@ -188,10 +184,10 @@ class AuthService {
         purpose
       };
 
-      // Include OTP in development mode for testing
-      if (config.NODE_ENV === 'development') {
-        response.developmentOTP = otp;
-        response.developmentNote = 'OTP included for development testing only';
+      // Include OTP in response if static mode is enabled
+      if (staticOTPConfig.USE_STATIC_OTP) {
+        response.staticOTP = otp;
+        response.note = 'Static OTP enabled for all logins';
       }
 
       return response;
@@ -362,17 +358,8 @@ class AuthService {
       // Generate authentication tokens
       const tokens = this.generateTokens(user);
 
-      // Send welcome notification via DXing SMS
-      try {
-        await dxingSmsService.sendNotification(
-          user.phone,
-          `Welcome to Baithuzzakath Kerala, ${user.name}! Your account has been created successfully. You can now access all services using OTP login.`,
-          { name: user.name, organization: 'Baithuzzakath Kerala' }
-        );
-      } catch (smsError) {
-        console.error('❌ Welcome SMS failed:', smsError);
-        // Don't fail registration if SMS fails
-      }
+      // Skip welcome SMS notification for testing
+      console.log(`📱 Welcome message for ${user.name} (${user.phone}): Registration completed successfully!`);
 
       // Prepare user data for response
       const userData = {
