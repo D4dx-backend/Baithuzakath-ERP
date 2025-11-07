@@ -40,6 +40,13 @@ interface Application {
     _id: string;
     name: string;
     code: string;
+    distributionTimeline?: Array<{
+      description: string;
+      percentage: number;
+      daysFromApproval: number;
+      requiresVerification: boolean;
+      notes?: string;
+    }>;
   };
   project?: {
     _id: string;
@@ -159,10 +166,10 @@ export default function Applications() {
   const itemsPerPage = 10;
 
   // Dynamic dropdown data
-  const [projects, setProjects] = useState<any[]>([]);
+  const [projectsList, setProjectsList] = useState<any[]>([]);
   const [districts, setDistricts] = useState<any[]>([]);
   const [areas, setAreas] = useState<any[]>([]);
-  const [schemes, setSchemes] = useState<any[]>([]);
+  const [schemesList, setSchemesList] = useState<any[]>([]);
 
   // Permission checks
   const canViewApplications = hasAnyPermission(['applications.read.all', 'applications.read.regional', 'applications.read.own']);
@@ -241,7 +248,7 @@ export default function Applications() {
       const projectsResponse = await projects.getAll({ limit: 100 });
       console.log('📋 Projects response:', projectsResponse);
       if (projectsResponse.success) {
-        setProjects(projectsResponse.data.projects || []);
+        setProjectsList(projectsResponse.data.projects || []);
         console.log('✅ Projects loaded:', projectsResponse.data.projects?.length || 0);
       }
 
@@ -249,7 +256,7 @@ export default function Applications() {
       const schemesResponse = await schemes.getAll({ limit: 100 });
       console.log('📋 Schemes response:', schemesResponse);
       if (schemesResponse.success) {
-        setSchemes(schemesResponse.data.schemes || []);
+        setSchemesList(schemesResponse.data.schemes || []);
         console.log('✅ Schemes loaded:', schemesResponse.data.schemes?.length || 0);
       }
 
@@ -390,22 +397,41 @@ export default function Applications() {
     setCurrentPage(1);
   };
 
-  // Function to get the appropriate action button based on application status
+  // Function to get the appropriate action button based on application status and scheme requirements
   const getActionButton = (app: Application) => {
+    // Check if scheme requires interview
+    const requiresInterview = app.scheme?.requiresInterview || false;
+
     switch (app.status) {
       case 'pending':
       case 'under_review':
       case 'field_verification':
-        // Show shortlist button for applications that can be scheduled for interview
-        return (
-          <Button variant="outline" size="sm" onClick={() => {
-            setSelectedApp(app);
-            setShowShortlistModal(true);
-          }} className="flex-1">
-            <UserCheck className="mr-2 h-4 w-4" />
-            Schedule Interview
-          </Button>
-        );
+        if (requiresInterview) {
+          // Show schedule interview button for schemes that require interviews
+          return (
+            <Button variant="outline" size="sm" onClick={() => {
+              setSelectedApp(app);
+              setShowShortlistModal(true);
+            }} className="flex-1">
+              <UserCheck className="mr-2 h-4 w-4" />
+              Schedule Interview
+            </Button>
+          );
+        } else {
+          // Show direct approve/reject buttons for schemes that don't require interviews
+          return (
+            <>
+              <Button variant="outline" size="sm" onClick={() => handleViewApplication(app, "approve")} className="flex-1">
+                <CheckCircle className="mr-2 h-4 w-4" />
+                Approve
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => handleViewApplication(app, "reject")} className="flex-1">
+                <XCircle className="mr-2 h-4 w-4" />
+                Reject
+              </Button>
+            </>
+          );
+        }
       
       case 'interview_scheduled':
         // Show reschedule button for scheduled interviews
@@ -449,16 +475,31 @@ export default function Applications() {
         );
       
       default:
-        // Default shortlist button
-        return (
-          <Button variant="outline" size="sm" onClick={() => {
-            setSelectedApp(app);
-            setShowShortlistModal(true);
-          }} className="flex-1">
-            <UserCheck className="mr-2 h-4 w-4" />
-            Shortlist
-          </Button>
-        );
+        // Default action based on interview requirement
+        if (requiresInterview) {
+          return (
+            <Button variant="outline" size="sm" onClick={() => {
+              setSelectedApp(app);
+              setShowShortlistModal(true);
+            }} className="flex-1">
+              <UserCheck className="mr-2 h-4 w-4" />
+              Schedule Interview
+            </Button>
+          );
+        } else {
+          return (
+            <>
+              <Button variant="outline" size="sm" onClick={() => handleViewApplication(app, "approve")} className="flex-1">
+                <CheckCircle className="mr-2 h-4 w-4" />
+                Approve
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => handleViewApplication(app, "reject")} className="flex-1">
+                <XCircle className="mr-2 h-4 w-4" />
+                Reject
+              </Button>
+            </>
+          );
+        }
     }
   };
 
@@ -488,7 +529,7 @@ export default function Applications() {
   // Dynamic dropdown options
   const projectOptions = [
     { value: "all", label: "All Projects" },
-    ...projects.map(project => ({
+    ...projectsList.map(project => ({
       value: project._id || project.id,
       label: project.name
     }))
@@ -512,7 +553,7 @@ export default function Applications() {
 
   const schemeOptions = [
     { value: "all", label: "All Schemes" },
-    ...schemes.map(scheme => ({
+    ...schemesList.map(scheme => ({
       value: scheme._id || scheme.id,
       label: scheme.name
     }))
@@ -520,10 +561,10 @@ export default function Applications() {
 
   // Debug dropdown options
   console.log('🔍 Dropdown options:', {
-    projects: projects.length,
+    projects: projectsList.length,
     districts: districts.length,
     areas: areas.length,
-    schemes: schemes.length,
+    schemes: schemesList.length,
     projectOptions: projectOptions.length,
     districtOptions: districtOptions.length,
     areaOptions: areaOptions.length,

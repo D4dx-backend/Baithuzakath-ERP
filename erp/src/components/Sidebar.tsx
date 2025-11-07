@@ -5,7 +5,7 @@ import {
   FolderKanban,
   FileText,
   Users,
-  DollarSign,
+  IndianRupee,
   MessageSquare,
   Settings,
   Building2,
@@ -19,6 +19,8 @@ import {
   CalendarCheck,
   Shield,
   Wrench,
+  Activity,
+
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -76,20 +78,14 @@ const menuCategories = [
     label: "Financial Management",
     items: [
       { 
-        to: "/payment-distribution", 
+        to: "/payment-tracking", 
         icon: Wallet, 
-        label: "Payment Distribution",
+        label: "Payment Management",
         permissions: ["finances.read.all", "finances.read.regional", "finances.manage"]
       },
       { 
-        to: "/payment-tracking", 
-        icon: Clock, 
-        label: "Payment Tracking",
-        permissions: ["finances.read.all", "finances.read.regional"]
-      },
-      { 
         to: "/budget", 
-        icon: DollarSign, 
+        icon: IndianRupee, 
         label: "Budget & Expenses",
         permissions: ["finances.read.all", "finances.read.regional", "finances.manage"]
       },
@@ -143,6 +139,39 @@ const menuCategories = [
         icon: Wrench, 
         label: "Form Builder",
         permissions: ["forms.read", "forms.create", "forms.manage"]
+      },
+
+      { 
+        label: "Activity Logs",
+        icon: Activity,
+        permissions: ["activity_logs.read"],
+        submenu: [
+          {
+            to: "/activity-logs",
+            label: "View Logs",
+            permissions: ["activity_logs.read"]
+          },
+          {
+            to: "/activity-logs/analytics",
+            label: "Analytics & Reports",
+            permissions: ["activity_logs.read"]
+          },
+          {
+            to: "/activity-logs/user-activity",
+            label: "User Activity",
+            permissions: ["activity_logs.read"]
+          },
+          {
+            to: "/activity-logs/security-events",
+            label: "Security Events",
+            permissions: ["activity_logs.read"]
+          },
+          {
+            to: "/activity-logs/system-events",
+            label: "System Events",
+            permissions: ["activity_logs.read"]
+          }
+        ]
       },
     ]
   },

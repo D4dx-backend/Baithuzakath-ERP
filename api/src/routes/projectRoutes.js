@@ -296,6 +296,231 @@ router.put('/:id/progress',
 
 /**
  * @swagger
+ * /api/projects/{id}/status-update:
+ *   post:
+ *     summary: Add status update to project
+ *     tags: [Projects]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - stage
+ *               - status
+ *               - description
+ *             properties:
+ *               stage:
+ *                 type: string
+ *               status:
+ *                 type: string
+ *                 enum: [pending, in_progress, completed, on_hold, cancelled]
+ *               description:
+ *                 type: string
+ *               remarks:
+ *                 type: string
+ *               attachments:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     name:
+ *                       type: string
+ *                     url:
+ *                       type: string
+ *                     type:
+ *                       type: string
+ *     responses:
+ *       200:
+ *         description: Status update added successfully
+ *       404:
+ *         description: Project not found
+ *       401:
+ *         description: Authentication required
+ */
+router.post('/:id/status-update', 
+  authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin', 'project_coordinator', 'scheme_coordinator'),
+  projectController.addStatusUpdate
+);
+
+/**
+ * @swagger
+ * /api/projects/{id}/status-update/{updateId}:
+ *   put:
+ *     summary: Update existing status update
+ *     tags: [Projects]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: updateId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               stage:
+ *                 type: string
+ *               status:
+ *                 type: string
+ *                 enum: [pending, in_progress, completed, on_hold, cancelled]
+ *               description:
+ *                 type: string
+ *               remarks:
+ *                 type: string
+ *               attachments:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *               isVisible:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Status update updated successfully
+ *       404:
+ *         description: Project or status update not found
+ *       401:
+ *         description: Authentication required
+ */
+router.put('/:id/status-update/:updateId', 
+  authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin', 'project_coordinator', 'scheme_coordinator'),
+  projectController.updateStatusUpdate
+);
+
+/**
+ * @swagger
+ * /api/projects/{id}/status-update/{updateId}:
+ *   delete:
+ *     summary: Delete status update
+ *     tags: [Projects]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: updateId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Status update deleted successfully
+ *       404:
+ *         description: Project or status update not found
+ *       401:
+ *         description: Authentication required
+ */
+router.delete('/:id/status-update/:updateId', 
+  authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin', 'project_coordinator', 'scheme_coordinator'),
+  projectController.deleteStatusUpdate
+);
+
+/**
+ * @swagger
+ * /api/projects/{id}/status-configuration:
+ *   get:
+ *     summary: Get project status configuration
+ *     tags: [Projects]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Status configuration retrieved successfully
+ *       404:
+ *         description: Project not found
+ *       401:
+ *         description: Authentication required
+ */
+router.get('/:id/status-configuration', projectController.getStatusConfiguration);
+
+/**
+ * @swagger
+ * /api/projects/{id}/status-configuration:
+ *   put:
+ *     summary: Update project status configuration
+ *     tags: [Projects]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               stages:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     name:
+ *                       type: string
+ *                     description:
+ *                       type: string
+ *                     order:
+ *                       type: number
+ *                     isRequired:
+ *                       type: boolean
+ *                     allowedRoles:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                     estimatedDuration:
+ *                       type: number
+ *               enablePublicTracking:
+ *                 type: boolean
+ *               notificationSettings:
+ *                 type: object
+ *     responses:
+ *       200:
+ *         description: Status configuration updated successfully
+ *       404:
+ *         description: Project not found
+ *       401:
+ *         description: Authentication required
+ */
+router.put('/:id/status-configuration', 
+  authorize('super_admin', 'state_admin', 'district_admin'),
+  projectController.updateStatusConfiguration
+);
+
+/**
+ * @swagger
  * /api/projects/{id}:
  *   delete:
  *     summary: Delete project

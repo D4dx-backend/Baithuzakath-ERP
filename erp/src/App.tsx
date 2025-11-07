@@ -29,7 +29,6 @@ import Communications from "./pages/Communications";
 import Settings from "./pages/Settings";
 import Auth from "./pages/Auth";
 import Beneficiaries from "./pages/Beneficiaries";
-import PaymentTracking from "./pages/PaymentTracking";
 import BeneficiaryPayments from "./pages/BeneficiaryPayments";
 import NotFound from "./pages/NotFound";
 import PublicSchemes from "./pages/PublicSchemes";
@@ -41,6 +40,13 @@ import BeneficiaryApplication from "./pages/BeneficiaryApplication";
 import BeneficiaryAuthGuard from "./components/BeneficiaryAuthGuard";
 import ApplicationTracking from "./pages/ApplicationTracking";
 import DebugPermissions from "./pages/DebugPermissions";
+import ActivityLogs from "./pages/ActivityLogs";
+import ActivityLogAnalytics from "./pages/ActivityLogAnalytics";
+import UserActivity from "./pages/UserActivity";
+import SecurityEvents from "./pages/SecurityEvents";
+import SystemEvents from "./pages/SystemEvents";
+import TimelineDemo from "./pages/TimelineDemo";
+
 
 const queryClient = new QueryClient();
 
@@ -49,7 +55,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <AuthProvider>
           <RBACProvider>
             <Routes>
@@ -72,8 +78,7 @@ const App = () => (
             <Route path="/applications" element={<AuthGuard><Layout><Applications /></Layout></AuthGuard>} />
             <Route path="/upcoming-interviews" element={<AuthGuard><Layout><UpcomingInterviews /></Layout></AuthGuard>} />
             <Route path="/beneficiaries" element={<AuthGuard><Layout><Beneficiaries /></Layout></AuthGuard>} />
-            <Route path="/payment-distribution" element={<AuthGuard><Layout><BeneficiaryPayments /></Layout></AuthGuard>} />
-            <Route path="/payment-tracking" element={<AuthGuard><Layout><PaymentTracking /></Layout></AuthGuard>} />
+            <Route path="/payment-tracking" element={<AuthGuard><Layout><BeneficiaryPayments /></Layout></AuthGuard>} />
             {/* Donor Routes */}
             <Route path="/donors" element={<AuthGuard><Layout><Donors /></Layout></AuthGuard>} />
             <Route path="/donors/all" element={<AuthGuard><Layout><AllDonors /></Layout></AuthGuard>} />
@@ -84,9 +89,16 @@ const App = () => (
             <Route path="/locations" element={<AuthGuard><Layout><Locations /></Layout></AuthGuard>} />
             <Route path="/users" element={<AuthGuard><Layout><UserManagement /></Layout></AuthGuard>} />
             <Route path="/roles" element={<AuthGuard><Layout><RoleManagement /></Layout></AuthGuard>} />
+
             <Route path="/communications" element={<AuthGuard><Layout><Communications /></Layout></AuthGuard>} />
             <Route path="/settings" element={<AuthGuard><Layout><Settings /></Layout></AuthGuard>} />
             <Route path="/debug-permissions" element={<AuthGuard><Layout><DebugPermissions /></Layout></AuthGuard>} />
+            <Route path="/activity-logs" element={<AuthGuard><Layout><ActivityLogs /></Layout></AuthGuard>} />
+            <Route path="/activity-logs/analytics" element={<AuthGuard><Layout><ActivityLogAnalytics /></Layout></AuthGuard>} />
+            <Route path="/activity-logs/user-activity" element={<AuthGuard><Layout><UserActivity /></Layout></AuthGuard>} />
+            <Route path="/activity-logs/security-events" element={<AuthGuard><Layout><SecurityEvents /></Layout></AuthGuard>} />
+            <Route path="/activity-logs/system-events" element={<AuthGuard><Layout><SystemEvents /></Layout></AuthGuard>} />
+            <Route path="/timeline-demo" element={<AuthGuard><Layout><TimelineDemo /></Layout></AuthGuard>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
             </Routes>

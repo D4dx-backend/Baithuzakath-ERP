@@ -1,0 +1,14 @@
+# Logo Placeholder
+
+To add your organization logo:
+
+1. Save your logo as 'logo.png' in this directory
+2. Recommended specifications:
+   - Format: PNG
+   - Size: 200x80 pixels (or similar aspect ratio)
+   - Background: Transparent
+   - Resolution: 300 DPI for print quality
+
+The PDF receipt system will automatically include the logo when available.
+
+Current status: No logo file found - receipts will generate without logo.

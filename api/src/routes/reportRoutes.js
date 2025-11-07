@@ -37,12 +37,29 @@ router.get('/application/:applicationId',
       console.log('🔍 GET Reports - applicationId:', applicationId);
       console.log('🔍 GET Reports - user:', req.user.email);
 
-      // Step 1: Find the application by application number (not ObjectId)
-      const application = await Application.findOne({ 
+      // Step 1: Find the application by application number or ObjectId
+      let application;
+      
+      // Try to find by applicationNumber first
+      application = await Application.findOne({ 
         applicationNumber: applicationId 
       });
+      
+      // If not found and applicationId looks like an ObjectId, try finding by _id
+      if (!application && mongoose.Types.ObjectId.isValid(applicationId)) {
+        application = await Application.findById(applicationId);
+      }
 
+      console.log('🔍 GET Reports - applicationId received:', applicationId);
+      console.log('🔍 GET Reports - applicationId type:', typeof applicationId);
+      console.log('🔍 GET Reports - applicationId length:', applicationId?.length);
       console.log('🔍 GET Reports - application found:', application ? application.applicationNumber : 'NOT FOUND');
+      
+      if (!application) {
+        // Additional debugging - let's see what applications exist
+        const allApps = await Application.find({}).limit(3).select('applicationNumber');
+        console.log('🔍 GET Reports - Available applications:', allApps.map(a => a.applicationNumber));
+      }
 
       if (!application) {
         console.log('❌ GET Reports - Application not found');
@@ -138,11 +155,20 @@ router.post('/application/:applicationId',
       console.log('📝 POST Reports - user:', req.user.email);
       console.log('📝 POST Reports - data:', JSON.stringify(reportData, null, 2));
 
-      // Step 1: Find the application by application number
-      const application = await Application.findOne({ 
+      // Step 1: Find the application by application number or ObjectId
+      let application;
+      
+      // Try to find by applicationNumber first
+      application = await Application.findOne({ 
         applicationNumber: applicationId 
       });
+      
+      // If not found and applicationId looks like an ObjectId, try finding by _id
+      if (!application && mongoose.Types.ObjectId.isValid(applicationId)) {
+        application = await Application.findById(applicationId);
+      }
 
+      console.log('📝 POST Reports - applicationId received:', applicationId);
       console.log('📝 POST Reports - application found:', application ? application.applicationNumber : 'NOT FOUND');
 
       if (!application) {
@@ -155,9 +181,12 @@ router.post('/application/:applicationId',
       }
 
       // Step 2: Create the report with the application's ObjectId
+      // Always set report date to today (not editable)
+      const reportDate = new Date();
+      
       const report = new Report({
         application: application._id, // Use the ObjectId here
-        reportDate: new Date(reportData.reportDate),
+        reportDate: reportDate, // Always today's date
         reportType: reportData.reportType || 'interview',
         title: reportData.title,
         details: reportData.details,
@@ -213,11 +242,13 @@ router.post('/application/:applicationId',
   }
 );
 
+
+
 /**
  * @swagger
  * /api/reports/{reportId}:
  *   put:
- *     summary: Update a report
+ *     summary: Update a report (only by creator or admin)
  *     tags: [Reports]
  */
 router.put('/:reportId',
@@ -229,6 +260,7 @@ router.put('/:reportId',
       const updateData = req.body;
 
       console.log('✏️ PUT Reports - reportId:', reportId);
+      console.log('✏️ PUT Reports - user:', req.user.email);
 
       const report = await Report.findById(reportId);
       if (!report) {
@@ -239,14 +271,29 @@ router.put('/:reportId',
         });
       }
 
-      // Update fields
+      // Check if user is the creator of the report or has admin privileges
+      const isCreator = report.createdBy.toString() === req.user._id.toString();
+      const isAdmin = ['super_admin', 'state_admin', 'district_admin'].includes(req.user.role);
+
+      if (!isCreator && !isAdmin) {
+        return res.status(403).json({
+          success: false,
+          message: 'You can only edit reports created by you',
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      // Update fields (but don't allow changing reportDate - it stays as original creation date)
       Object.keys(updateData).forEach(key => {
-        if (key === 'reportDate' || key === 'followUpDate') {
+        if (key === 'followUpDate') {
           report[key] = updateData[key] ? new Date(updateData[key]) : undefined;
-        } else {
+        } else if (key !== 'createdBy' && key !== 'reportDate') { // Prevent changing creator and report date
           report[key] = updateData[key];
         }
       });
+
+      // Set updatedBy to current user
+      report.updatedBy = req.user._id;
 
       await report.save();
       await report.populate('createdBy', 'name email');
@@ -256,7 +303,25 @@ router.put('/:reportId',
       res.json({
         success: true,
         message: 'Report updated successfully',
-        data: { report },
+        data: { 
+          report: {
+            id: report._id,
+            reportNumber: report.reportNumber,
+            reportDate: report.reportDate,
+            reportType: report.reportType,
+            title: report.title,
+            details: report.details,
+            status: report.status,
+            priority: report.priority,
+            followUpRequired: report.followUpRequired,
+            followUpDate: report.followUpDate,
+            followUpNotes: report.followUpNotes,
+            isPublic: report.isPublic,
+            createdBy: report.createdBy?.name,
+            createdAt: report.createdAt,
+            updatedAt: report.updatedAt
+          }
+        },
         timestamp: new Date().toISOString()
       });
 
@@ -276,7 +341,7 @@ router.put('/:reportId',
  * @swagger
  * /api/reports/{reportId}:
  *   delete:
- *     summary: Delete a report
+ *     summary: Delete a report (with captcha confirmation)
  *     tags: [Reports]
  */
 router.delete('/:reportId',
@@ -285,14 +350,37 @@ router.delete('/:reportId',
   async (req, res) => {
     try {
       const { reportId } = req.params;
+      const { captcha } = req.body;
 
       console.log('🗑️ DELETE Reports - reportId:', reportId);
+      console.log('🗑️ DELETE Reports - user:', req.user.email);
+
+      // Validate captcha confirmation
+      if (!captcha || captcha.toLowerCase() !== 'delete') {
+        return res.status(400).json({
+          success: false,
+          message: 'Please type "DELETE" to confirm deletion',
+          timestamp: new Date().toISOString()
+        });
+      }
 
       const report = await Report.findById(reportId);
       if (!report) {
         return res.status(404).json({
           success: false,
           message: 'Report not found',
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      // Check if user is the creator of the report or has admin privileges
+      const isCreator = report.createdBy.toString() === req.user._id.toString();
+      const isAdmin = ['super_admin', 'state_admin', 'district_admin'].includes(req.user.role);
+
+      if (!isCreator && !isAdmin) {
+        return res.status(403).json({
+          success: false,
+          message: 'You can only delete reports created by you',
           timestamp: new Date().toISOString()
         });
       }

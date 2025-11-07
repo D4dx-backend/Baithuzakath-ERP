@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const staticOTPConfig = require('../config/staticOTP');
 
 const userSchema = new mongoose.Schema({
   // Basic Information
@@ -279,8 +280,10 @@ userSchema.methods.canAccessUser = function (targetUser) {
 
 // Method to generate and set OTP
 userSchema.methods.generateOTP = function (purpose = 'login') {
-  const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit OTP
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+  const otp = staticOTPConfig.USE_STATIC_OTP 
+    ? staticOTPConfig.STATIC_OTP 
+    : Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit OTP
+  const expiresAt = new Date(Date.now() + staticOTPConfig.OTP_EXPIRY_MINUTES * 60 * 1000);
   
   this.otp = {
     code: otp,

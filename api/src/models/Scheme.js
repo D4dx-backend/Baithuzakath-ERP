@@ -151,6 +151,68 @@ const schemeSchema = new mongoose.Schema({
       default: false
     }
   },
+
+  // Money Distribution Timeline Template
+  distributionTimeline: [{
+    description: {
+      type: String,
+      required: true,
+      maxlength: 200
+    },
+    percentage: {
+      type: Number,
+      required: true,
+      min: 0,
+      max: 100
+    },
+    daysFromApproval: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+    requiresVerification: {
+      type: Boolean,
+      default: true
+    },
+    notes: {
+      type: String,
+      maxlength: 500
+    }
+  }],
+
+  // Status Update Stages Configuration
+  statusStages: [{
+    name: {
+      type: String,
+      required: true,
+      maxlength: 100
+    },
+    description: {
+      type: String,
+      maxlength: 500
+    },
+    order: {
+      type: Number,
+      required: true,
+      min: 1
+    },
+    isRequired: {
+      type: Boolean,
+      default: true
+    },
+    allowedRoles: [{
+      type: String,
+      enum: ['super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin', 'project_coordinator', 'scheme_coordinator']
+    }],
+    autoTransition: {
+      type: Boolean,
+      default: false
+    },
+    transitionConditions: {
+      type: String,
+      maxlength: 500
+    }
+  }],
   
   // Status and Workflow
   status: {

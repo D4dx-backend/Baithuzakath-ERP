@@ -1,6 +1,7 @@
 const { Scheme, Project, Location } = require('../models');
 const ResponseHelper = require('../utils/responseHelper');
 const formConfigurationController = require('./formConfigurationController');
+const { updateApplicationsDistributionTimeline } = require('./applicationController');
 
 class SchemeController {
   /**
@@ -145,6 +146,110 @@ class SchemeController {
         schemeData.targetRegions = [];
       }
 
+      // Apply default configurations if not provided
+      if (!schemeData.distributionTimeline || schemeData.distributionTimeline.length === 0) {
+        schemeData.distributionTimeline = [
+          {
+            description: "Initial Payment (First Installment)",
+            percentage: 50,
+            daysFromApproval: 7,
+            requiresVerification: true,
+            notes: "First installment after approval"
+          },
+          {
+            description: "Progress Payment (Second Installment)",
+            percentage: 30,
+            daysFromApproval: 60,
+            requiresVerification: true,
+            notes: "Payment after progress verification"
+          },
+          {
+            description: "Final Payment (Completion)",
+            percentage: 20,
+            daysFromApproval: 120,
+            requiresVerification: true,
+            notes: "Final payment upon completion"
+          }
+        ];
+      }
+
+      if (!schemeData.statusStages || schemeData.statusStages.length === 0) {
+        schemeData.statusStages = [
+          {
+            name: "Application Received",
+            description: "Initial application submission and registration",
+            order: 1,
+            isRequired: true,
+            allowedRoles: ['super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'],
+            autoTransition: true,
+            transitionConditions: "Automatically set when application is submitted"
+          },
+          {
+            name: "Document Verification",
+            description: "Verification of submitted documents and eligibility",
+            order: 2,
+            isRequired: true,
+            allowedRoles: ['super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'],
+            autoTransition: false,
+            transitionConditions: ""
+          },
+          {
+            name: "Field Verification",
+            description: "Physical verification and field assessment",
+            order: 3,
+            isRequired: false,
+            allowedRoles: ['super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'],
+            autoTransition: false,
+            transitionConditions: ""
+          },
+          {
+            name: "Interview Process",
+            description: "Beneficiary interview and assessment",
+            order: 4,
+            isRequired: schemeData.applicationSettings?.requiresInterview || false,
+            allowedRoles: ['super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin', 'scheme_coordinator'],
+            autoTransition: false,
+            transitionConditions: ""
+          },
+          {
+            name: "Final Review",
+            description: "Final review and decision making",
+            order: 5,
+            isRequired: true,
+            allowedRoles: ['super_admin', 'state_admin', 'district_admin', 'area_admin'],
+            autoTransition: false,
+            transitionConditions: ""
+          },
+          {
+            name: "Approved",
+            description: "Application approved for disbursement",
+            order: 6,
+            isRequired: true,
+            allowedRoles: ['super_admin', 'state_admin', 'district_admin', 'area_admin'],
+            autoTransition: false,
+            transitionConditions: ""
+          },
+          {
+            name: "Disbursement",
+            description: "Money disbursement to beneficiary",
+            order: 7,
+            isRequired: true,
+            allowedRoles: ['super_admin', 'state_admin', 'district_admin', 'area_admin'],
+            autoTransition: false,
+            transitionConditions: ""
+          },
+          {
+            name: "Completed",
+            description: "Application process completed successfully",
+            order: 8,
+            isRequired: true,
+            allowedRoles: ['super_admin', 'state_admin', 'district_admin', 'area_admin'],
+            autoTransition: true,
+            transitionConditions: "Automatically set when all disbursements are complete"
+          }
+        ];
+      }
+
       const scheme = new Scheme(schemeData);
       await scheme.save();
 
@@ -211,8 +316,26 @@ class SchemeController {
         updateData.targetRegions = [];
       }
 
+      // Check if distribution timeline is being updated
+      const isDistributionTimelineUpdated = updateData.distributionTimeline && 
+        JSON.stringify(updateData.distributionTimeline) !== JSON.stringify(scheme.distributionTimeline);
+
       Object.assign(scheme, updateData);
       await scheme.save();
+
+      // If distribution timeline was updated, update all related applications
+      if (isDistributionTimelineUpdated && updateData.distributionTimeline) {
+        console.log(`Distribution timeline updated for scheme ${scheme._id}, updating related applications...`);
+        
+        // Update applications in the background (don't wait for completion)
+        updateApplicationsDistributionTimeline(scheme._id, updateData.distributionTimeline, req.user._id)
+          .then(result => {
+            console.log(`Applications update result for scheme ${scheme._id}:`, result);
+          })
+          .catch(error => {
+            console.error(`Error updating applications for scheme ${scheme._id}:`, error);
+          });
+      }
 
       const populatedScheme = await Scheme.findById(scheme._id)
         .populate('project', 'name code description')
@@ -404,6 +527,53 @@ class SchemeController {
     // Delegate to FormConfiguration controller
     req.params.schemeId = req.params.id;
     return formConfigurationController.updateFormConfiguration(req, res);
+  }
+
+  /**
+   * Update distribution timeline for all applications of a scheme
+   * POST /api/schemes/:id/update-applications-timeline
+   */
+  async updateApplicationsTimeline(req, res) {
+    try {
+      const { id } = req.params;
+
+      const scheme = await Scheme.findById(id);
+      if (!scheme) {
+        return ResponseHelper.error(res, 'Scheme not found', 404);
+      }
+
+      // Check access permissions
+      if (!scheme.canUserAccess(req.user)) {
+        return ResponseHelper.error(res, 'Access denied to this scheme', 403);
+      }
+
+      if (!scheme.distributionTimeline || scheme.distributionTimeline.length === 0) {
+        return ResponseHelper.error(res, 'No distribution timeline configured for this scheme', 400);
+      }
+
+      console.log(`Manual timeline update requested for scheme ${id} by user ${req.user._id}`);
+
+      // Update all related applications
+      const result = await updateApplicationsDistributionTimeline(
+        scheme._id, 
+        scheme.distributionTimeline, 
+        req.user._id
+      );
+
+      if (result.success) {
+        return ResponseHelper.success(res, {
+          updated: result.updated,
+          failed: result.failed,
+          total: result.total,
+          details: result.results
+        }, `Successfully updated ${result.updated} applications out of ${result.total}`);
+      } else {
+        return ResponseHelper.error(res, result.error || 'Failed to update applications', 500);
+      }
+    } catch (error) {
+      console.error('❌ Update Applications Timeline Error:', error);
+      return ResponseHelper.error(res, 'Failed to update applications timeline', 500);
+    }
   }
 }
 

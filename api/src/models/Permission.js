@@ -30,7 +30,7 @@ const permissionSchema = new mongoose.Schema({
       'users', 'roles', 'permissions', 'beneficiaries', 'applications', 
       'projects', 'schemes', 'locations', 'reports', 'notifications', 
       'finances', 'settings', 'audit', 'dashboard', 'forms', 'documents',
-      'donors', 'donations', 'communications', 'system', 'interviews'
+      'donors', 'donations', 'communications', 'system', 'interviews', 'activity_logs'
     ]
   },
   category: {

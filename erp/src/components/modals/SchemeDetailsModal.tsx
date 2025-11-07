@@ -2,7 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Calendar, DollarSign, Target, Users, MapPin, FileText, Clock, CheckCircle } from "lucide-react";
+import { Calendar, IndianRupee, Target, Users, MapPin, FileText, Clock, CheckCircle } from "lucide-react";
 import { type Scheme } from "@/lib/api";
 
 interface SchemeDetailsModalProps {
@@ -120,21 +120,21 @@ export function SchemeDetailsModal({ open, onOpenChange, scheme }: SchemeDetails
             <CardContent className="space-y-4">
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="flex items-center gap-2">
-                  <DollarSign className="h-4 w-4 text-green-600" />
+                  <IndianRupee className="h-4 w-4 text-green-600" />
                   <div>
                     <p className="text-xs text-muted-foreground">Total Budget</p>
                     <p className="text-sm font-medium">{formatCurrency(scheme.budget.total)}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <DollarSign className="h-4 w-4 text-blue-600" />
+                  <IndianRupee className="h-4 w-4 text-blue-600" />
                   <div>
                     <p className="text-xs text-muted-foreground">Allocated</p>
                     <p className="text-sm font-medium">{formatCurrency(scheme.budget.allocated)}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <DollarSign className="h-4 w-4 text-red-600" />
+                  <IndianRupee className="h-4 w-4 text-red-600" />
                   <div>
                     <p className="text-xs text-muted-foreground">Spent</p>
                     <p className="text-sm font-medium">{formatCurrency(scheme.budget.spent)}</p>

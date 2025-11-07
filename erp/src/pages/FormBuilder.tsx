@@ -15,7 +15,7 @@ import { FieldTypeSelector } from "@/components/formbuilder/FieldTypeSelector";
 import { FormCanvas } from "@/components/formbuilder/FormCanvas";
 import { FormPreview } from "@/components/formbuilder/FormPreview";
 import { useToast } from "@/hooks/use-toast";
-import { api } from "@/lib/api";
+import { api, schemes as schemesApi } from "@/lib/api";
 import { useRBAC } from "@/hooks/useRBAC";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -49,7 +49,7 @@ export default function FormBuilder() {
   const { hasAnyPermission } = useRBAC();
   
   // Permission check - form builder requires scheme management permissions
-  const canManageForms = hasAnyPermission(['schemes.create', 'schemes.update.all', 'schemes.update.assigned']);
+  const canManageForms = hasAnyPermission(['schemes.create', 'schemes.manage', 'schemes.update.assigned']);
   
   // Get scheme context from URL parameters
   const schemeId = searchParams.get('schemeId');
@@ -111,21 +111,23 @@ export default function FormBuilder() {
             description: `Successfully loaded existing form configuration${config.lastModified ? ` (last updated: ${new Date(config.lastModified).toLocaleDateString()})` : ''}.`
           });
         } else {
-          // No form configuration exists - set up for new form creation
+          // No form configuration exists - set up for new form creation with default template
           if (schemeName) {
             setFormTitle(`${decodeURIComponent(schemeName)} Application Form`);
             setFormDescription(`Application form for ${decodeURIComponent(schemeName)} scheme.`);
           }
           setSelectedScheme(schemeId);
-          setPages([]);
-          setHasUnsavedChanges(false);
+          
+          // Set default pages for new forms
+          setPages(getDefaultPages());
+          setHasUnsavedChanges(true); // Mark as having changes since we're using default template
           setIsDefaultTemplate(true);
           setIsPublished(false);
           setFormVersion(1);
 
           toast({
             title: "Create new form",
-            description: "No form exists for this scheme. Create your custom form by adding pages and fields.",
+            description: "No form exists for this scheme. Using default template - customize and save your form.",
             variant: "default"
           });
         }
@@ -138,6 +140,11 @@ export default function FormBuilder() {
           setFormDescription(`Application form for ${decodeURIComponent(schemeName)} scheme.`);
           setSelectedScheme(schemeId);
         }
+
+        // Set default pages when loading fails
+        setPages(getDefaultPages());
+        setHasUnsavedChanges(true);
+        setIsDefaultTemplate(true);
 
         // Handle different error types
         if (error.message?.includes('401') || error.message?.includes('Authentication')) {
@@ -170,7 +177,13 @@ export default function FormBuilder() {
     }
   }, [schemeId, schemeName, initialLoad, toast]);
   
-  const [pages, setPages] = useState<Page[]>([
+  const [pages, setPages] = useState<Page[]>([]);
+  const [showPreview, setShowPreview] = useState(false);
+  const [showEmbedCode, setShowEmbedCode] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+
+  // Helper function to generate default pages
+  const getDefaultPages = (): Page[] => [
     {
       id: 1,
       title: "Personal Information",
@@ -183,17 +196,13 @@ export default function FormBuilder() {
     },
     {
       id: 2,
-      title: "Financial Details",
+      title: "Application Details",
       fields: [
-        { id: 5, label: "Annual Income", type: "number", required: true, enabled: true, placeholder: "Enter amount" },
-        { id: 6, label: "Purpose of Application", type: "textarea", required: true, enabled: true, placeholder: "Describe your purpose" },
-        { id: 7, label: "Supporting Documents", type: "file", required: false, enabled: true },
+        { id: 5, label: "Purpose of Application", type: "textarea", required: true, enabled: true, placeholder: "Describe your purpose" },
+        { id: 6, label: "Supporting Documents", type: "file", required: false, enabled: true },
       ]
     }
-  ]);
-  const [showPreview, setShowPreview] = useState(false);
-  const [showEmbedCode, setShowEmbedCode] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  ];
 
   const addField = (pageId: number, field: Field) => {
     const newPages = pages.map(page => {
@@ -210,16 +219,7 @@ export default function FormBuilder() {
   };
 
   const addFirstPage = () => {
-    const newPage: Page = {
-      id: 1,
-      title: "Personal Information",
-      fields: [
-        { id: 1, label: "Full Name", type: "text", required: true, enabled: true, placeholder: "Enter your full name" },
-        { id: 2, label: "Email Address", type: "email", required: true, enabled: true, placeholder: "your@email.com" },
-        { id: 3, label: "Phone Number", type: "phone", required: true, enabled: true, placeholder: "+91 XXXXXXXXXX" }
-      ]
-    };
-    setPages([newPage]);
+    setPages(getDefaultPages());
     setHasUnsavedChanges(true);
     setIsDefaultTemplate(false);
   };
@@ -312,10 +312,7 @@ export default function FormBuilder() {
 
     setSaving(true);
     try {
-      await api.request(`/schemes/${schemeId}/form-config/publish`, {
-        method: 'PATCH',
-        body: JSON.stringify({ isPublished: true }),
-      });
+      await schemesApi.publishForm(schemeId, { isPublished: true });
       setIsPublished(true);
       
       toast({

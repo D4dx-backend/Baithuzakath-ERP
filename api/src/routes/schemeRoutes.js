@@ -169,7 +169,7 @@ router.get('/', schemeController.getSchemes);
  *         description: Authentication required
  */
 router.post('/', 
-  authorize('state_admin', 'district_admin', 'project_coordinator'),
+  authorize('super_admin', 'state_admin', 'district_admin', 'project_coordinator'),
   schemeController.createScheme
 );
 
@@ -256,7 +256,7 @@ router.get('/:id', schemeController.getSchemeById);
  *         description: Authentication required
  */
 router.put('/:id', 
-  authorize('state_admin', 'district_admin', 'project_coordinator'),
+  authorize('super_admin', 'state_admin', 'district_admin', 'project_coordinator'),
   schemeController.updateScheme
 );
 
@@ -283,7 +283,7 @@ router.put('/:id',
  *         description: Authentication required
  */
 router.delete('/:id', 
-  authorize('state_admin', 'district_admin'),
+  authorize('super_admin', 'state_admin', 'district_admin'),
   schemeController.deleteScheme
 );
 
@@ -310,7 +310,10 @@ router.delete('/:id',
  *       401:
  *         description: Authentication required
  */
-router.get('/:id/form-config', schemeController.getFormConfiguration);
+router.get('/:id/form-config', 
+  authorize('super_admin', 'state_admin', 'district_admin', 'project_coordinator', 'scheme_coordinator'),
+  schemeController.getFormConfiguration
+);
 
 /**
  * @swagger
@@ -355,8 +358,36 @@ router.get('/:id/form-config', schemeController.getFormConfiguration);
  *         description: Authentication required
  */
 router.put('/:id/form-config', 
-  authorize('state_admin', 'district_admin', 'project_coordinator'),
+  authorize('super_admin', 'state_admin', 'district_admin', 'project_coordinator'),
   schemeController.updateFormConfiguration
+);
+
+/**
+ * @swagger
+ * /api/schemes/{id}/update-applications-timeline:
+ *   post:
+ *     summary: Update distribution timeline for all applications of a scheme
+ *     tags: [Schemes]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Scheme ID
+ *     responses:
+ *       200:
+ *         description: Applications timeline updated successfully
+ *       404:
+ *         description: Scheme not found
+ *       401:
+ *         description: Authentication required
+ */
+router.post('/:id/update-applications-timeline',
+  authorize('super_admin', 'state_admin', 'district_admin'),
+  schemeController.updateApplicationsTimeline
 );
 
 module.exports = router;

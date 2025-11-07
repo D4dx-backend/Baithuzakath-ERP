@@ -128,6 +128,92 @@ const projectSchema = new mongoose.Schema({
       }
     }]
   },
+
+  // Independent Project Status Updates
+  statusUpdates: [{
+    stage: {
+      type: String,
+      required: true,
+      maxlength: 100
+    },
+    status: {
+      type: String,
+      enum: ['pending', 'in_progress', 'completed', 'on_hold', 'cancelled'],
+      default: 'pending'
+    },
+    description: {
+      type: String,
+      maxlength: 1000
+    },
+    updatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    },
+    updatedAt: {
+      type: Date,
+      default: Date.now
+    },
+    attachments: [{
+      name: String,
+      url: String,
+      type: String
+    }],
+    remarks: {
+      type: String,
+      maxlength: 500
+    },
+    isVisible: {
+      type: Boolean,
+      default: true
+    }
+  }],
+
+  // Project Status Configuration
+  statusConfiguration: {
+    stages: [{
+      name: {
+        type: String,
+        required: true,
+        maxlength: 100
+      },
+      description: {
+        type: String,
+        maxlength: 500
+      },
+      order: {
+        type: Number,
+        required: true,
+        min: 1
+      },
+      isRequired: {
+        type: Boolean,
+        default: true
+      },
+      allowedRoles: [{
+        type: String,
+        enum: ['super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin', 'project_coordinator', 'scheme_coordinator']
+      }],
+      estimatedDuration: {
+        type: Number, // in days
+        min: 0
+      }
+    }],
+    enablePublicTracking: {
+      type: Boolean,
+      default: false
+    },
+    notificationSettings: {
+      emailNotifications: {
+        type: Boolean,
+        default: true
+      },
+      smsNotifications: {
+        type: Boolean,
+        default: false
+      }
+    }
+  },
   
   // Documents and Media
   documents: [{

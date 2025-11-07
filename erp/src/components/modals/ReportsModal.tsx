@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Plus, Calendar, FileText, User, Loader2, AlertCircle } from "lucide-react";
+import { Plus, Calendar, FileText, User, Loader2, AlertCircle, Edit, Trash2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { reports as reportsApi } from "@/lib/api";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -49,6 +49,9 @@ export function ReportsModal({ isOpen, onClose, applicationId, applicantName }: 
   const [error, setError] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [editingReport, setEditingReport] = useState<Report | null>(null);
+  const [deletingReport, setDeletingReport] = useState<string | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
   
   const [formData, setFormData] = useState({
     reportDate: "",
@@ -62,6 +65,14 @@ export function ReportsModal({ isOpen, onClose, applicationId, applicantName }: 
     isPublic: false
   });
 
+  // Set today's date as default when opening add form
+  useEffect(() => {
+    if (showAddForm && !editingReport) {
+      const today = new Date().toISOString().split('T')[0];
+      setFormData(prev => ({ ...prev, reportDate: today }));
+    }
+  }, [showAddForm, editingReport]);
+
   // Load reports when modal opens
   useEffect(() => {
     if (isOpen && applicationId) {
@@ -74,14 +85,20 @@ export function ReportsModal({ isOpen, onClose, applicationId, applicantName }: 
       setLoading(true);
       setError(null);
       
+      console.log('🔍 Frontend - Loading reports for applicationId:', applicationId);
+      console.log('🔍 Frontend - applicationId type:', typeof applicationId);
+      
       const response = await reportsApi.getByApplication(applicationId);
       
       if (response.success) {
+        console.log('✅ Frontend - Reports loaded successfully:', response.data.reports.length);
         setReports(response.data.reports);
       } else {
+        console.error('❌ Frontend - Failed to load reports:', response.message);
         setError(response.message || "Failed to load reports");
       }
     } catch (err: any) {
+      console.error('❌ Frontend - Error loading reports:', err);
       setError(err.message || "Failed to load reports");
       toast({
         title: "Error",
@@ -94,7 +111,7 @@ export function ReportsModal({ isOpen, onClose, applicationId, applicantName }: 
   };
 
   const handleAddReport = async () => {
-    if (!formData.title.trim() || !formData.details.trim() || !formData.reportDate) {
+    if (!formData.title.trim() || !formData.details.trim()) {
       toast({
         title: "Error",
         description: "Please fill in all required fields",
@@ -107,7 +124,7 @@ export function ReportsModal({ isOpen, onClose, applicationId, applicantName }: 
       setSubmitting(true);
       
       const reportData = {
-        reportDate: formData.reportDate,
+        // Don't send reportDate - backend will set it to today
         reportType: formData.reportType,
         title: formData.title,
         details: formData.details,
@@ -130,18 +147,7 @@ export function ReportsModal({ isOpen, onClose, applicationId, applicantName }: 
         await loadReports();
         
         // Reset form
-        setShowAddForm(false);
-        setFormData({
-          reportDate: "",
-          reportType: "interview",
-          title: "",
-          details: "",
-          priority: "medium",
-          followUpRequired: false,
-          followUpDate: "",
-          followUpNotes: "",
-          isPublic: false
-        });
+        resetForm();
       } else {
         toast({
           title: "Error",
@@ -158,6 +164,139 @@ export function ReportsModal({ isOpen, onClose, applicationId, applicantName }: 
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleEditReport = async () => {
+    if (!editingReport || !formData.title.trim() || !formData.details.trim()) {
+      toast({
+        title: "Error",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      
+      const reportData = {
+        // Don't send reportDate - it cannot be changed after creation
+        reportType: formData.reportType,
+        title: formData.title,
+        details: formData.details,
+        priority: formData.priority,
+        followUpRequired: formData.followUpRequired,
+        followUpDate: formData.followUpDate || undefined,
+        followUpNotes: formData.followUpNotes || undefined,
+        isPublic: formData.isPublic
+      };
+
+      const response = await reportsApi.update(editingReport.id, reportData);
+      
+      if (response.success) {
+        toast({
+          title: "Success",
+          description: "Report updated successfully",
+        });
+        
+        // Reload reports
+        await loadReports();
+        
+        // Reset form
+        resetForm();
+      } else {
+        toast({
+          title: "Error",
+          description: response.message || "Failed to update report",
+          variant: "destructive",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message || "Failed to update report",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteReport = async (reportId: string) => {
+    if (deleteConfirmation.toLowerCase() !== 'delete') {
+      toast({
+        title: "Error",
+        description: 'Please type "DELETE" to confirm deletion',
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      
+      const response = await reportsApi.delete(reportId, { captcha: deleteConfirmation });
+      
+      if (response.success) {
+        toast({
+          title: "Success",
+          description: "Report deleted successfully",
+        });
+        
+        // Reload reports
+        await loadReports();
+        
+        // Reset delete state
+        setDeletingReport(null);
+        setDeleteConfirmation("");
+      } else {
+        toast({
+          title: "Error",
+          description: response.message || "Failed to delete report",
+          variant: "destructive",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message || "Failed to delete report",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const startEdit = (report: Report) => {
+    setEditingReport(report);
+    setFormData({
+      reportDate: report.reportDate.split('T')[0], // Convert to YYYY-MM-DD format
+      reportType: report.reportType,
+      title: report.title,
+      details: report.details,
+      priority: report.priority,
+      followUpRequired: report.followUpRequired,
+      followUpDate: report.followUpDate ? report.followUpDate.split('T')[0] : "",
+      followUpNotes: report.followUpNotes || "",
+      isPublic: report.isPublic
+    });
+    setShowAddForm(true);
+  };
+
+  const resetForm = () => {
+    setShowAddForm(false);
+    setEditingReport(null);
+    setFormData({
+      reportDate: "",
+      reportType: "interview",
+      title: "",
+      details: "",
+      priority: "medium",
+      followUpRequired: false,
+      followUpDate: "",
+      followUpNotes: "",
+      isPublic: false
+    });
   };
 
   return (
@@ -178,24 +317,11 @@ export function ReportsModal({ isOpen, onClose, applicationId, applicantName }: 
             <Card>
               <CardContent className="pt-6 space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-semibold">New Report</h3>
+                  <h3 className="font-semibold">{editingReport ? 'Edit Report' : 'New Report'}</h3>
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => {
-                      setShowAddForm(false);
-                      setFormData({
-                        reportDate: "",
-                        reportType: "interview",
-                        title: "",
-                        details: "",
-                        priority: "medium",
-                        followUpRequired: false,
-                        followUpDate: "",
-                        followUpNotes: "",
-                        isPublic: false
-                      });
-                    }}
+                    onClick={resetForm}
                   >
                     Cancel
                   </Button>
@@ -203,11 +329,13 @@ export function ReportsModal({ isOpen, onClose, applicationId, applicantName }: 
                 
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Report Date *</Label>
+                    <Label>Report Date {editingReport ? '(Cannot be changed)' : '*'}</Label>
                     <Input
                       type="date"
                       value={formData.reportDate}
                       onChange={(e) => setFormData({ ...formData, reportDate: e.target.value })}
+                      disabled={editingReport !== null} // Disable when editing
+                      className={editingReport ? "bg-gray-100" : ""}
                     />
                   </div>
                   <div className="space-y-2">
@@ -313,9 +441,9 @@ export function ReportsModal({ isOpen, onClose, applicationId, applicantName }: 
                   </div>
                 )}
                 
-                <Button onClick={handleAddReport} className="w-full" disabled={submitting}>
+                <Button onClick={editingReport ? handleEditReport : handleAddReport} className="w-full" disabled={submitting}>
                   {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Save Report
+                  {editingReport ? 'Update Report' : 'Save Report'}
                 </Button>
               </CardContent>
             </Card>
@@ -351,7 +479,7 @@ export function ReportsModal({ isOpen, onClose, applicationId, applicantName }: 
                   <Card key={report.id}>
                     <CardContent className="pt-6 space-y-3">
                       <div className="flex items-start justify-between">
-                        <div className="space-y-1">
+                        <div className="space-y-1 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <Badge
                               className={
@@ -397,6 +525,24 @@ export function ReportsModal({ isOpen, onClose, applicationId, applicantName }: 
                             )}
                           </div>
                         </div>
+                        <div className="flex items-center gap-1 ml-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => startEdit(report)}
+                            className="h-8 w-8 p-0"
+                          >
+                            <Edit className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setDeletingReport(report.id)}
+                            className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
                       
                       <p className="text-sm whitespace-pre-wrap">{report.details}</p>
@@ -429,6 +575,51 @@ export function ReportsModal({ isOpen, onClose, applicationId, applicantName }: 
           </div>
         </div>
       </DialogContent>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!deletingReport} onOpenChange={() => {
+        setDeletingReport(null);
+        setDeleteConfirmation("");
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete Report</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to delete this report? This action cannot be undone.
+            </p>
+            <div className="space-y-2">
+              <Label>Type "DELETE" to confirm:</Label>
+              <Input
+                value={deleteConfirmation}
+                onChange={(e) => setDeleteConfirmation(e.target.value)}
+                placeholder="DELETE"
+                className="font-mono"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setDeletingReport(null);
+                  setDeleteConfirmation("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => deletingReport && handleDeleteReport(deletingReport)}
+                disabled={submitting || deleteConfirmation.toLowerCase() !== 'delete'}
+              >
+                {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Delete Report
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

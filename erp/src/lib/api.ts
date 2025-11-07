@@ -1,5 +1,5 @@
-// Use relative URL in development to leverage Vite proxy
-const API_BASE_URL = import.meta.env.DEV ? '/api' : 'http://localhost:5001/api';
+// Use environment variable or fallback to API server
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
 // Types
 export interface User {
@@ -128,6 +128,22 @@ export interface Scheme {
     requiresInterview: boolean;
     allowMultipleApplications: boolean;
   };
+  distributionTimeline: Array<{
+    description: string;
+    percentage: number;
+    daysFromApproval: number;
+    requiresVerification: boolean;
+    notes?: string;
+  }>;
+  statusStages: Array<{
+    name: string;
+    description?: string;
+    order: number;
+    isRequired: boolean;
+    allowedRoles: string[];
+    autoTransition: boolean;
+    transitionConditions?: string;
+  }>;
   statistics: {
     totalApplications: number;
     approvedApplications: number;
@@ -173,7 +189,7 @@ class ApiClient {
 
   constructor(baseURL: string) {
     this.baseURL = baseURL;
-    this.token = localStorage.getItem('auth_token');
+    this.token = localStorage.getItem('token'); // Use 'token' to match useAuth hook
   }
 
   private getHeaders(): HeadersInit {
@@ -182,7 +198,7 @@ class ApiClient {
     };
 
     // Always get the latest token from localStorage
-    const currentToken = this.token || localStorage.getItem('auth_token');
+    const currentToken = this.token || localStorage.getItem('token'); // Use 'token' to match useAuth hook
     if (currentToken) {
       headers.Authorization = `Bearer ${currentToken}`;
     }
@@ -241,8 +257,12 @@ class ApiClient {
   }>> {
     const response = await this.request<{
       user: User;
-      accessToken: string;
-      expiresIn: number;
+      tokens: {
+        accessToken: string;
+        refreshToken: string;
+        expiresIn: number;
+      };
+      loginMethod: string;
     }>('/auth/verify-otp', {
       method: 'POST',
       body: JSON.stringify({ phone, otp, purpose }),
@@ -250,10 +270,10 @@ class ApiClient {
 
     if (response.success && response.data) {
       // Handle the nested tokens structure from backend
-      const accessToken = response.data.tokens?.accessToken || response.data.accessToken;
+      const accessToken = response.data.tokens?.accessToken;
       if (accessToken) {
         this.token = accessToken;
-        localStorage.setItem('auth_token', this.token);
+        localStorage.setItem('token', this.token); // Use 'token' to match useAuth hook
         localStorage.setItem('user', JSON.stringify(response.data.user));
       }
     }
@@ -272,7 +292,7 @@ class ApiClient {
       console.error('Logout error:', error);
     } finally {
       this.token = null;
-      localStorage.removeItem('auth_token');
+      localStorage.removeItem('token'); // Use 'token' to match useAuth hook
       localStorage.removeItem('user');
     }
   }
@@ -442,7 +462,7 @@ class ApiClient {
   }
 
   // Form Configuration Methods
-  async getFormConfiguration(schemeId: string): Promise<ApiResponse<{ formConfiguration: any }>> {
+  async getFormConfiguration(schemeId: string): Promise<ApiResponse<{ formConfiguration: any; hasConfiguration: boolean }>> {
     return this.request(`/schemes/${schemeId}/form-config`);
   }
 
@@ -485,7 +505,7 @@ class ApiClient {
   // Utility Methods
   isAuthenticated(): boolean {
     // Always check localStorage for the latest token
-    const currentToken = this.token || localStorage.getItem('auth_token');
+    const currentToken = this.token || localStorage.getItem('token'); // Use 'token' to match useAuth hook
     return !!currentToken;
   }
 
@@ -496,7 +516,7 @@ class ApiClient {
 
   setToken(token: string): void {
     this.token = token;
-    localStorage.setItem('auth_token', token);
+    localStorage.setItem('token', token); // Use 'token' to match useAuth hook
   }
 
   // Enhanced User Methods
@@ -814,6 +834,38 @@ class ExtendedApiClient extends ApiClient {
     });
   }
 
+  async exportBeneficiaries(params?: any): Promise<ApiResponse<Blob>> {
+    const searchParams = new URLSearchParams();
+    
+    if (params) {
+      Object.keys(params).forEach(key => {
+        if (params[key] !== undefined && params[key] !== null && params[key] !== '') {
+          searchParams.append(key, params[key].toString());
+        }
+      });
+    }
+
+    const endpoint = `/beneficiaries/export${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
+    
+    const response = await fetch(`${this.baseURL}${endpoint}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${this.token || localStorage.getItem('token')}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Export failed: ${response.statusText}`);
+    }
+
+    const blob = await response.blob();
+    return {
+      success: true,
+      data: blob,
+      message: 'Export successful'
+    };
+  }
+
   // Application Methods
   async getApplications(params?: {
     page?: number;
@@ -909,6 +961,7 @@ export const beneficiaries = {
   update: (id: string, data: any) => extendedApiClient.updateBeneficiary(id, data),
   delete: (id: string) => extendedApiClient.deleteBeneficiary(id),
   verify: (id: string) => extendedApiClient.verifyBeneficiary(id),
+  export: (params?: any) => extendedApiClient.exportBeneficiaries(params),
 };
 
 export const applications = {
@@ -922,12 +975,48 @@ export const applications = {
 };
 
 export const budget = {
-  getOverview: () => extendedApiClient.request('/budget/overview'),
-  getProjects: () => extendedApiClient.request('/budget/projects'),
-  getSchemes: () => extendedApiClient.request('/budget/schemes'),
-  getTransactions: (limit?: number) => extendedApiClient.request(`/budget/transactions${limit ? `?limit=${limit}` : ''}`),
-  getMonthlySummary: (year?: number, months?: number) => extendedApiClient.request(`/budget/monthly-summary${year || months ? `?${new URLSearchParams({ ...(year && { year: year.toString() }), ...(months && { months: months.toString() }) }).toString()}` : ''}`),
-  getByCategory: () => extendedApiClient.request('/budget/by-category'),
+  getOverview: (period?: string) => {
+    const params = new URLSearchParams();
+    if (period) params.append('period', period);
+    return extendedApiClient.request(`/budget/overview${params.toString() ? `?${params.toString()}` : ''}`);
+  },
+  getProjects: (period?: string) => {
+    const params = new URLSearchParams();
+    if (period) params.append('period', period);
+    return extendedApiClient.request(`/budget/projects${params.toString() ? `?${params.toString()}` : ''}`);
+  },
+  getSchemes: (period?: string) => {
+    const params = new URLSearchParams();
+    if (period) params.append('period', period);
+    return extendedApiClient.request(`/budget/schemes${params.toString() ? `?${params.toString()}` : ''}`);
+  },
+  getTransactions: (limit?: number, filters?: any) => {
+    const params = new URLSearchParams();
+    if (limit) params.append('limit', limit.toString());
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value) params.append(key, value.toString());
+      });
+    }
+    return extendedApiClient.request(`/budget/transactions${params.toString() ? `?${params.toString()}` : ''}`);
+  },
+  getMonthlySummary: (year?: number, months?: number, period?: string) => {
+    const params = new URLSearchParams();
+    if (year) params.append('year', year.toString());
+    if (months) params.append('months', months.toString());
+    if (period) params.append('period', period);
+    return extendedApiClient.request(`/budget/monthly-summary${params.toString() ? `?${params.toString()}` : ''}`);
+  },
+  getByCategory: (period?: string) => {
+    const params = new URLSearchParams();
+    if (period) params.append('period', period);
+    return extendedApiClient.request(`/budget/by-category${params.toString() ? `?${params.toString()}` : ''}`);
+  },
+  getAnalytics: (period?: string) => {
+    const params = new URLSearchParams();
+    if (period) params.append('period', period);
+    return extendedApiClient.request(`/budget/analytics${params.toString() ? `?${params.toString()}` : ''}`);
+  },
 };
 
 export const donors = {
@@ -950,9 +1039,33 @@ export const donors = {
   delete: (id: string) => extendedApiClient.request(`/donors/${id}`, { method: 'DELETE' }),
   updateStatus: (id: string, status: string) => extendedApiClient.request(`/donors/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   verify: (id: string, data: any) => extendedApiClient.request(`/donors/${id}/verify`, { method: 'PATCH', body: JSON.stringify(data) }),
-  getStats: () => extendedApiClient.request('/donors/stats'),
-  getTop: (limit?: number) => extendedApiClient.request(`/donors/top${limit ? `?limit=${limit}` : ''}`),
-  getTrends: (months?: number) => extendedApiClient.request(`/donors/trends${months ? `?months=${months}` : ''}`),
+  getStats: () => extendedApiClient.request('/donors/analytics/stats'),
+  getTop: (limit?: number) => extendedApiClient.request(`/donors/analytics/top${limit ? `?limit=${limit}` : ''}`),
+  getTrends: (months?: number) => extendedApiClient.request(`/donors/analytics/trends${months ? `?months=${months}` : ''}`),
+  getDonations: (params?: any) => {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          searchParams.append(key, value.toString());
+        }
+      });
+    }
+    const queryString = searchParams.toString();
+    return extendedApiClient.request(`/donors/donations${queryString ? `?${queryString}` : ''}`);
+  },
+  getDonationHistory: (params?: any) => {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          searchParams.append(key, value.toString());
+        }
+      });
+    }
+    const queryString = searchParams.toString();
+    return extendedApiClient.request(`/donors/history${queryString ? `?${queryString}` : ''}`);
+  },
   search: (query: string, limit?: number) => extendedApiClient.request(`/donors/search?q=${encodeURIComponent(query)}${limit ? `&limit=${limit}` : ''}`),
   getSuggestions: (programId?: string) => extendedApiClient.request(`/donors/suggestions${programId ? `?programId=${programId}` : ''}`),
   bulkUpdateStatus: (donorIds: string[], status: string) => extendedApiClient.request('/donors/bulk/status', { method: 'PATCH', body: JSON.stringify({ donorIds, status }) }),
@@ -979,7 +1092,19 @@ export const donations = {
   update: (id: string, data: any) => extendedApiClient.request(`/donations/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: (id: string) => extendedApiClient.request(`/donations/${id}`, { method: 'DELETE' }),
   getStats: () => extendedApiClient.request('/donations/stats'),
-  getRecent: (limit?: number) => extendedApiClient.request(`/donations/recent${limit ? `?limit=${limit}` : ''}`),
+  getRecent: (limit?: number) => extendedApiClient.request(`/donors/donations${limit ? `?limit=${limit}` : ''}`),
+  getHistory: (params?: any) => {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          searchParams.append(key, value.toString());
+        }
+      });
+    }
+    const queryString = searchParams.toString();
+    return extendedApiClient.request(`/donors/history${queryString ? `?${queryString}` : ''}`);
+  },
   getByDonor: (donorId: string, params?: any) => {
     const searchParams = new URLSearchParams();
     if (params) {
@@ -1004,6 +1129,57 @@ export const dashboard = {
   getProjectPerformance: () => extendedApiClient.request('/dashboard/project-performance'),
 };
 
+export const budgetApi = {
+  getOverview: () => extendedApiClient.request('/budget/overview'),
+  getProjects: () => extendedApiClient.request('/budget/projects'),
+  getSchemes: () => extendedApiClient.request('/budget/schemes'),
+  getTransactions: (params?: { limit?: number; status?: string; type?: string; project?: string; scheme?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          searchParams.append(key, value.toString());
+        }
+      });
+    }
+    return extendedApiClient.request(`/budget/transactions${searchParams.toString() ? `?${searchParams.toString()}` : ''}`);
+  },
+  getMonthlySummary: (params?: { year?: number; months?: number }) => {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          searchParams.append(key, value.toString());
+        }
+      });
+    }
+    return extendedApiClient.request(`/budget/monthly-summary${searchParams.toString() ? `?${searchParams.toString()}` : ''}`);
+  },
+  getByCategory: () => extendedApiClient.request('/budget/by-category'),
+  getAnalytics: () => extendedApiClient.request('/budget/analytics'),
+};
+
+export const donationsApi = {
+  getAll: (params?: any) => {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          searchParams.append(key, value.toString());
+        }
+      });
+    }
+    return extendedApiClient.request(`/donations${searchParams.toString() ? `?${searchParams.toString()}` : ''}`);
+  },
+  getById: (id: string) => extendedApiClient.request(`/donations/${id}`),
+  create: (data: any) => extendedApiClient.request('/donations', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: any) => extendedApiClient.request(`/donations/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  updateStatus: (id: string, status: string) => extendedApiClient.request(`/donations/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  getStats: () => extendedApiClient.request('/donations/analytics/stats'),
+  getRecent: (limit?: number) => extendedApiClient.request(`/donations/analytics/recent${limit ? `?limit=${limit}` : ''}`),
+  getTrends: (months?: number) => extendedApiClient.request(`/donations/analytics/trends${months ? `?months=${months}` : ''}`),
+};
+
 export const interviews = {
   getAll: (params?: any) => extendedApiClient.request(`/interviews${params ? `?${new URLSearchParams(params).toString()}` : ''}`),
   schedule: (applicationId: string, data: any) => extendedApiClient.request(`/interviews/schedule/${applicationId}`, { method: 'POST', body: JSON.stringify(data) }),
@@ -1013,11 +1189,31 @@ export const interviews = {
   getHistory: (applicationId: string) => extendedApiClient.request(`/interviews/history/${applicationId}`),
 };
 
+export const payments = {
+  getAll: (params?: any) => {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          searchParams.append(key, value.toString());
+        }
+      });
+    }
+    const queryString = searchParams.toString();
+    return extendedApiClient.request(`/payments${queryString ? `?${queryString}` : ''}`);
+  },
+  getById: (id: string) => extendedApiClient.request(`/payments/${id}`),
+  update: (id: string, data: any) => extendedApiClient.request(`/payments/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  process: (id: string, data: any) => extendedApiClient.request(`/payments/${id}/process`, { method: 'PATCH', body: JSON.stringify(data) }),
+  markAsCompleted: (id: string, data: { paymentDate: string; paymentMethod: string; chequeNumber?: string }) => 
+    extendedApiClient.request(`/payments/${id}/complete`, { method: 'PATCH', body: JSON.stringify(data) }),
+};
+
 export const reports = {
   getByApplication: (applicationId: string, params?: any) => extendedApiClient.request(`/reports/application/${applicationId}${params ? `?${new URLSearchParams(params).toString()}` : ''}`),
   create: (applicationId: string, data: any) => extendedApiClient.request(`/reports/application/${applicationId}`, { method: 'POST', body: JSON.stringify(data) }),
   update: (reportId: string, data: any) => extendedApiClient.request(`/reports/${reportId}`, { method: 'PUT', body: JSON.stringify(data) }),
-  delete: (reportId: string) => extendedApiClient.request(`/reports/${reportId}`, { method: 'DELETE' }),
+  delete: (reportId: string, data?: any) => extendedApiClient.request(`/reports/${reportId}`, { method: 'DELETE', body: data ? JSON.stringify(data) : undefined }),
 };
 
 // RBAC Management
@@ -1063,5 +1259,249 @@ export const rbac = {
   cleanupExpired: () => extendedApiClient.request('/rbac/cleanup', { method: 'POST' }),
 };
 
+// Master Data Types
+export interface MasterData {
+  id: string;
+  type: 'scheme_stages' | 'project_stages' | 'application_stages' | 'distribution_timeline_templates' | 'status_configurations';
+  category?: string;
+  name: string;
+  description?: string;
+  configuration: {
+    stages?: Array<{
+      name: string;
+      description?: string;
+      order: number;
+      isRequired: boolean;
+      allowedRoles: string[];
+      estimatedDuration?: number;
+      autoTransition?: boolean;
+      transitionConditions?: string;
+      color?: string;
+      icon?: string;
+    }>;
+    distributionSteps?: Array<{
+      description: string;
+      percentage: number;
+      daysFromApproval: number;
+      isAutomatic?: boolean;
+      requiresVerification?: boolean;
+      notes?: string;
+    }>;
+    settings?: {
+      enableNotifications?: boolean;
+      enablePublicTracking?: boolean;
+      autoProgressCalculation?: boolean;
+      requireApprovalForUpdates?: boolean;
+    };
+  };
+  scope: 'global' | 'state' | 'district' | 'area' | 'unit' | 'project_specific' | 'scheme_specific';
+  targetRegions?: Array<{
+    id: string;
+    name: string;
+    type: string;
+    code: string;
+  }>;
+  targetProjects?: Array<{
+    id: string;
+    name: string;
+    code: string;
+  }>;
+  targetSchemes?: Array<{
+    id: string;
+    name: string;
+    code: string;
+  }>;
+  status: 'draft' | 'active' | 'inactive' | 'archived';
+  version: string;
+  effectiveFrom: string;
+  effectiveTo?: string;
+  usageCount: number;
+  lastUsed?: string;
+  tags: string[];
+  isEffective: boolean;
+  createdBy: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  updatedBy?: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Add master data methods to ExtendedApiClient
+class MasterDataApiClient extends ExtendedApiClient {
+  // Master Data Methods
+  async getMasterData(params?: {
+    page?: number;
+    limit?: number;
+    type?: string;
+    category?: string;
+    scope?: string;
+    status?: string;
+    search?: string;
+  }): Promise<ApiResponse<{
+    masterData: MasterData[];
+    pagination: {
+      current: number;
+      pages: number;
+      total: number;
+      limit: number;
+    };
+  }>> {
+    const searchParams = new URLSearchParams();
+    
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          searchParams.append(key, value.toString());
+        }
+      });
+    }
+
+    const endpoint = `/master-data${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
+    return this.request(endpoint);
+  }
+
+  async getMasterDataById(id: string): Promise<ApiResponse<{ masterData: MasterData }>> {
+    return this.request(`/master-data/${id}`);
+  }
+
+  async getMasterDataByType(type: string, params?: {
+    category?: string;
+    scope?: string;
+  }): Promise<ApiResponse<{ masterData: MasterData[] }>> {
+    const searchParams = new URLSearchParams();
+    
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          searchParams.append(key, value.toString());
+        }
+      });
+    }
+
+    const endpoint = `/master-data/type/${type}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
+    return this.request(endpoint);
+  }
+
+  async createMasterData(masterDataData: Partial<MasterData>): Promise<ApiResponse<{ masterData: MasterData }>> {
+    return this.request('/master-data', {
+      method: 'POST',
+      body: JSON.stringify(masterDataData),
+    });
+  }
+
+  async updateMasterData(id: string, masterDataData: Partial<MasterData>): Promise<ApiResponse<{ masterData: MasterData }>> {
+    return this.request(`/master-data/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(masterDataData),
+    });
+  }
+
+  async deleteMasterData(id: string): Promise<ApiResponse<null>> {
+    return this.request(`/master-data/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async cloneMasterData(id: string): Promise<ApiResponse<{ masterData: MasterData }>> {
+    return this.request(`/master-data/${id}/clone`, {
+      method: 'POST',
+    });
+  }
+
+  // Project Status Update Methods
+  async addProjectStatusUpdate(projectId: string, statusUpdateData: {
+    stage: string;
+    status: string;
+    description: string;
+    remarks?: string;
+    attachments?: Array<{
+      name: string;
+      url: string;
+      type: string;
+    }>;
+  }): Promise<ApiResponse<{ project: Project }>> {
+    return this.request(`/projects/${projectId}/status-update`, {
+      method: 'POST',
+      body: JSON.stringify(statusUpdateData),
+    });
+  }
+
+  async updateProjectStatusUpdate(projectId: string, updateId: string, statusUpdateData: {
+    stage?: string;
+    status?: string;
+    description?: string;
+    remarks?: string;
+    attachments?: Array<{
+      name: string;
+      url: string;
+      type: string;
+    }>;
+    isVisible?: boolean;
+  }): Promise<ApiResponse<{ project: Project }>> {
+    return this.request(`/projects/${projectId}/status-update/${updateId}`, {
+      method: 'PUT',
+      body: JSON.stringify(statusUpdateData),
+    });
+  }
+
+  async deleteProjectStatusUpdate(projectId: string, updateId: string): Promise<ApiResponse<null>> {
+    return this.request(`/projects/${projectId}/status-update/${updateId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getProjectStatusConfiguration(projectId: string): Promise<ApiResponse<{ statusConfiguration: any }>> {
+    return this.request(`/projects/${projectId}/status-configuration`);
+  }
+
+  async updateProjectStatusConfiguration(projectId: string, configData: {
+    stages: Array<{
+      name: string;
+      description?: string;
+      order: number;
+      isRequired: boolean;
+      allowedRoles: string[];
+      estimatedDuration?: number;
+    }>;
+    enablePublicTracking?: boolean;
+    notificationSettings?: any;
+  }): Promise<ApiResponse<{ project: Project }>> {
+    return this.request(`/projects/${projectId}/status-configuration`, {
+      method: 'PUT',
+      body: JSON.stringify(configData),
+    });
+  }
+}
+
+// Create master data API client instance
+const masterDataApiClient = new MasterDataApiClient(API_BASE_URL);
+
+export const masterData = {
+  getAll: (params?: any) => masterDataApiClient.getMasterData(params),
+  getById: (id: string) => masterDataApiClient.getMasterDataById(id),
+  getByType: (type: string, params?: any) => masterDataApiClient.getMasterDataByType(type, params),
+  create: (data: Partial<MasterData>) => masterDataApiClient.createMasterData(data),
+  update: (id: string, data: Partial<MasterData>) => masterDataApiClient.updateMasterData(id, data),
+  delete: (id: string) => masterDataApiClient.deleteMasterData(id),
+  clone: (id: string) => masterDataApiClient.cloneMasterData(id),
+};
+
+// Enhanced projects API with status updates
+export const projectsEnhanced = {
+  ...projects,
+  addStatusUpdate: (projectId: string, data: any) => masterDataApiClient.addProjectStatusUpdate(projectId, data),
+  updateStatusUpdate: (projectId: string, updateId: string, data: any) => masterDataApiClient.updateProjectStatusUpdate(projectId, updateId, data),
+  deleteStatusUpdate: (projectId: string, updateId: string) => masterDataApiClient.deleteProjectStatusUpdate(projectId, updateId),
+  getStatusConfiguration: (projectId: string) => masterDataApiClient.getProjectStatusConfiguration(projectId),
+  updateStatusConfiguration: (projectId: string, data: any) => masterDataApiClient.updateProjectStatusConfiguration(projectId, data),
+};
+
 // Export api as alias for apiClient for backward compatibility
-export const api = extendedApiClient;
+export const api = masterDataApiClient;

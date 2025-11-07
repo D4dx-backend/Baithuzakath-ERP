@@ -1,5 +1,6 @@
 const express = require('express');
 const donorController = require('../controllers/donorController');
+const donationController = require('../controllers/donationController');
 const { authenticate, authorize } = require('../middleware/auth');
 const RBACMiddleware = require('../middleware/rbacMiddleware');
 
@@ -7,6 +8,129 @@ const router = express.Router();
 
 // Apply authentication to all routes
 router.use(authenticate);
+
+// Specific routes (must come before parameterized routes)
+/**
+ * @swagger
+ * /api/donors/history:
+ *   get:
+ *     summary: Get donation history from donation model with server-side pagination
+ *     tags: [Donors]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Number of donations per page
+ *       - in: query
+ *         name: donorId
+ *         schema:
+ *           type: string
+ *         description: Filter by specific donor ID
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [pending, processing, completed, failed, cancelled, refunded]
+ *         description: Filter by donation status
+ *       - in: query
+ *         name: method
+ *         schema:
+ *           type: string
+ *           enum: [online, bank_transfer, cash, cheque, card, upi, digital_wallet]
+ *         description: Filter by payment method
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Filter donations from this date
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Filter donations until this date
+ *       - in: query
+ *         name: minAmount
+ *         schema:
+ *           type: number
+ *         description: Filter donations with minimum amount
+ *       - in: query
+ *         name: maxAmount
+ *         schema:
+ *           type: number
+ *         description: Filter donations with maximum amount
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           default: createdAt
+ *         description: Field to sort by
+ *       - in: query
+ *         name: sortOrder
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *           default: desc
+ *         description: Sort order
+ *     responses:
+ *       200:
+ *         description: Donation history retrieved successfully
+ *       401:
+ *         description: Authentication required
+ */
+router.get('/history',
+  RBACMiddleware.hasPermission('donors.read.regional'),
+  donorController.getDonationHistory
+);
+
+/**
+ * @swagger
+ * /api/donors/donations:
+ *   get:
+ *     summary: Get recent donations (last 20 donations) from donation model
+ *     tags: [Donors]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: Number of recent donations to retrieve (max 50)
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [pending, processing, completed, failed, cancelled, refunded]
+ *         description: Filter by donation status
+ *       - in: query
+ *         name: method
+ *         schema:
+ *           type: string
+ *           enum: [online, bank_transfer, cash, cheque, card, upi, digital_wallet]
+ *         description: Filter by payment method
+ *     responses:
+ *       200:
+ *         description: Recent donations retrieved successfully
+ *       401:
+ *         description: Authentication required
+ */
+router.get('/donations',
+  RBACMiddleware.hasPermission('donors.read.regional'),
+  donorController.getRecentDonationsFromDonationModel
+);
 
 // CRUD Routes
 /**
@@ -72,9 +196,52 @@ router.use(authenticate);
  *       401:
  *         description: Authentication required
  */
-router.get('/', 
+router.get('/',
   RBACMiddleware.hasPermission('donors.read.regional'),
   donorController.getDonors
+);
+
+/**
+ * @swagger
+ * /api/donors/all:
+ *   get:
+ *     summary: Get all donors without pagination (for dropdowns/search)
+ *     tags: [Donors]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search term for donor name, email, or phone
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [active, inactive, blocked, pending_verification]
+ *         description: Filter by status
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *           enum: [individual, corporate, foundation, trust, ngo]
+ *         description: Filter by donor type
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 100
+ *         description: Maximum number of donors to return
+ *     responses:
+ *       200:
+ *         description: All donors retrieved successfully
+ *       401:
+ *         description: Authentication required
+ */
+router.get('/all',
+  RBACMiddleware.hasPermission('donors.read.regional'),
+  donorController.getAllDonors
 );
 
 /**
@@ -100,7 +267,7 @@ router.get('/',
  *       401:
  *         description: Authentication required
  */
-router.get('/:id', 
+router.get('/:id',
   RBACMiddleware.hasPermission('donors.read.regional'),
   donorController.getDonor
 );
@@ -151,7 +318,7 @@ router.get('/:id',
  *       401:
  *         description: Authentication required
  */
-router.post('/', 
+router.post('/',
   RBACMiddleware.hasPermission('donors.create'),
   RBACMiddleware.auditLog('donor_creation'),
   donorController.createDonor
@@ -188,7 +355,7 @@ router.post('/',
  *       401:
  *         description: Authentication required
  */
-router.put('/:id', 
+router.put('/:id',
   RBACMiddleware.hasPermission('donors.update.regional'),
   RBACMiddleware.auditLog('donor_update'),
   donorController.updateDonor
@@ -219,7 +386,7 @@ router.put('/:id',
  *       401:
  *         description: Authentication required
  */
-router.delete('/:id', 
+router.delete('/:id',
   RBACMiddleware.hasPermission('donors.delete'),
   RBACMiddleware.auditLog('donor_deletion'),
   donorController.deleteDonor
@@ -263,7 +430,7 @@ router.delete('/:id',
  *       401:
  *         description: Authentication required
  */
-router.patch('/:id/status', 
+router.patch('/:id/status',
   RBACMiddleware.hasPermission('donors.update.regional'),
   RBACMiddleware.auditLog('donor_status_update'),
   donorController.updateDonorStatus
@@ -292,7 +459,7 @@ router.patch('/:id/status',
  *       401:
  *         description: Authentication required
  */
-router.patch('/:id/verify', 
+router.patch('/:id/verify',
   RBACMiddleware.hasPermission('donors.verify'),
   RBACMiddleware.auditLog('donor_verification'),
   donorController.verifyDonor
@@ -352,7 +519,7 @@ router.get('/dropdown/schemes', donorController.getSchemesForDropdown);
  *       401:
  *         description: Authentication required
  */
-router.get('/analytics/stats', 
+router.get('/analytics/stats',
   RBACMiddleware.hasPermission('donors.read.regional'),
   donorController.getDonorStats
 );
@@ -378,7 +545,7 @@ router.get('/analytics/stats',
  *       401:
  *         description: Authentication required
  */
-router.get('/analytics/top', 
+router.get('/analytics/top',
   RBACMiddleware.hasPermission('donors.read.regional'),
   donorController.getTopDonors
 );
@@ -404,7 +571,7 @@ router.get('/analytics/top',
  *       401:
  *         description: Authentication required
  */
-router.get('/analytics/recent-donations', 
+router.get('/analytics/recent-donations',
   RBACMiddleware.hasPermission('donors.read.regional'),
   donorController.getRecentDonations
 );
@@ -430,9 +597,88 @@ router.get('/analytics/recent-donations',
  *       401:
  *         description: Authentication required
  */
-router.get('/analytics/trends', 
+router.get('/analytics/trends',
   RBACMiddleware.hasPermission('donors.read.regional'),
   donorController.getDonationTrends
 );
 
+/**
+ * @swagger
+ * /api/donors/history:
+ *   get:
+ *     summary: Get donation history from donation model with server-side pagination
+ *     tags: [Donors]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Number of donations per page
+ *       - in: query
+ *         name: donorId
+ *         schema:
+ *           type: string
+ *         description: Filter by specific donor ID
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [pending, processing, completed, failed, cancelled, refunded]
+ *         description: Filter by donation status
+ *       - in: query
+ *         name: method
+ *         schema:
+ *           type: string
+ *           enum: [online, bank_transfer, cash, cheque, card, upi, digital_wallet]
+ *         description: Filter by payment method
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Filter donations from this date
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Filter donations until this date
+ *       - in: query
+ *         name: minAmount
+ *         schema:
+ *           type: number
+ *         description: Filter donations with minimum amount
+ *       - in: query
+ *         name: maxAmount
+ *         schema:
+ *           type: number
+ *         description: Filter donations with maximum amount
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           default: createdAt
+ *         description: Field to sort by
+ *       - in: query
+ *         name: sortOrder
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *           default: desc
+ *         description: Sort order
+ *     responses:
+ *       200:
+ *         description: Donation history retrieved successfully
+ *       401:
+ *         description: Authentication required
+ */
 module.exports = router;

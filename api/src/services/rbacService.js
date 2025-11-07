@@ -1112,6 +1112,7 @@ class RBACService {
         permissions: [
           'users.create', 'users.read.regional', 'users.update.regional',
           'roles.read', 'roles.assign',
+          'permissions.read',
           'beneficiaries.create', 'beneficiaries.read.regional', 'beneficiaries.update.regional',
           'applications.read.regional', 'applications.update.regional', 'applications.approve',
           'projects.read.all', 'projects.read.assigned',
@@ -1144,6 +1145,7 @@ class RBACService {
         permissions: [
           'users.create', 'users.read.regional', 'users.update.regional',
           'roles.read', 'roles.assign',
+          'permissions.read',
           'beneficiaries.create', 'beneficiaries.read.regional', 'beneficiaries.update.regional',
           'applications.read.regional', 'applications.update.regional', 'applications.approve',
           'projects.read.assigned',
@@ -1175,6 +1177,7 @@ class RBACService {
         permissions: [
           'users.read.regional',
           'roles.read',
+          'permissions.read',
           'beneficiaries.create', 'beneficiaries.read.regional', 'beneficiaries.update.regional',
           'applications.read.regional', 'applications.update.regional', 'applications.approve',
           'projects.read.assigned',

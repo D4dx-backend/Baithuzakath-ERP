@@ -13,7 +13,11 @@ const getBeneficiaries = async (req, res) => {
       state = '', 
       district = '', 
       area = '', 
-      unit = '' 
+      unit = '',
+      gender = '',
+      project = '',
+      scheme = '',
+      includeApprovedInterviews = false
     } = req.query;
 
     // Build filter object
@@ -31,6 +35,7 @@ const getBeneficiaries = async (req, res) => {
     if (district) filter.district = district;
     if (area) filter.area = area;
     if (unit) filter.unit = unit;
+    if (gender) filter['profile.gender'] = gender;
 
     // Apply user's regional access restrictions
     const userRegionalFilter = getUserRegionalFilter(req.user);
@@ -38,31 +43,97 @@ const getBeneficiaries = async (req, res) => {
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
     
-    const beneficiaries = await Beneficiary.find(filter)
+    // If project or scheme filters are applied, we need to filter by applications
+    let beneficiaryQuery = Beneficiary.find(filter);
+    
+    if (project || scheme) {
+      const Application = require('../models/Application');
+      const applicationFilter = {};
+      if (project) applicationFilter.project = project;
+      if (scheme) applicationFilter.scheme = scheme;
+      
+      const applications = await Application.find(applicationFilter).distinct('beneficiary');
+      filter._id = { $in: applications };
+    }
+    
+    let beneficiaries = await Beneficiary.find(filter)
       .populate('state', 'name code')
       .populate('district', 'name code')
       .populate('area', 'name code')
       .populate('unit', 'name code')
       .populate('createdBy', 'name')
       .populate('verifiedBy', 'name')
+      .populate('applications')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit));
 
-    const total = await Beneficiary.countDocuments(filter);
+    let total = await Beneficiary.countDocuments(filter);
 
-    res.json({
-      beneficiaries,
-      pagination: {
-        current: parseInt(page),
-        pages: Math.ceil(total / parseInt(limit)),
-        total,
-        limit: parseInt(limit)
+    // Include approved interview applicants if requested
+    if (includeApprovedInterviews === 'true') {
+      const Interview = require('../models/Interview');
+      const Application = require('../models/Application');
+      
+      // Find completed interviews with passed result
+      const approvedInterviews = await Interview.find({
+        status: 'completed',
+        result: 'passed'
+      }).populate({
+        path: 'application',
+        populate: [
+          { path: 'beneficiary', populate: ['state', 'district', 'area', 'unit'] },
+          { path: 'scheme', select: 'name' },
+          { path: 'project', select: 'name' }
+        ]
+      });
+
+      // Convert approved interviews to beneficiary format
+      const interviewBeneficiaries = approvedInterviews
+        .filter(interview => interview.application && interview.application.beneficiary)
+        .map(interview => {
+          const app = interview.application;
+          const beneficiary = app.beneficiary;
+          
+          return {
+            ...beneficiary.toObject(),
+            source: 'interview',
+            interviewId: interview._id,
+            approvedAt: interview.completedAt,
+            applications: [app._id], // Include the approved application
+            status: 'active', // Approved interview applicants are active beneficiaries
+            isVerified: true // Auto-verify approved interview applicants
+          };
+        });
+
+      // Merge with regular beneficiaries (avoid duplicates)
+      const existingBeneficiaryIds = beneficiaries.map(b => b._id.toString());
+      const uniqueInterviewBeneficiaries = interviewBeneficiaries.filter(
+        ib => !existingBeneficiaryIds.includes(ib._id.toString())
+      );
+
+      beneficiaries = [...beneficiaries, ...uniqueInterviewBeneficiaries];
+      total += uniqueInterviewBeneficiaries.length;
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        beneficiaries,
+        pagination: {
+          current: parseInt(page),
+          pages: Math.ceil(total / parseInt(limit)),
+          total,
+          limit: parseInt(limit)
+        }
       }
     });
   } catch (error) {
     console.error('Error fetching beneficiaries:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error' 
+    });
   }
 };
 
@@ -79,15 +150,24 @@ const getBeneficiary = async (req, res) => {
       .populate('applications');
 
     if (!beneficiary) {
-      return res.status(404).json({ message: 'Beneficiary not found' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'Beneficiary not found' 
+      });
     }
 
     // Check if user has access to this beneficiary
     if (!hasAccessToBeneficiary(req.user, beneficiary)) {
-      return res.status(403).json({ message: 'Access denied' });
+      return res.status(403).json({ 
+        success: false,
+        message: 'Access denied' 
+      });
     }
 
-    res.json(beneficiary);
+    res.status(200).json({
+      success: true,
+      data: { beneficiary }
+    });
   } catch (error) {
     console.error('Error fetching beneficiary:', error);
     res.status(500).json({ message: 'Server error' });
@@ -296,30 +376,41 @@ const verifyBeneficiary = async (req, res) => {
 const getUserRegionalFilter = (user) => {
   const filter = {};
   
-  if (user.role === 'state_admin' && user.regionalAccess?.state) {
-    filter.state = user.regionalAccess.state;
-  } else if (user.role === 'district_admin' && user.regionalAccess?.district) {
-    filter.district = user.regionalAccess.district;
-  } else if (user.role === 'area_admin' && user.regionalAccess?.area) {
-    filter.area = user.regionalAccess.area;
-  } else if (user.role === 'unit_admin' && user.regionalAccess?.unit) {
-    filter.unit = user.regionalAccess.unit;
+  // Super admin and state admin have access to all beneficiaries
+  if (user.role === 'super_admin' || user.role === 'state_admin') {
+    return filter; // No restrictions
+  }
+  
+  // For other admin roles, check their adminScope.regions
+  if (user.adminScope?.regions && user.adminScope.regions.length > 0) {
+    const regions = user.adminScope.regions;
+    
+    if (user.role === 'district_admin') {
+      filter.district = { $in: regions };
+    } else if (user.role === 'area_admin') {
+      filter.area = { $in: regions };
+    } else if (user.role === 'unit_admin') {
+      filter.unit = { $in: regions };
+    }
   }
   
   return filter;
 };
 
 const hasAccessToBeneficiary = (user, beneficiary) => {
-  if (user.role === 'super_admin') return true;
+  if (user.role === 'super_admin' || user.role === 'state_admin') return true;
   
-  if (user.role === 'state_admin') {
-    return user.regionalAccess?.state?.toString() === beneficiary.state?.toString();
-  } else if (user.role === 'district_admin') {
-    return user.regionalAccess?.district?.toString() === beneficiary.district?.toString();
-  } else if (user.role === 'area_admin') {
-    return user.regionalAccess?.area?.toString() === beneficiary.area?.toString();
-  } else if (user.role === 'unit_admin') {
-    return user.regionalAccess?.unit?.toString() === beneficiary.unit?.toString();
+  // Check if user has access based on their adminScope.regions
+  if (user.adminScope?.regions && user.adminScope.regions.length > 0) {
+    const userRegions = user.adminScope.regions.map(r => r.toString());
+    
+    if (user.role === 'district_admin') {
+      return userRegions.includes(beneficiary.district?.toString());
+    } else if (user.role === 'area_admin') {
+      return userRegions.includes(beneficiary.area?.toString());
+    } else if (user.role === 'unit_admin') {
+      return userRegions.includes(beneficiary.unit?.toString());
+    }
   }
   
   return false;
@@ -362,11 +453,197 @@ const verifyLocationHierarchy = async (stateId, districtId, areaId, unitId) => {
   }
 };
 
+// Export beneficiaries to Excel/CSV
+const exportBeneficiaries = async (req, res) => {
+  try {
+    const { 
+      search = '', 
+      status = '', 
+      state = '', 
+      district = '', 
+      area = '', 
+      unit = '',
+      gender = '',
+      project = '',
+      scheme = '',
+      format = 'excel',
+      includeApprovedInterviews = false
+    } = req.query;
+
+    // Build filter object (same as getBeneficiaries)
+    const filter = {};
+    
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { phone: { $regex: search, $options: 'i' } }
+      ];
+    }
+    
+    if (status) filter.status = status;
+    if (state) filter.state = state;
+    if (district) filter.district = district;
+    if (area) filter.area = area;
+    if (unit) filter.unit = unit;
+    if (gender) filter['profile.gender'] = gender;
+
+    // Apply user's regional access restrictions
+    const userRegionalFilter = getUserRegionalFilter(req.user);
+    Object.assign(filter, userRegionalFilter);
+    
+    // If project or scheme filters are applied, we need to filter by applications
+    if (project || scheme) {
+      const Application = require('../models/Application');
+      const applicationFilter = {};
+      if (project) applicationFilter.project = project;
+      if (scheme) applicationFilter.scheme = scheme;
+      
+      const applications = await Application.find(applicationFilter).distinct('beneficiary');
+      filter._id = { $in: applications };
+    }
+    
+    // Get all beneficiaries without pagination for export
+    let beneficiaries = await Beneficiary.find(filter)
+      .populate('state', 'name code')
+      .populate('district', 'name code')
+      .populate('area', 'name code')
+      .populate('unit', 'name code')
+      .populate('createdBy', 'name')
+      .populate('verifiedBy', 'name')
+      .populate('applications')
+      .sort({ createdAt: -1 });
+
+    // Include approved interview applicants if requested
+    if (includeApprovedInterviews === 'true') {
+      const Interview = require('../models/Interview');
+      const Application = require('../models/Application');
+      
+      const approvedInterviews = await Interview.find({
+        status: 'completed',
+        result: 'passed'
+      }).populate({
+        path: 'application',
+        populate: [
+          { path: 'beneficiary', populate: ['state', 'district', 'area', 'unit'] },
+          { path: 'scheme', select: 'name' },
+          { path: 'project', select: 'name' }
+        ]
+      });
+
+      const interviewBeneficiaries = approvedInterviews
+        .filter(interview => interview.application && interview.application.beneficiary)
+        .map(interview => {
+          const app = interview.application;
+          const beneficiary = app.beneficiary;
+          
+          return {
+            ...beneficiary.toObject(),
+            source: 'interview',
+            interviewId: interview._id,
+            approvedAt: interview.completedAt,
+            applications: [app._id],
+            status: 'active',
+            isVerified: true
+          };
+        });
+
+      const existingBeneficiaryIds = beneficiaries.map(b => b._id.toString());
+      const uniqueInterviewBeneficiaries = interviewBeneficiaries.filter(
+        ib => !existingBeneficiaryIds.includes(ib._id.toString())
+      );
+
+      beneficiaries = [...beneficiaries, ...uniqueInterviewBeneficiaries];
+    }
+
+    // Prepare data for export
+    const exportData = beneficiaries.map(beneficiary => ({
+      'ID': beneficiary._id,
+      'Name': beneficiary.name,
+      'Phone': beneficiary.phone,
+      'Status': beneficiary.status,
+      'Verified': beneficiary.isVerified ? 'Yes' : 'No',
+      'State': beneficiary.state?.name || '',
+      'District': beneficiary.district?.name || '',
+      'Area': beneficiary.area?.name || '',
+      'Unit': beneficiary.unit?.name || '',
+      'Gender': beneficiary.profile?.gender || '',
+      'Applications Count': beneficiary.applications?.length || 0,
+      'Source': beneficiary.source || 'direct',
+      'Created Date': beneficiary.createdAt ? new Date(beneficiary.createdAt).toLocaleDateString() : '',
+      'Created By': beneficiary.createdBy?.name || '',
+      'Verified By': beneficiary.verifiedBy?.name || '',
+      'Verified Date': beneficiary.verifiedAt ? new Date(beneficiary.verifiedAt).toLocaleDateString() : ''
+    }));
+
+    if (format === 'excel') {
+      const ExcelJS = require('exceljs');
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Beneficiaries');
+
+      // Add headers
+      const headers = Object.keys(exportData[0] || {});
+      worksheet.addRow(headers);
+
+      // Style headers
+      worksheet.getRow(1).font = { bold: true };
+      worksheet.getRow(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE0E0E0' }
+      };
+
+      // Add data
+      exportData.forEach(row => {
+        worksheet.addRow(Object.values(row));
+      });
+
+      // Auto-fit columns
+      worksheet.columns.forEach(column => {
+        column.width = Math.max(column.width || 0, 15);
+      });
+
+      // Set response headers
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename=beneficiaries-${new Date().toISOString().split('T')[0]}.xlsx`);
+
+      // Write to response
+      await workbook.xlsx.write(res);
+      res.end();
+    } else {
+      // CSV format
+      const createCsvWriter = require('csv-writer').createObjectCsvWriter;
+      const csvWriter = createCsvWriter({
+        path: '', // We'll write directly to response
+        header: Object.keys(exportData[0] || {}).map(key => ({ id: key, title: key }))
+      });
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename=beneficiaries-${new Date().toISOString().split('T')[0]}.csv`);
+
+      // Convert to CSV string
+      const csvString = [
+        Object.keys(exportData[0] || {}).join(','),
+        ...exportData.map(row => Object.values(row).map(val => `"${val}"`).join(','))
+      ].join('\n');
+
+      res.send(csvString);
+    }
+
+  } catch (error) {
+    console.error('Error exporting beneficiaries:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error' 
+    });
+  }
+};
+
 module.exports = {
   getBeneficiaries,
   getBeneficiary,
   createBeneficiary,
   updateBeneficiary,
   deleteBeneficiary,
-  verifyBeneficiary
+  verifyBeneficiary,
+  exportBeneficiaries
 };

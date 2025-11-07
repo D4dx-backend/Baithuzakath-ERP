@@ -1,7 +1,7 @@
 const authService = require('../services/authService');
-const dxingSmsService = require('../services/dxingSmsService');
 const { User } = require('../models');
 const ResponseHelper = require('../utils/responseHelper');
+const staticOTPConfig = require('../config/staticOTP');
 
 class BeneficiaryAuthController {
   /**
@@ -17,8 +17,9 @@ class BeneficiaryAuthController {
         return ResponseHelper.error(res, 'Phone number is required', 400);
       }
 
-      // Validate phone number format
-      if (!dxingSmsService.validatePhoneNumber(phone)) {
+      // Validate phone number format (10-digit Indian mobile number)
+      const phoneRegex = /^[6-9]\d{9}$/;
+      if (!phoneRegex.test(phone)) {
         return ResponseHelper.error(res, 'Invalid phone number format', 400);
       }
 
@@ -37,35 +38,36 @@ class BeneficiaryAuthController {
         await user.save();
       }
 
-      // Generate and send OTP
-      const otp = user.generateOTP('login');
+      // Generate OTP based on configuration
+      const otp = staticOTPConfig.USE_STATIC_OTP 
+        ? staticOTPConfig.STATIC_OTP 
+        : user.generateOTP('login');
+      
+      // Set OTP in user model
+      user.otp = {
+        code: otp,
+        expiresAt: new Date(Date.now() + staticOTPConfig.OTP_EXPIRY_MINUTES * 60 * 1000),
+        attempts: (user.otp?.attempts || 0) + 1,
+        lastSentAt: new Date(),
+        purpose: 'login',
+        verified: false
+      };
       await user.save();
 
-      // Send OTP via SMS
-      let smsResult = { success: true };
-      
-      // In development, skip SMS and show OTP in response
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`🧪 DEVELOPMENT MODE: OTP for ${phone} is: ${otp}`);
-        smsResult = { success: true, messageId: 'dev-test-message-id' };
-      } else {
-        smsResult = await dxingSmsService.sendOTP(phone, otp, user.name);
-      }
-
-      if (!smsResult.success) {
-        return ResponseHelper.error(res, 'Failed to send OTP', 500);
-      }
+      // Always use static OTP mode for testing (no SMS service)
+      console.log(`🔑 STATIC OTP MODE: OTP for ${phone} is: ${otp}`);
+      const smsResult = { success: true, messageId: 'static-otp-mode' };
 
       const response = {
         message: 'OTP sent successfully',
         phone: phone,
-        expiresIn: 10 // minutes
+        expiresIn: staticOTPConfig.OTP_EXPIRY_MINUTES
       };
 
-      // Include OTP in development mode for testing
-      if (process.env.NODE_ENV === 'development') {
-        response.developmentOTP = otp;
-        response.developmentNote = 'OTP included for development testing only';
+      // Include OTP in response if static mode is enabled
+      if (staticOTPConfig.USE_STATIC_OTP) {
+        response.staticOTP = otp;
+        response.note = 'Static OTP enabled for all logins';
       }
 
       return ResponseHelper.success(res, response, 'OTP sent successfully');
@@ -222,34 +224,35 @@ class BeneficiaryAuthController {
         }
       }
 
-      // Generate and send new OTP
-      const otp = user.generateOTP('login');
+      // Generate OTP based on configuration
+      const otp = staticOTPConfig.USE_STATIC_OTP 
+        ? staticOTPConfig.STATIC_OTP 
+        : user.generateOTP('login');
+      
+      // Set OTP in user model
+      user.otp = {
+        code: otp,
+        expiresAt: new Date(Date.now() + staticOTPConfig.OTP_EXPIRY_MINUTES * 60 * 1000),
+        attempts: (user.otp?.attempts || 0) + 1,
+        lastSentAt: new Date(),
+        purpose: 'login',
+        verified: false
+      };
       await user.save();
 
-      // Send OTP via SMS
-      let smsResult = { success: true };
-      
-      // In development, skip SMS and show OTP in response
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`🧪 DEVELOPMENT MODE: Resent OTP for ${phone} is: ${otp}`);
-        smsResult = { success: true, messageId: 'dev-test-message-id' };
-      } else {
-        smsResult = await dxingSmsService.sendOTP(phone, otp, user.name);
-      }
-
-      if (!smsResult.success) {
-        return ResponseHelper.error(res, 'Failed to send OTP', 500);
-      }
+      // Always use static OTP mode for testing (no SMS service)
+      console.log(`🔑 STATIC OTP MODE: Resent OTP for ${phone} is: ${otp}`);
+      const smsResult = { success: true, messageId: 'static-otp-mode' };
 
       const response = {
         message: 'OTP resent successfully',
-        expiresIn: 10 // minutes
+        expiresIn: staticOTPConfig.OTP_EXPIRY_MINUTES
       };
 
-      // Include OTP in development mode for testing
-      if (process.env.NODE_ENV === 'development') {
-        response.developmentOTP = otp;
-        response.developmentNote = 'OTP included for development testing only';
+      // Include OTP in response if static mode is enabled
+      if (staticOTPConfig.USE_STATIC_OTP) {
+        response.staticOTP = otp;
+        response.note = 'Static OTP enabled for all logins';
       }
 
       return ResponseHelper.success(res, response, 'OTP resent successfully');

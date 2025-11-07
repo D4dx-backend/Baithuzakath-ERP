@@ -31,9 +31,11 @@ export default function BeneficiaryLogin() {
     try {
       const response = await beneficiaryApi.sendOTP(phoneNumber);
       
-      // Store development OTP if available
-      if (response.developmentOTP) {
-        setDevelopmentOTP(response.developmentOTP);
+      // Store static OTP if available
+      if (response.staticOTP || response.developmentOTP) {
+        const staticOTP = response.staticOTP || response.developmentOTP;
+        setDevelopmentOTP(staticOTP);
+        setOtp(staticOTP); // Auto-fill for convenience
       }
       
       toast({
@@ -94,9 +96,11 @@ export default function BeneficiaryLogin() {
     try {
       const response = await beneficiaryApi.resendOTP(phoneNumber);
       
-      // Store development OTP if available
-      if (response.developmentOTP) {
-        setDevelopmentOTP(response.developmentOTP);
+      // Store static OTP if available
+      if (response.staticOTP || response.developmentOTP) {
+        const staticOTP = response.staticOTP || response.developmentOTP;
+        setDevelopmentOTP(staticOTP);
+        setOtp(staticOTP); // Auto-fill for convenience
       }
       
       toast({
@@ -182,18 +186,18 @@ export default function BeneficiaryLogin() {
               <div className="space-y-2">
                 <Label htmlFor="otp">Enter OTP</Label>
                 
-                {/* Development OTP Display */}
+                {/* Static OTP Display */}
                 {developmentOTP && (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 mb-3">
+                  <div className="bg-green-50 border border-green-200 rounded-md p-3 mb-3">
                     <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
-                      <span className="text-sm font-medium text-yellow-800">Development Mode</span>
+                      <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                      <span className="text-sm font-medium text-green-800">Static OTP Mode</span>
                     </div>
-                    <p className="text-sm text-yellow-700 mt-1">
+                    <p className="text-sm text-green-700 mt-1">
                       Your OTP is: <span className="font-mono font-bold text-lg">{developmentOTP}</span>
                     </p>
-                    <p className="text-xs text-yellow-600 mt-1">
-                      This OTP is shown for testing purposes only
+                    <p className="text-xs text-green-600 mt-1">
+                      This OTP is always 123456 for all logins
                     </p>
                     <Button
                       variant="outline"
