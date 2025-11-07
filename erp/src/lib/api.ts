@@ -1,5 +1,5 @@
-// Use environment variable or fallback to API server
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+// Use environment variable or fallback to production API server
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://baithuzakath-api-uie39.ondigitalocean.app/api';
 
 // Types
 export interface User {
