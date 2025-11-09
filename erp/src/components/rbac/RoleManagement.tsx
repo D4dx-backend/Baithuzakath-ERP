@@ -87,7 +87,8 @@ export const RoleManagement: React.FC = () => {
 
   const fetchRoles = async () => {
     try {
-      const response = await fetch('/api/rbac/roles', {
+      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+      const response = await fetch(`${API_BASE_URL}/rbac/roles`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'Content-Type': 'application/json'
@@ -108,7 +109,8 @@ export const RoleManagement: React.FC = () => {
 
   const fetchPermissions = async () => {
     try {
-      const response = await fetch('/api/rbac/permissions', {
+      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+      const response = await fetch(`${API_BASE_URL}/rbac/permissions`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'Content-Type': 'application/json'
@@ -540,7 +542,8 @@ const CreateRoleDialog: React.FC<CreateRoleDialogProps> = ({
     setLoading(true);
 
     try {
-      const response = await fetch('/api/rbac/roles', {
+      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+      const response = await fetch(`${API_BASE_URL}/rbac/roles`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
