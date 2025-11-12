@@ -48,11 +48,16 @@ export function UserModal({ open, onOpenChange, user, mode, onSave }: UserModalP
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [availableLocations, setAvailableLocations] = useState<Location[]>([]);
+  const [availableDistricts, setAvailableDistricts] = useState<Location[]>([]);
+  const [availableAreas, setAvailableAreas] = useState<Location[]>([]);
+  const [availableUnits, setAvailableUnits] = useState<Location[]>([]);
   const [availableProjects, setAvailableProjects] = useState<any[]>([]);
   const [availableSchemes, setAvailableSchemes] = useState<any[]>([]);
   const [locationSearch, setLocationSearch] = useState('');
   const [projectSearch, setProjectSearch] = useState('');
   const [schemeSearch, setSchemeSearch] = useState('');
+  const [loadingAreas, setLoadingAreas] = useState(false);
+  const [loadingUnits, setLoadingUnits] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -61,30 +66,24 @@ export function UserModal({ open, onOpenChange, user, mode, onSave }: UserModalP
     phone: '',
     role: 'beneficiary',
     isActive: true,
-    selectedRegion: '', // Single region selection
+    selectedRegion: '', // Single region selection (final selection)
+    selectedDistrict: '', // For area/unit admin - district selection
+    selectedArea: '', // For unit admin - area selection
     selectedProjects: [] as string[], // For project coordinators
     selectedSchemes: [] as string[], // For scheme coordinators
   });
 
   useEffect(() => {
     if (open) {
-      loadAvailableLocations();
-      loadAvailableProjects();
-      loadAvailableSchemes();
-
       if (mode === 'edit' && user) {
-        setFormData({
-          name: user.name || '',
-          email: user.email || '',
-          phone: user.phone || '',
-          role: user.role || 'beneficiary',
-          isActive: user.isActive ?? true,
-          selectedRegion: user.adminScope?.regions?.[0] || '', // Take first region for single select
-          selectedProjects: user.adminScope?.projects || [],
-          selectedSchemes: user.adminScope?.schemes || [],
-        });
+        initializeEditMode();
       } else {
         // Reset form for create mode
+        loadAvailableLocations();
+        loadAvailableDistricts();
+        loadAvailableProjects();
+        loadAvailableSchemes();
+        
         setFormData({
           name: '',
           email: '',
@@ -92,12 +91,69 @@ export function UserModal({ open, onOpenChange, user, mode, onSave }: UserModalP
           role: 'beneficiary',
           isActive: true,
           selectedRegion: '',
+          selectedDistrict: '',
+          selectedArea: '',
           selectedProjects: [],
           selectedSchemes: [],
         });
       }
     }
   }, [open, mode, user]);
+
+  const initializeEditMode = async () => {
+    if (!user) return;
+    
+    // Load all necessary data first
+    await Promise.all([
+      loadAvailableLocations(),
+      loadAvailableDistricts(),
+      loadAvailableProjects(),
+      loadAvailableSchemes()
+    ]);
+    
+    // Extract IDs from adminScope (handle both populated objects and plain IDs)
+    const getIdFromField = (field: any) => {
+      if (!field) return '';
+      if (typeof field === 'string') return field;
+      return field._id || field.id || '';
+    };
+    
+    const districtId = getIdFromField(user.adminScope?.district);
+    const areaId = getIdFromField(user.adminScope?.area);
+    const unitId = getIdFromField(user.adminScope?.unit);
+    const selectedRegionId = user.adminScope?.regions?.[0] 
+      ? getIdFromField(user.adminScope.regions[0])
+      : unitId || areaId || districtId || '';
+    
+    // Load cascading data based on role
+    if (user.role === 'area_admin' && districtId) {
+      await loadAreasByDistrict(districtId);
+    } else if (user.role === 'unit_admin') {
+      if (districtId) {
+        await loadAreasByDistrict(districtId);
+      }
+      if (areaId) {
+        await loadUnitsByArea(areaId);
+      }
+    }
+    
+    // Extract project and scheme IDs
+    const projectIds = (user.adminScope?.projects || []).map(getIdFromField);
+    const schemeIds = (user.adminScope?.schemes || []).map(getIdFromField);
+    
+    setFormData({
+      name: user.name || '',
+      email: user.email || '',
+      phone: user.phone || '',
+      role: user.role || 'beneficiary',
+      isActive: user.isActive ?? true,
+      selectedRegion: selectedRegionId,
+      selectedDistrict: districtId,
+      selectedArea: areaId,
+      selectedProjects: projectIds,
+      selectedSchemes: schemeIds,
+    });
+  };
 
   const loadAvailableLocations = async () => {
     try {
@@ -111,6 +167,53 @@ export function UserModal({ open, onOpenChange, user, mode, onSave }: UserModalP
       console.error('Failed to load locations:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAvailableDistricts = async () => {
+    try {
+      const response = await locations.getByType('district', { active: true, limit: 100 });
+      if (response.success) {
+        setAvailableDistricts(response.data?.locations || []);
+      }
+    } catch (error) {
+      console.error('Failed to load districts:', error);
+    }
+  };
+
+  const loadAreasByDistrict = async (districtId: string) => {
+    try {
+      setLoadingAreas(true);
+      const response = await locations.getAll({ 
+        type: 'area', 
+        parent: districtId,
+        limit: 100 
+      });
+      if (response.success) {
+        setAvailableAreas(response.data?.locations || []);
+      }
+    } catch (error) {
+      console.error('Failed to load areas:', error);
+    } finally {
+      setLoadingAreas(false);
+    }
+  };
+
+  const loadUnitsByArea = async (areaId: string) => {
+    try {
+      setLoadingUnits(true);
+      const response = await locations.getAll({ 
+        type: 'unit', 
+        parent: areaId,
+        limit: 100 
+      });
+      if (response.success) {
+        setAvailableUnits(response.data?.locations || []);
+      }
+    } catch (error) {
+      console.error('Failed to load units:', error);
+    } finally {
+      setLoadingUnits(false);
     }
   };
 
@@ -217,12 +320,26 @@ export function UserModal({ open, onOpenChange, user, mode, onSave }: UserModalP
 
       // Add admin scope for non-beneficiary roles
       if (formData.role !== 'beneficiary') {
-        userData.adminScope = {
+        const adminScope: any = {
           level: formData.role.includes('admin') ? formData.role.replace('_admin', '') : formData.role,
           regions: formData.selectedRegion ? [formData.selectedRegion] : [],
           projects: formData.selectedProjects,
           schemes: formData.selectedSchemes
         };
+
+        // Add separate district, area, unit references for easier hierarchy display
+        if (formData.role === 'district_admin') {
+          adminScope.district = formData.selectedRegion;
+        } else if (formData.role === 'area_admin') {
+          adminScope.district = formData.selectedDistrict;
+          adminScope.area = formData.selectedRegion;
+        } else if (formData.role === 'unit_admin') {
+          adminScope.district = formData.selectedDistrict;
+          adminScope.area = formData.selectedArea;
+          adminScope.unit = formData.selectedRegion;
+        }
+
+        userData.adminScope = adminScope;
       }
 
       let response;
@@ -271,6 +388,36 @@ export function UserModal({ open, onOpenChange, user, mode, onSave }: UserModalP
     }));
   };
 
+  const handleDistrictChange = async (districtId: string) => {
+    setFormData(prev => ({ 
+      ...prev, 
+      selectedDistrict: districtId,
+      selectedArea: '',
+      selectedRegion: '' // Clear area/unit selection when district changes
+    }));
+    
+    if (districtId) {
+      await loadAreasByDistrict(districtId);
+    } else {
+      setAvailableAreas([]);
+      setAvailableUnits([]);
+    }
+  };
+
+  const handleAreaChange = async (areaId: string) => {
+    setFormData(prev => ({ 
+      ...prev, 
+      selectedArea: areaId,
+      selectedRegion: '' // Clear unit selection when area changes
+    }));
+    
+    if (areaId) {
+      await loadUnitsByArea(areaId);
+    } else {
+      setAvailableUnits([]);
+    }
+  };
+
   const getFilteredLocations = () => {
     return availableLocations.filter(location => {
       const matchesSearch = location.name.toLowerCase().includes(locationSearch.toLowerCase());
@@ -281,6 +428,18 @@ export function UserModal({ open, onOpenChange, user, mode, onSave }: UserModalP
       if (formData.role === 'unit_admin') return location.type === 'unit' && matchesSearch;
       return matchesSearch;
     });
+  };
+
+  const getFilteredAreas = () => {
+    return availableAreas.filter(area =>
+      area.name.toLowerCase().includes(locationSearch.toLowerCase())
+    );
+  };
+
+  const getFilteredUnits = () => {
+    return availableUnits.filter(unit =>
+      unit.name.toLowerCase().includes(locationSearch.toLowerCase())
+    );
   };
 
   const getFilteredProjects = () => {
@@ -355,13 +514,20 @@ export function UserModal({ open, onOpenChange, user, mode, onSave }: UserModalP
                 <Label>Role *</Label>
                 <Select
                   value={formData.role}
-                  onValueChange={(value) => setFormData(prev => ({
-                    ...prev,
-                    role: value,
-                    selectedRegion: '',
-                    selectedProjects: [],
-                    selectedSchemes: []
-                  }))}
+                  onValueChange={(value) => {
+                    setFormData(prev => ({
+                      ...prev,
+                      role: value,
+                      selectedRegion: '',
+                      selectedDistrict: '',
+                      selectedArea: '',
+                      selectedProjects: [],
+                      selectedSchemes: []
+                    }));
+                    // Clear cascading selections when role changes
+                    setAvailableAreas([]);
+                    setAvailableUnits([]);
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select role" />
@@ -390,8 +556,231 @@ export function UserModal({ open, onOpenChange, user, mode, onSave }: UserModalP
               </div>
             </div>
 
-            {/* Regional Access for Admin Roles - Single Select with Search */}
-            {formData.role !== 'beneficiary' && formData.role !== 'project_coordinator' && formData.role !== 'scheme_coordinator' && (
+            {/* Regional Access for Area Admin - District then Area */}
+            {formData.role === 'area_admin' && (
+              <div className="space-y-4">
+                {/* District Selection */}
+                <div className="space-y-2">
+                  <Label>District *</Label>
+                  <Select
+                    value={formData.selectedDistrict}
+                    onValueChange={handleDistrictChange}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select district first">
+                        {formData.selectedDistrict && availableDistricts.find(d => d.id === formData.selectedDistrict)?.name}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableDistricts.length === 0 ? (
+                        <div className="p-2 text-sm text-muted-foreground">No districts available</div>
+                      ) : (
+                        availableDistricts.map((district) => (
+                          <SelectItem key={district.id} value={district.id}>
+                            {district.name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Area Selection - Only show if district is selected */}
+                {formData.selectedDistrict && (
+                  <div className="space-y-2">
+                    <Label>Area *</Label>
+                    {loadingAreas ? (
+                      <div className="flex items-center gap-2 p-4 border rounded">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span className="text-sm text-muted-foreground">Loading areas...</span>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                          <Input
+                            placeholder="Search areas..."
+                            value={locationSearch}
+                            onChange={(e) => setLocationSearch(e.target.value)}
+                            className="pl-10"
+                          />
+                        </div>
+                        <div className="border rounded-lg max-h-60 overflow-y-auto">
+                          {getFilteredAreas().length === 0 ? (
+                            <p className="text-sm text-muted-foreground p-4">
+                              {availableAreas.length === 0 ? 'No areas available for this district' : 'No areas found'}
+                            </p>
+                          ) : (
+                            <div className="space-y-1 p-2">
+                              {getFilteredAreas().map((area) => (
+                                <button
+                                  key={area.id}
+                                  type="button"
+                                  className={`w-full text-left px-3 py-2 hover:bg-gray-50 rounded-md transition-colors ${
+                                    formData.selectedRegion === area.id ? 'bg-blue-50 border border-blue-200' : ''
+                                  }`}
+                                  onClick={() => {
+                                    setFormData(prev => ({ ...prev, selectedRegion: area.id }));
+                                  }}
+                                >
+                                  <div className="font-medium">{area.name}</div>
+                                  <div className="text-sm text-gray-500">Code: {area.code}</div>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        {formData.selectedRegion && (
+                          <div className="text-sm text-gray-600 flex items-center gap-2">
+                            <span className="font-medium">Selected:</span>
+                            <span>{availableAreas.find(l => l.id === formData.selectedRegion)?.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => setFormData(prev => ({ ...prev, selectedRegion: '' }))}
+                              className="text-red-600 hover:text-red-700 text-xs underline"
+                            >
+                              Clear
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Regional Access for Unit Admin - District then Area then Unit */}
+            {formData.role === 'unit_admin' && (
+              <div className="space-y-4">
+                {/* District Selection */}
+                <div className="space-y-2">
+                  <Label>District *</Label>
+                  <Select
+                    value={formData.selectedDistrict}
+                    onValueChange={handleDistrictChange}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select district first">
+                        {formData.selectedDistrict && availableDistricts.find(d => d.id === formData.selectedDistrict)?.name}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableDistricts.length === 0 ? (
+                        <div className="p-2 text-sm text-muted-foreground">No districts available</div>
+                      ) : (
+                        availableDistricts.map((district) => (
+                          <SelectItem key={district.id} value={district.id}>
+                            {district.name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Area Selection - Only show if district is selected */}
+                {formData.selectedDistrict && (
+                  <div className="space-y-2">
+                    <Label>Area *</Label>
+                    {loadingAreas ? (
+                      <div className="flex items-center gap-2 p-4 border rounded">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span className="text-sm text-muted-foreground">Loading areas...</span>
+                      </div>
+                    ) : (
+                      <Select
+                        value={formData.selectedArea}
+                        onValueChange={handleAreaChange}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select area">
+                            {formData.selectedArea && availableAreas.find(a => a.id === formData.selectedArea)?.name}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableAreas.length === 0 ? (
+                            <div className="p-2 text-sm text-muted-foreground">No areas available</div>
+                          ) : (
+                            availableAreas.map((area) => (
+                              <SelectItem key={area.id} value={area.id}>
+                                {area.name}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                )}
+
+                {/* Unit Selection - Only show if area is selected */}
+                {formData.selectedArea && (
+                  <div className="space-y-2">
+                    <Label>Unit *</Label>
+                    {loadingUnits ? (
+                      <div className="flex items-center gap-2 p-4 border rounded">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span className="text-sm text-muted-foreground">Loading units...</span>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                          <Input
+                            placeholder="Search units..."
+                            value={locationSearch}
+                            onChange={(e) => setLocationSearch(e.target.value)}
+                            className="pl-10"
+                          />
+                        </div>
+                        <div className="border rounded-lg max-h-60 overflow-y-auto">
+                          {getFilteredUnits().length === 0 ? (
+                            <p className="text-sm text-muted-foreground p-4">
+                              {availableUnits.length === 0 ? 'No units available for this area' : 'No units found'}
+                            </p>
+                          ) : (
+                            <div className="space-y-1 p-2">
+                              {getFilteredUnits().map((unit) => (
+                                <button
+                                  key={unit.id}
+                                  type="button"
+                                  className={`w-full text-left px-3 py-2 hover:bg-gray-50 rounded-md transition-colors ${
+                                    formData.selectedRegion === unit.id ? 'bg-blue-50 border border-blue-200' : ''
+                                  }`}
+                                  onClick={() => {
+                                    setFormData(prev => ({ ...prev, selectedRegion: unit.id }));
+                                  }}
+                                >
+                                  <div className="font-medium">{unit.name}</div>
+                                  <div className="text-sm text-gray-500">Code: {unit.code}</div>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        {formData.selectedRegion && (
+                          <div className="text-sm text-gray-600 flex items-center gap-2">
+                            <span className="font-medium">Selected:</span>
+                            <span>{availableUnits.find(l => l.id === formData.selectedRegion)?.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => setFormData(prev => ({ ...prev, selectedRegion: '' }))}
+                              className="text-red-600 hover:text-red-700 text-xs underline"
+                            >
+                              Clear
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Regional Access for Other Admin Roles - Single Select with Search */}
+            {formData.role !== 'beneficiary' && formData.role !== 'project_coordinator' && formData.role !== 'scheme_coordinator' && formData.role !== 'area_admin' && formData.role !== 'unit_admin' && (
               <div className="space-y-2">
                 <Label>Regional Access *</Label>
                 {loading ? (

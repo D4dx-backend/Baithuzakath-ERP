@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Search, Filter, MoreHorizontal, Shield, Users, UserCheck, UserX, Loader2, AlertCircle, Edit, Trash2, Eye } from "lucide-react";
+import { Plus, Search, Filter, MoreHorizontal, Shield, Users, UserCheck, UserX, Loader2, AlertCircle, Edit, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,7 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { UserModal } from "@/components/modals/UserModal";
 import { DeleteUserModal } from "@/components/modals/DeleteUserModal";
-import { users as usersApi, type User } from "@/lib/api";
+import { users as usersApi, locations, type User, type Location } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 import { useRBAC } from "@/hooks/useRBAC";
@@ -52,13 +52,16 @@ export default function UserManagement() {
   
   const [userList, setUserList] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingLocations, setLoadingLocations] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedRole, setSelectedRole] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
   const [stats, setStats] = useState<any>(null);
+  const [locationMap, setLocationMap] = useState<Map<string, Location>>(new Map());
 
   // Modal states
   const [showUserModal, setShowUserModal] = useState(false);
@@ -81,10 +84,15 @@ export default function UserManagement() {
     );
   }
 
-  // Load users and stats on component mount
+  // Load locations once on mount
+  useEffect(() => {
+    loadLocations();
+    loadStats();
+  }, []);
+
+  // Load users when filters or page changes
   useEffect(() => {
     loadUsers();
-    loadStats();
   }, [currentPage, selectedRole, selectedStatus, searchTerm]);
 
   const loadUsers = async () => {
@@ -111,8 +119,14 @@ export default function UserManagement() {
       const response = await usersApi.getAll(params);
       
       if (response.success && response.data) {
+        console.log('👥 Loaded users:', response.data.users.length);
+        // Debug: Check first user's adminScope
+        if (response.data.users.length > 0) {
+          console.log('Sample user adminScope:', response.data.users[0].adminScope);
+        }
         setUserList(response.data.users);
         setTotalPages(response.data.pagination.pages);
+        setTotalItems(response.data.pagination.total);
       }
     } catch (err: any) {
       setError(err.message || 'Failed to load users');
@@ -134,6 +148,30 @@ export default function UserManagement() {
       }
     } catch (err: any) {
       console.error('Failed to load user stats:', err);
+    }
+  };
+
+  const loadLocations = async () => {
+    try {
+      setLoadingLocations(true);
+      const response = await locations.getAll({ limit: 1000 });
+      if (response.success && response.data) {
+        const map = new Map<string, Location>();
+        response.data.locations.forEach((loc: Location) => {
+          // Store by both id and _id for compatibility
+          map.set(loc.id, loc);
+          if ((loc as any)._id) {
+            map.set((loc as any)._id, loc);
+          }
+        });
+        console.log('📍 Loaded locations:', map.size, 'locations');
+        console.log('Sample location keys:', Array.from(map.keys()).slice(0, 3));
+        setLocationMap(map);
+      }
+    } catch (err: any) {
+      console.error('Failed to load locations:', err);
+    } finally {
+      setLoadingLocations(false);
     }
   };
 
@@ -273,52 +311,45 @@ export default function UserManagement() {
       )}
 
       {/* Filters */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Filters</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-4 flex-wrap">
-            <div className="flex-1 min-w-[200px]">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <Input
-                  placeholder="Search users..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-            <Select value={selectedRole} onValueChange={setSelectedRole}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter by role" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Roles</SelectItem>
-                <SelectItem value="super_admin">Super Admin</SelectItem>
-                <SelectItem value="state_admin">State Admin</SelectItem>
-                <SelectItem value="district_admin">District Admin</SelectItem>
-                <SelectItem value="area_admin">Area Admin</SelectItem>
-                <SelectItem value="unit_admin">Unit Admin</SelectItem>
-                <SelectItem value="project_coordinator">Project Coordinator</SelectItem>
-                <SelectItem value="scheme_coordinator">Scheme Coordinator</SelectItem>
-                <SelectItem value="beneficiary">Beneficiary</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-              <SelectTrigger className="w-[150px]">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="inactive">Inactive</SelectItem>
-              </SelectContent>
-            </Select>
+      <div className="flex gap-3 items-center">
+        <div className="flex-1">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <Input
+              placeholder="Search users..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
           </div>
-        </CardContent>
-      </Card>
+        </div>
+        <Select value={selectedRole} onValueChange={setSelectedRole}>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="Filter by role" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Roles</SelectItem>
+            <SelectItem value="super_admin">Super Admin</SelectItem>
+            <SelectItem value="state_admin">State Admin</SelectItem>
+            <SelectItem value="district_admin">District Admin</SelectItem>
+            <SelectItem value="area_admin">Area Admin</SelectItem>
+            <SelectItem value="unit_admin">Unit Admin</SelectItem>
+            <SelectItem value="project_coordinator">Project Coordinator</SelectItem>
+            <SelectItem value="scheme_coordinator">Scheme Coordinator</SelectItem>
+            <SelectItem value="beneficiary">Beneficiary</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+          <SelectTrigger className="w-[150px]">
+            <SelectValue placeholder="Filter by status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="inactive">Inactive</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
       {/* Users Table */}
       <Card>
@@ -346,9 +377,9 @@ export default function UserManagement() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>User</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Contact</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead>District</TableHead>
+                    <TableHead>Area</TableHead>
+                    <TableHead>Unit</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
@@ -358,40 +389,77 @@ export default function UserManagement() {
                     <TableRow key={user.id}>
                       <TableCell>
                         <div className="flex items-center gap-3">
-                          <Avatar className="h-10 w-10">
-                            <AvatarImage src={user.profile?.avatar} />
-                            <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
-                          </Avatar>
+                          <div className="relative">
+                            <Avatar className="h-10 w-10">
+                              <AvatarImage src={user.profile?.avatar} />
+                              <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+                            </Avatar>
+                            {/* Status indicator */}
+                            <div className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white ${user.isActive ? 'bg-green-500' : 'bg-gray-400'}`} title={user.isActive ? 'Active' : 'Inactive'} />
+                            {user.isVerified && (
+                              <Shield className="absolute -top-1 -right-1 h-4 w-4 text-blue-600 bg-white rounded-full" title="Verified" />
+                            )}
+                          </div>
                           <div>
                             <p className="font-medium">{user.name}</p>
-                            <p className="text-sm text-muted-foreground">{user.email || user.phone}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <p className="text-xs text-muted-foreground">{user.phone}</p>
+                              <span className="text-xs text-muted-foreground">•</span>
+                              <Badge variant="outline" className={`text-xs h-5 ${roleColors[user.role] || roleColors.beneficiary}`}>
+                                {roleNames[user.role] || user.role}
+                              </Badge>
+                            </div>
                           </div>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge className={roleColors[user.role] || roleColors.beneficiary}>
-                          {roleNames[user.role] || user.role}
-                        </Badge>
+                        {(() => {
+                          // Try to get district name from populated object or lookup
+                          const district = user.adminScope?.district;
+                          if (!district) return <span className="text-sm text-muted-foreground">-</span>;
+                          
+                          // If it's already populated as an object
+                          if (typeof district === 'object' && (district as any).name) {
+                            return <span className="text-sm font-medium">{(district as any).name}</span>;
+                          }
+                          
+                          // Otherwise lookup in locationMap
+                          const loc = locationMap.get(district as string);
+                          if (loc) return <span className="text-sm font-medium">{loc.name}</span>;
+                          
+                          // Fallback: show loading or ID
+                          return loadingLocations ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className="text-xs text-muted-foreground">Loading...</span>;
+                        })()}
                       </TableCell>
                       <TableCell>
-                        <div>
-                          <p className="text-sm">{user.phone}</p>
-                          {user.adminScope?.regions && user.adminScope.regions.length > 0 && (
-                            <p className="text-xs text-muted-foreground">
-                              {user.adminScope.regions.length} region(s)
-                            </p>
-                          )}
-                        </div>
+                        {(() => {
+                          const area = user.adminScope?.area;
+                          if (!area) return <span className="text-sm text-muted-foreground">-</span>;
+                          
+                          if (typeof area === 'object' && (area as any).name) {
+                            return <span className="text-sm font-medium">{(area as any).name}</span>;
+                          }
+                          
+                          const loc = locationMap.get(area as string);
+                          if (loc) return <span className="text-sm font-medium">{loc.name}</span>;
+                          
+                          return loadingLocations ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className="text-xs text-muted-foreground">Loading...</span>;
+                        })()}
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Badge variant={user.isActive ? "default" : "secondary"}>
-                            {user.isActive ? "Active" : "Inactive"}
-                          </Badge>
-                          {user.isVerified && (
-                            <Shield className="h-4 w-4 text-green-600" title="Verified" />
-                          )}
-                        </div>
+                        {(() => {
+                          const unit = user.adminScope?.unit;
+                          if (!unit) return <span className="text-sm text-muted-foreground">-</span>;
+                          
+                          if (typeof unit === 'object' && (unit as any).name) {
+                            return <span className="text-sm font-medium">{(unit as any).name}</span>;
+                          }
+                          
+                          const loc = locationMap.get(unit as string);
+                          if (loc) return <span className="text-sm font-medium">{loc.name}</span>;
+                          
+                          return loadingLocations ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className="text-xs text-muted-foreground">Loading...</span>;
+                        })()}
                       </TableCell>
                       <TableCell>
                         <p className="text-sm">{formatDate(user.createdAt)}</p>
@@ -404,12 +472,7 @@ export default function UserManagement() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem>
-                              <Eye className="mr-2 h-4 w-4" />
-                              View Details
-                            </DropdownMenuItem>
-                            
-                            {canManageUser(user) && (
+                            {canManageUser(user) ? (
                               <>
                                 <DropdownMenuItem onClick={() => handleEditUser(user)}>
                                   <Edit className="mr-2 h-4 w-4" />
@@ -424,6 +487,10 @@ export default function UserManagement() {
                                   Delete User
                                 </DropdownMenuItem>
                               </>
+                            ) : (
+                              <DropdownMenuItem disabled>
+                                No actions available
+                              </DropdownMenuItem>
                             )}
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -435,11 +502,19 @@ export default function UserManagement() {
 
               {/* Pagination */}
               {totalPages > 1 && (
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between pt-4 border-t">
                   <p className="text-sm text-muted-foreground">
-                    Page {currentPage} of {totalPages}
+                    Showing {((currentPage - 1) * 10) + 1} to {Math.min(currentPage * 10, totalItems)} of {totalItems} users
                   </p>
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                    >
+                      First
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
@@ -448,6 +523,9 @@ export default function UserManagement() {
                     >
                       Previous
                     </Button>
+                    <span className="text-sm text-muted-foreground px-2">
+                      Page {currentPage} of {totalPages}
+                    </span>
                     <Button
                       variant="outline"
                       size="sm"
@@ -455,6 +533,14 @@ export default function UserManagement() {
                       disabled={currentPage === totalPages}
                     >
                       Next
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={currentPage === totalPages}
+                    >
+                      Last
                     </Button>
                   </div>
                 </div>

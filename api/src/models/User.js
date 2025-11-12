@@ -46,7 +46,20 @@ const userSchema = new mongoose.Schema({
       enum: ['super', 'state', 'district', 'area', 'unit', 'project', 'scheme'],
       required: function () { return this.role !== 'beneficiary'; }
     },
-    // Geographic regions under administration
+    // Separate location references for easier hierarchy display
+    district: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Location'
+    },
+    area: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Location'
+    },
+    unit: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Location'
+    },
+    // Geographic regions under administration (kept for backward compatibility)
     regions: [{
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Location'

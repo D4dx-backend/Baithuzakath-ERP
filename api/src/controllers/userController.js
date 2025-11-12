@@ -56,6 +56,9 @@ class UserController {
 
       const users = await User.find(query)
         .populate('adminScope.regions', 'name type')
+        .populate('adminScope.district', 'name type code')
+        .populate('adminScope.area', 'name type code')
+        .populate('adminScope.unit', 'name type code')
         .populate('adminScope.projects', 'name code')
         .populate('adminScope.schemes', 'name code')
         .populate('createdBy', 'name')
@@ -98,6 +101,9 @@ class UserController {
 
       const user = await User.findById(id)
         .populate('adminScope.regions', 'name type code')
+        .populate('adminScope.district', 'name type code')
+        .populate('adminScope.area', 'name type code')
+        .populate('adminScope.unit', 'name type code')
         .populate('adminScope.projects', 'name code')
         .populate('adminScope.schemes', 'name code')
         .populate('createdBy', 'name email')
