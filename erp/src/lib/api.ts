@@ -11,12 +11,16 @@ export interface User {
   adminScope?: {
     level: string;
     regions: string[];
+    district?: string;  // District reference
+    area?: string;      // Area reference (for area_admin and unit_admin)
+    unit?: string;      // Unit reference (for unit_admin)
     projects: string[];
     schemes: string[];
   };
   profile?: any;
   isVerified: boolean;
   isActive: boolean;
+  createdAt: string;
 }
 
 export interface Project {

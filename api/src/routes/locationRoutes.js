@@ -108,7 +108,7 @@ router.post('/',
 router.get('/:id',
   authenticate,
   authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'),
-  validate({ id: commonSchemas.objectId }, 'params'),
+  validate(Joi.object({ id: commonSchemas.objectId }), 'params'),
   locationController.getLocationById
 );
 
@@ -120,7 +120,7 @@ router.get('/:id',
 router.put('/:id',
   authenticate,
   authorize('super_admin', 'state_admin', 'district_admin'),
-  validate({ id: commonSchemas.objectId }, 'params'),
+  validate(Joi.object({ id: commonSchemas.objectId }), 'params'),
   validate(locationSchemas.update),
   locationController.updateLocation
 );
@@ -133,7 +133,7 @@ router.put('/:id',
 router.delete('/:id',
   authenticate,
   authorize('super_admin', 'state_admin'),
-  validate({ id: commonSchemas.objectId }, 'params'),
+  validate(Joi.object({ id: commonSchemas.objectId }), 'params'),
   locationController.deleteLocation
 );
 

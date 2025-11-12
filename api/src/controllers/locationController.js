@@ -164,7 +164,7 @@ class LocationController {
 
             // Check access permissions
             if (currentUser.role !== 'super_admin' && currentUser.role !== 'state_admin') {
-                const hasAccess = await this.checkLocationAccess(currentUser, location);
+                const hasAccess = await LocationController.prototype.checkLocationAccess(currentUser, location);
                 if (!hasAccess) {
                     return res.status(403).json({
                         success: false,
@@ -207,7 +207,7 @@ class LocationController {
             const currentUser = req.user;
 
             // Check permissions
-            if (!this.canManageLocations(currentUser)) {
+            if (!LocationController.prototype.canManageLocations(currentUser)) {
                 return res.status(403).json({
                     success: false,
                     message: 'You are not authorized to create locations'
@@ -226,7 +226,7 @@ class LocationController {
 
                 // Check if user has access to parent location
                 if (currentUser.role !== 'super_admin' && currentUser.role !== 'state_admin') {
-                    const hasAccess = await this.checkLocationAccess(currentUser, parent);
+                    const hasAccess = await LocationController.prototype.checkLocationAccess(currentUser, parent);
                     if (!hasAccess) {
                         return res.status(403).json({
                             success: false,
@@ -305,7 +305,7 @@ class LocationController {
             }
 
             // Check permissions
-            if (!this.canManageLocations(currentUser)) {
+            if (!LocationController.prototype.canManageLocations(currentUser)) {
                 return res.status(403).json({
                     success: false,
                     message: 'You are not authorized to update locations'
@@ -314,7 +314,7 @@ class LocationController {
 
             // Check access to this specific location
             if (currentUser.role !== 'super_admin' && currentUser.role !== 'state_admin') {
-                const hasAccess = await this.checkLocationAccess(currentUser, location);
+                const hasAccess = await LocationController.prototype.checkLocationAccess(currentUser, location);
                 if (!hasAccess) {
                     return res.status(403).json({
                         success: false,
@@ -335,7 +335,7 @@ class LocationController {
 
                 // Check if user has access to new parent
                 if (currentUser.role !== 'super_admin' && currentUser.role !== 'state_admin') {
-                    const hasAccess = await this.checkLocationAccess(currentUser, newParent);
+                    const hasAccess = await LocationController.prototype.checkLocationAccess(currentUser, newParent);
                     if (!hasAccess) {
                         return res.status(403).json({
                             success: false,

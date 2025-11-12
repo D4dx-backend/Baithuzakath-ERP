@@ -15,6 +15,7 @@ interface LocationModalProps {
   mode: "create" | "edit";
   locationType: "district" | "area" | "unit";
   onSave?: () => void;
+  preSelectedDistrict?: string; // For filtering areas when creating unit
 }
 
 export function LocationModal({ open, onOpenChange, location, mode, locationType, onSave }: LocationModalProps) {
@@ -22,6 +23,9 @@ export function LocationModal({ open, onOpenChange, location, mode, locationType
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [parentLocations, setParentLocations] = useState<Location[]>([]);
+  const [districts, setDistricts] = useState<Location[]>([]);
+  const [areas, setAreas] = useState<Location[]>([]);
+  const [selectedDistrict, setSelectedDistrict] = useState('');
   
   // Form state - simplified to only essential fields
   const [formData, setFormData] = useState({
@@ -109,15 +113,16 @@ export function LocationModal({ open, onOpenChange, location, mode, locationType
       }
 
       // Prepare data for API
-      const locationData: Partial<Location> = {
+      // Note: For create/update, parent should be just the ObjectId string
+      const locationData: any = {
         name: formData.name.trim(),
         code: finalCode.trim().toUpperCase(),
         type: locationType
       };
 
-      // Add parent if not district
+      // Add parent if not district - send just the ObjectId string
       if (locationType !== 'district' && formData.parent) {
-        locationData.parent = { id: formData.parent } as any;
+        locationData.parent = formData.parent; // This is already a string (ObjectId)
       }
 
       let response;

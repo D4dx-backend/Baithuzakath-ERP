@@ -12,6 +12,14 @@ import Dashboard from "./pages/Dashboard";
 import Projects from "./pages/Projects";
 import Schemes from "./pages/Schemes";
 import Applications from "./pages/Applications";
+import AllApplications from "./pages/applications/AllApplications";
+import PendingApplications from "./pages/applications/PendingApplications";
+import UnderReviewApplications from "./pages/applications/UnderReviewApplications";
+import FieldVerificationApplications from "./pages/applications/FieldVerificationApplications";
+import InterviewScheduledApplications from "./pages/applications/InterviewScheduledApplications";
+import ApprovedApplications from "./pages/applications/ApprovedApplications";
+import RejectedApplications from "./pages/applications/RejectedApplications";
+import CompletedApplications from "./pages/applications/CompletedApplications";
 import UpcomingInterviews from "./pages/UpcomingInterviews";
 import Donors from "./pages/Donors";
 import AllDonors from "./pages/donors/AllDonors";
@@ -23,6 +31,9 @@ import Donations from "./pages/donors/Donations";
 import FormBuilder from "./pages/FormBuilder";
 import Budget from "./pages/Budget";
 import Locations from "./pages/Locations";
+import Districts from "./pages/Districts";
+import Areas from "./pages/Areas";
+import Units from "./pages/Units";
 import UserManagement from "./pages/UserManagement";
 import RoleManagement from "./pages/RoleManagement";
 import Communications from "./pages/Communications";
@@ -76,6 +87,14 @@ const App = () => (
             <Route path="/projects" element={<AuthGuard><Layout><Projects /></Layout></AuthGuard>} />
             <Route path="/schemes" element={<AuthGuard><Layout><Schemes /></Layout></AuthGuard>} />
             <Route path="/applications" element={<AuthGuard><Layout><Applications /></Layout></AuthGuard>} />
+            <Route path="/applications/all" element={<AuthGuard><Layout><AllApplications /></Layout></AuthGuard>} />
+            <Route path="/applications/pending" element={<AuthGuard><Layout><PendingApplications /></Layout></AuthGuard>} />
+            <Route path="/applications/under-review" element={<AuthGuard><Layout><UnderReviewApplications /></Layout></AuthGuard>} />
+            <Route path="/applications/field-verification" element={<AuthGuard><Layout><FieldVerificationApplications /></Layout></AuthGuard>} />
+            <Route path="/applications/interview-scheduled" element={<AuthGuard><Layout><InterviewScheduledApplications /></Layout></AuthGuard>} />
+            <Route path="/applications/approved" element={<AuthGuard><Layout><ApprovedApplications /></Layout></AuthGuard>} />
+            <Route path="/applications/rejected" element={<AuthGuard><Layout><RejectedApplications /></Layout></AuthGuard>} />
+            <Route path="/applications/completed" element={<AuthGuard><Layout><CompletedApplications /></Layout></AuthGuard>} />
             <Route path="/upcoming-interviews" element={<AuthGuard><Layout><UpcomingInterviews /></Layout></AuthGuard>} />
             <Route path="/beneficiaries" element={<AuthGuard><Layout><Beneficiaries /></Layout></AuthGuard>} />
             <Route path="/payment-tracking" element={<AuthGuard><Layout><BeneficiaryPayments /></Layout></AuthGuard>} />
@@ -87,6 +106,9 @@ const App = () => (
             <Route path="/form-builder" element={<AuthGuard><Layout><FormBuilder /></Layout></AuthGuard>} />
             <Route path="/budget" element={<AuthGuard><Layout><Budget /></Layout></AuthGuard>} />
             <Route path="/locations" element={<AuthGuard><Layout><Locations /></Layout></AuthGuard>} />
+            <Route path="/locations/districts" element={<AuthGuard><Layout><Districts /></Layout></AuthGuard>} />
+            <Route path="/locations/areas" element={<AuthGuard><Layout><Areas /></Layout></AuthGuard>} />
+            <Route path="/locations/units" element={<AuthGuard><Layout><Units /></Layout></AuthGuard>} />
             <Route path="/users" element={<AuthGuard><Layout><UserManagement /></Layout></AuthGuard>} />
             <Route path="/roles" element={<AuthGuard><Layout><RoleManagement /></Layout></AuthGuard>} />
 

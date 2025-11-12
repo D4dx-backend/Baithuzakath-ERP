@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { ShortlistModal } from "@/components/modals/ShortlistModal";
 import { ReportsModal } from "@/components/modals/ReportsModal";
-import { Filter, Download, Eye, CheckCircle, XCircle, Clock, CalendarIcon, X, History, UserCheck, FileText, Loader2, FileCheck } from "lucide-react";
+import { Filter, Download, Eye, CheckCircle, XCircle, Clock, CalendarIcon, X, History, UserCheck, FileText, Loader2, FileCheck, Search } from "lucide-react";
 import { useRBAC } from "@/hooks/useRBAC";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -619,140 +619,133 @@ export default function Applications() {
         ))}
       </div>
 
+      {/* Filters - Row 1: Search (50%), Status (25%), Projects (25%) */}
+      <div className="flex items-center gap-3">
+        <div className="relative flex-[2]">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+          <Input 
+            placeholder="Search by name or ID..." 
+            className="pl-10 w-full" 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="flex-1">
+            <SelectValue placeholder="All Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="under_review">Under Review</SelectItem>
+            <SelectItem value="field_verification">Field Verification</SelectItem>
+            <SelectItem value="interview_scheduled">Interview Scheduled</SelectItem>
+            <SelectItem value="interview_completed">Interview Completed</SelectItem>
+            <SelectItem value="approved">Approved</SelectItem>
+            <SelectItem value="rejected">Rejected</SelectItem>
+            <SelectItem value="on_hold">On Hold</SelectItem>
+            <SelectItem value="cancelled">Cancelled</SelectItem>
+            <SelectItem value="disbursed">Disbursed</SelectItem>
+            <SelectItem value="completed">Completed</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={projectFilter} onValueChange={setProjectFilter}>
+          <SelectTrigger className="flex-1">
+            <SelectValue placeholder="All Projects" />
+          </SelectTrigger>
+          <SelectContent>
+            {projectOptions.map(option => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Filters - Row 2: District, Area, Scheme, Dates, Clear */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <Combobox
+          value={districtFilter}
+          onValueChange={setDistrictFilter}
+          options={districtOptions}
+          placeholder="District"
+          searchPlaceholder="Search..."
+          className="w-44"
+        />
+        <Combobox
+          value={areaFilter}
+          onValueChange={setAreaFilter}
+          options={areaOptions}
+          placeholder="Area"
+          searchPlaceholder="Search..."
+          className="w-40"
+        />
+        <Combobox
+          value={schemeFilter}
+          onValueChange={setSchemeFilter}
+          options={schemeOptions}
+          placeholder="Scheme"
+          searchPlaceholder="Search..."
+          className="w-48"
+        />
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className={cn(
+                "w-36 justify-start text-left font-normal",
+                !fromDate && "text-muted-foreground"
+              )}
+            >
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {fromDate ? format(fromDate, "dd/MM/yy") : "From"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={fromDate}
+              onSelect={setFromDate}
+              initialFocus
+              className={cn("p-3 pointer-events-auto")}
+            />
+          </PopoverContent>
+        </Popover>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className={cn(
+                "w-36 justify-start text-left font-normal",
+                !toDate && "text-muted-foreground"
+              )}
+            >
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {toDate ? format(toDate, "dd/MM/yy") : "To"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={toDate}
+              onSelect={setToDate}
+              initialFocus
+              className={cn("p-3 pointer-events-auto")}
+            />
+          </PopoverContent>
+        </Popover>
+        <Button variant="outline" size="sm" onClick={clearAllFilters}>
+          <X className="mr-2 h-4 w-4" />
+          Clear Filters
+        </Button>
+      </div>
+
       <Card>
         <CardHeader>
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <CardTitle>Application List</CardTitle>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={clearAllFilters}>
-                  <X className="mr-2 h-4 w-4" />
-                  Clear Filters
-                </Button>
-              </div>
-            </div>
-            
-            {/* Filters Row 1 */}
-            <div className="flex flex-wrap gap-2">
-              <Input 
-                placeholder="Search by name or ID..." 
-                className="w-64" 
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="under_review">Under Review</SelectItem>
-                  <SelectItem value="field_verification">Field Verification</SelectItem>
-                  <SelectItem value="interview_scheduled">Interview Scheduled</SelectItem>
-                  <SelectItem value="interview_completed">Interview Completed</SelectItem>
-                  <SelectItem value="approved">Approved</SelectItem>
-                  <SelectItem value="rejected">Rejected</SelectItem>
-                  <SelectItem value="on_hold">On Hold</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
-                  <SelectItem value="disbursed">Disbursed</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={projectFilter} onValueChange={setProjectFilter}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Project" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projectOptions.map(option => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Filters Row 2 */}
-            <div className="flex flex-wrap gap-2">
-              <Combobox
-                value={districtFilter}
-                onValueChange={setDistrictFilter}
-                options={districtOptions}
-                placeholder="Select district..."
-                searchPlaceholder="Search districts..."
-                className="w-52"
-              />
-              <Combobox
-                value={areaFilter}
-                onValueChange={setAreaFilter}
-                options={areaOptions}
-                placeholder="Select area..."
-                searchPlaceholder="Search areas..."
-                className="w-48"
-              />
-              <Combobox
-                value={schemeFilter}
-                onValueChange={setSchemeFilter}
-                options={schemeOptions}
-                placeholder="Select scheme..."
-                searchPlaceholder="Search schemes..."
-                className="w-64"
-              />
-            </div>
-
-            {/* Date Range Filters */}
-            <div className="flex flex-wrap gap-2 items-center">
-              <span className="text-sm text-muted-foreground">Date Range:</span>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-48 justify-start text-left font-normal",
-                      !fromDate && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {fromDate ? format(fromDate, "PPP") : <span>From date</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={fromDate}
-                    onSelect={setFromDate}
-                    initialFocus
-                    className={cn("p-3 pointer-events-auto")}
-                  />
-                </PopoverContent>
-              </Popover>
-              <span className="text-sm text-muted-foreground">to</span>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-48 justify-start text-left font-normal",
-                      !toDate && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {toDate ? format(toDate, "PPP") : <span>To date</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={toDate}
-                    onSelect={setToDate}
-                    initialFocus
-                    className={cn("p-3 pointer-events-auto")}
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-          </div>
+          <CardTitle>Application List</CardTitle>
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">

@@ -55,10 +55,51 @@ const menuCategories = [
         permissions: ["schemes.read.all", "schemes.read.assigned"]
       },
       { 
-        to: "/applications", 
-        icon: FileCheck, 
         label: "Applications",
-        permissions: ["applications.read.all", "applications.read.regional", "applications.read.own"]
+        icon: FileCheck,
+        permissions: ["applications.read.all", "applications.read.regional", "applications.read.own"],
+        submenu: [
+          {
+            to: "/applications/all",
+            label: "All Applications",
+            permissions: ["applications.read.all", "applications.read.regional", "applications.read.own"]
+          },
+          {
+            to: "/applications/pending",
+            label: "Pending",
+            permissions: ["applications.read.all", "applications.read.regional", "applications.read.own"]
+          },
+          {
+            to: "/applications/under-review",
+            label: "Under Review",
+            permissions: ["applications.read.all", "applications.read.regional", "applications.read.own"]
+          },
+          {
+            to: "/applications/field-verification",
+            label: "Field Verification",
+            permissions: ["applications.read.all", "applications.read.regional", "applications.read.own"]
+          },
+          {
+            to: "/applications/interview-scheduled",
+            label: "Interview Scheduled",
+            permissions: ["applications.read.all", "applications.read.regional", "applications.read.own"]
+          },
+          {
+            to: "/applications/approved",
+            label: "Approved",
+            permissions: ["applications.read.all", "applications.read.regional", "applications.read.own"]
+          },
+          {
+            to: "/applications/rejected",
+            label: "Rejected",
+            permissions: ["applications.read.all", "applications.read.regional", "applications.read.own"]
+          },
+          {
+            to: "/applications/completed",
+            label: "Completed",
+            permissions: ["applications.read.all", "applications.read.regional", "applications.read.own"]
+          }
+        ]
       },
       { 
         to: "/upcoming-interviews", 
@@ -117,10 +158,26 @@ const menuCategories = [
     label: "System Administration",
     items: [
       { 
-        to: "/locations", 
-        icon: MapPin, 
         label: "Locations",
-        permissions: ["locations.read", "settings.read"]
+        icon: MapPin,
+        permissions: ["locations.read", "settings.read"],
+        submenu: [
+          {
+            to: "/locations/districts",
+            label: "Districts",
+            permissions: ["locations.read", "settings.read"]
+          },
+          {
+            to: "/locations/areas",
+            label: "Areas",
+            permissions: ["locations.read", "settings.read"]
+          },
+          {
+            to: "/locations/units",
+            label: "Units",
+            permissions: ["locations.read", "settings.read"]
+          }
+        ]
       },
       { 
         to: "/users", 
