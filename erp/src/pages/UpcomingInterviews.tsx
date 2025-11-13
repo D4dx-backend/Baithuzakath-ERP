@@ -1,20 +1,24 @@
 import { useState, useEffect } from "react";
-import { Calendar, Clock, MapPin, Users, FileText, CheckCircle, XCircle, CalendarCheck, Loader2, AlertCircle, Link as LinkIcon, Edit } from "lucide-react";
+import { Calendar, Clock, MapPin, Users, FileText, CheckCircle, XCircle, CalendarCheck, Loader2, AlertCircle, Link as LinkIcon, Edit, Download, Grid, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ReportsModal } from "@/components/modals/ReportsModal";
 import { ApplicationViewModal } from "@/components/modals/ApplicationViewModal";
+import { GenericFilters } from "@/components/filters/GenericFilters";
+import { useInterviewFilters } from "@/hooks/useInterviewFilters";
+import { useApplicationExport } from "@/hooks/useApplicationExport";
 import { toast } from "@/hooks/use-toast";
 import { useRBAC } from "@/hooks/useRBAC";
 import { interviews, applications } from "@/lib/api";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 
 interface Interview {
   id: string;
-  applicationId: string; // MongoDB _id
-  applicationNumber?: string; // Human-readable application number
+  applicationId: string;
+  applicationNumber?: string;
   applicantName: string;
   applicantPhone: string;
   projectName: string;
@@ -37,73 +41,81 @@ interface Interview {
   unit: string;
 }
 
-
-
 export default function UpcomingInterviews() {
   const { hasAnyPermission } = useRBAC();
+  const filterHook = useInterviewFilters();
+  const { exportApplications, exporting } = useApplicationExport();
   
-  // Permission check
   const canViewInterviews = hasAnyPermission(['interviews.read', 'applications.read.all', 'applications.read.regional']);
   
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [interviewList, setInterviewList] = useState<Interview[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pagination, setPagination] = useState({ current: 1, pages: 1, total: 0, limit: 10 });
   const [showReportsModal, setShowReportsModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
   const [modalMode, setModalMode] = useState<"view" | "approve" | "reject">("view");
   const [selectedInterview, setSelectedInterview] = useState<Interview | null>(null);
   const [selectedApplication, setSelectedApplication] = useState<any>(null);
   const [loadingApplication, setLoadingApplication] = useState(false);
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
-  // Load interviews data
+  // Load interviews with filters
   useEffect(() => {
-    if (canViewInterviews) {
-      loadInterviews();
-    } else {
+    if (!canViewInterviews) {
       setLoading(false);
+      return;
     }
-  }, [canViewInterviews, searchQuery, statusFilter]);
 
-  const loadInterviews = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const params: any = {};
-      if (searchQuery) params.search = searchQuery;
-      if (statusFilter !== "all") params.status = statusFilter;
-      
-      const response = await interviews.getAll(params);
-      
-      if (response.success) {
-        setInterviewList(response.data.interviews);
-      } else {
-        setError(response.message || "Failed to load interviews");
+    const loadInterviews = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const params = filterHook.getApiParams(filterHook.filters.currentPage, pagination.limit);
+        const response = await interviews.getAll(params);
+        
+        if (response.success) {
+          setInterviewList(response.data.interviews || []);
+          setPagination(response.data.pagination || { current: 1, pages: 1, total: 0, limit: 10 });
+        } else {
+          setError(response.message || "Failed to load interviews");
+        }
+      } catch (err: any) {
+        setError(err.message || "Failed to load interviews");
+        toast({
+          title: "Error",
+          description: "Failed to load interviews",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
       }
-    } catch (err: any) {
-      setError(err.message || "Failed to load interviews");
-      toast({
-        title: "Error",
-        description: "Failed to load interviews",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
-  // Access denied check
+    loadInterviews();
+  }, [
+    canViewInterviews,
+    filterHook.filters.currentPage,
+    filterHook.filters.searchTerm,
+    filterHook.filters.statusFilter,
+    filterHook.filters.projectFilter,
+    filterHook.filters.districtFilter,
+    filterHook.filters.areaFilter,
+    filterHook.filters.schemeFilter,
+    filterHook.filters.fromDate,
+    filterHook.filters.toDate,
+    filterHook.filters.quickDateFilter,
+    pagination.limit,
+  ]);
+
   if (!canViewInterviews) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <CalendarCheck className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
           <h3 className="text-lg font-semibold mb-2">Access Denied</h3>
-          <p className="text-muted-foreground">
-            You don't have permission to view upcoming interviews.
-          </p>
+          <p className="text-muted-foreground">You don't have permission to view upcoming interviews.</p>
         </div>
       </div>
     );
@@ -116,10 +128,8 @@ export default function UpcomingInterviews() {
     setShowViewModal(true);
     
     try {
-      // Fetch the full application data
       const response = await applications.getById(interview.applicationId);
       if (response.success) {
-        // Override the status for interview context - scheduled interviews should show as pending for approval
         const applicationData = {
           ...response.data,
           status: interview.status === "scheduled" ? "pending" : 
@@ -134,7 +144,6 @@ export default function UpcomingInterviews() {
           description: "Failed to load application details",
           variant: "destructive",
         });
-        // Fallback to constructed application object
         setSelectedApplication(getApplicationFromInterview(interview));
       }
     } catch (error: any) {
@@ -143,7 +152,6 @@ export default function UpcomingInterviews() {
         description: "Failed to load application details",
         variant: "destructive",
       });
-      // Fallback to constructed application object
       setSelectedApplication(getApplicationFromInterview(interview));
     } finally {
       setLoadingApplication(false);
@@ -152,56 +160,34 @@ export default function UpcomingInterviews() {
 
   const handleApprove = async (applicationId: string, remarks: string, distributionTimeline?: any[]) => {
     try {
-      // Find the interview by applicationId to get the correct interview ID
       const interview = interviewList.find(i => i.applicationId === applicationId);
       if (!interview) {
-        toast({
-          title: "Error",
-          description: "Interview not found",
-          variant: "destructive",
-        });
+        toast({ title: "Error", description: "Interview not found", variant: "destructive" });
         return;
       }
 
       const response = await interviews.complete(interview.applicationId, { 
         result: 'passed',
         notes: remarks,
-        distributionTimeline: distributionTimeline // Include distribution timeline
+        distributionTimeline: distributionTimeline
       });
       
       if (response.success) {
-        await loadInterviews(); // Reload interviews
-        setShowViewModal(false); // Close modal
-        toast({
-          title: "Interview Completed",
-          description: `Interview has been marked as passed successfully.`,
-        });
+        setShowViewModal(false);
+        toast({ title: "Interview Completed", description: `Interview has been marked as passed successfully.` });
       } else {
-        toast({
-          title: "Error",
-          description: "Failed to complete interview",
-          variant: "destructive",
-        });
+        toast({ title: "Error", description: "Failed to complete interview", variant: "destructive" });
       }
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to complete interview",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: error.message || "Failed to complete interview", variant: "destructive" });
     }
   };
 
   const handleReject = async (applicationId: string, remarks: string) => {
     try {
-      // Find the interview by applicationId to get the correct interview ID
       const interview = interviewList.find(i => i.applicationId === applicationId);
       if (!interview) {
-        toast({
-          title: "Error",
-          description: "Interview not found",
-          variant: "destructive",
-        });
+        toast({ title: "Error", description: "Interview not found", variant: "destructive" });
         return;
       }
 
@@ -211,71 +197,38 @@ export default function UpcomingInterviews() {
       });
       
       if (response.success) {
-        await loadInterviews(); // Reload interviews
-        setShowViewModal(false); // Close modal
-        toast({
-          title: "Interview Completed",
-          description: `Interview has been marked as failed.`,
-          variant: "destructive",
-        });
+        setShowViewModal(false);
+        toast({ title: "Interview Completed", description: `Interview has been marked as failed.`, variant: "destructive" });
       } else {
-        toast({
-          title: "Error",
-          description: "Failed to complete interview",
-          variant: "destructive",
-        });
+        toast({ title: "Error", description: "Failed to complete interview", variant: "destructive" });
       }
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to complete interview",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: error.message || "Failed to complete interview", variant: "destructive" });
     }
-  };
-
-  const handleAddNotes = (interview: Interview) => {
-    setSelectedInterview(interview);
-    setShowReportsModal(true);
   };
 
   const handleEditCompleted = async (interview: Interview) => {
     setSelectedInterview(interview);
-    setModalMode("edit"); // Use edit mode for completed interviews
+    setModalMode("edit");
     setLoadingApplication(true);
     setShowViewModal(true);
     
     try {
-      // Fetch the full application data
       const response = await applications.getById(interview.applicationId);
       if (response.success) {
-        // Keep the original status for editing
-        const applicationData = {
-          ...response.data,
-          status: response.data.status // Keep original status, don't override
-        };
-        setSelectedApplication(applicationData);
+        setSelectedApplication({ ...response.data, status: response.data.status });
       } else {
-        toast({
-          title: "Error",
-          description: "Failed to load application details",
-          variant: "destructive",
-        });
+        toast({ title: "Error", description: "Failed to load application details", variant: "destructive" });
         setSelectedApplication(getApplicationFromInterview(interview));
       }
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: "Failed to load application details",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Failed to load application details", variant: "destructive" });
       setSelectedApplication(getApplicationFromInterview(interview));
     } finally {
       setLoadingApplication(false);
     }
   };
 
-  // Convert interview to application format for modal
   const getApplicationFromInterview = (interview: Interview) => {
     return {
       _id: interview.applicationId,
@@ -283,27 +236,15 @@ export default function UpcomingInterviews() {
       beneficiary: {
         name: interview.applicantName,
         phone: interview.applicantPhone,
-        email: `${interview.applicantName.toLowerCase().replace(/\s+/g, '.')}@email.com`, // Generated email
+        email: `${interview.applicantName.toLowerCase().replace(/\s+/g, '.')}@email.com`,
       },
-      scheme: {
-        name: interview.schemeName,
-      },
-      project: {
-        name: interview.projectName,
-      },
-      state: {
-        name: interview.state,
-      },
-      district: {
-        name: interview.district,
-      },
-      area: {
-        name: interview.area,
-      },
-      unit: {
-        name: interview.unit,
-      },
-      requestedAmount: 50000, // This should ideally come from the actual application data
+      scheme: { name: interview.schemeName },
+      project: { name: interview.projectName },
+      state: { name: interview.state },
+      district: { name: interview.district },
+      area: { name: interview.area },
+      unit: { name: interview.unit },
+      requestedAmount: 50000,
       status: interview.status === "completed" ? 
         (interview.result === "passed" ? "approved" : "rejected") : 
         interview.status === "cancelled" ? "rejected" : 
@@ -312,17 +253,6 @@ export default function UpcomingInterviews() {
       notes: interview.notes,
     };
   };
-
-  const filteredInterviews = interviewList.filter((interview) => {
-    const matchesSearch =
-      interview.applicantName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (interview.applicationNumber || interview.applicationId).toLowerCase().includes(searchQuery.toLowerCase()) ||
-      interview.projectName.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesStatus = statusFilter === "all" || interview.status === statusFilter;
-    
-    return matchesSearch && matchesStatus;
-  });
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -337,7 +267,10 @@ export default function UpcomingInterviews() {
     }
   };
 
-  // Loading state
+  const handleExport = () => {
+    exportApplications(filterHook.getExportParams(), 'upcoming_interviews');
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -349,7 +282,6 @@ export default function UpcomingInterviews() {
     );
   }
 
-  // Error state
   if (error) {
     return (
       <Alert variant="destructive">
@@ -385,56 +317,69 @@ export default function UpcomingInterviews() {
       
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
-            Upcoming Interviews
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Schedule and manage applicant interviews
-          </p>
+          <h1 className="text-3xl font-bold">Upcoming Interviews</h1>
+          <p className="text-muted-foreground mt-1">Schedule and manage applicant interviews</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={handleExport} disabled={exporting}>
+            <Download className="mr-2 h-4 w-4" />
+            {exporting ? "Exporting..." : "Export Report"}
+          </Button>
+          <div className="flex items-center border rounded-lg p-1">
+            <Button variant={viewMode === 'cards' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('cards')}>
+              <Grid className="h-4 w-4" />
+            </Button>
+            <Button variant={viewMode === 'table' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('table')}>
+              <List className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Filters */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col gap-4 md:flex-row">
-            <div className="flex-1">
-              <Input
-                placeholder="Search by applicant name or ID..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant={statusFilter === "all" ? "default" : "outline"}
-                onClick={() => setStatusFilter("all")}
-                size="sm"
-              >
-                All ({interviewList.length})
-              </Button>
-              <Button
-                variant={statusFilter === "scheduled" ? "default" : "outline"}
-                onClick={() => setStatusFilter("scheduled")}
-                size="sm"
-              >
-                Scheduled ({interviewList.filter(i => i.status === "scheduled").length})
-              </Button>
-              <Button
-                variant={statusFilter === "completed" ? "default" : "outline"}
-                onClick={() => setStatusFilter("completed")}
-                size="sm"
-              >
-                Completed ({interviewList.filter(i => i.status === "completed").length})
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <GenericFilters
+        searchTerm={filterHook.filters.searchTerm}
+        onSearchChange={filterHook.setSearchTerm}
+        searchPlaceholder="Search by applicant name or ID..."
+        showStatusFilter={true}
+        statusFilter={filterHook.filters.statusFilter}
+        onStatusChange={filterHook.setStatusFilter}
+        statusOptions={[
+          { value: "all", label: "All Status" },
+          { value: "scheduled", label: "Scheduled" },
+          { value: "completed", label: "Completed" },
+          { value: "cancelled", label: "Cancelled" },
+        ]}
+        showProjectFilter={true}
+        projectFilter={filterHook.filters.projectFilter}
+        onProjectChange={filterHook.setProjectFilter}
+        projectOptions={filterHook.dropdownOptions.projectOptions}
+        showDistrictFilter={true}
+        districtFilter={filterHook.filters.districtFilter}
+        onDistrictChange={filterHook.setDistrictFilter}
+        districtOptions={filterHook.dropdownOptions.districtOptions}
+        showAreaFilter={true}
+        areaFilter={filterHook.filters.areaFilter}
+        onAreaChange={filterHook.setAreaFilter}
+        areaOptions={filterHook.dropdownOptions.areaOptions}
+        showSchemeFilter={true}
+        schemeFilter={filterHook.filters.schemeFilter}
+        onSchemeChange={filterHook.setSchemeFilter}
+        schemeOptions={filterHook.dropdownOptions.schemeOptions}
+        showDateFilters={true}
+        fromDate={filterHook.filters.fromDate}
+        onFromDateChange={filterHook.setFromDate}
+        toDate={filterHook.filters.toDate}
+        onToDateChange={filterHook.setToDate}
+        showQuickDateFilter={true}
+        quickDateFilter={filterHook.filters.quickDateFilter}
+        onQuickDateFilterChange={filterHook.setQuickDateFilter}
+        onClearFilters={filterHook.clearAllFilters}
+      />
 
-      {/* Interview Cards */}
-      <div className="grid gap-4">
-        {filteredInterviews.map((interview) => (
+      {/* Interview Cards or Table */}
+      {viewMode === 'cards' ? (
+        <div className="grid gap-4">
+          {interviewList.map((interview) => (
           <Card key={interview.id} className="hover:shadow-lg transition-shadow">
             <CardHeader>
               <div className="flex items-start justify-between">
@@ -466,9 +411,7 @@ export default function UpcomingInterviews() {
                   <div className="flex items-center gap-2 text-sm">
                     <Calendar className="h-4 w-4 text-muted-foreground" />
                     <span className="font-medium">Date:</span>
-                    <span className="text-muted-foreground">
-                      {new Date(interview.date).toLocaleDateString()}
-                    </span>
+                    <span className="text-muted-foreground">{new Date(interview.date).toLocaleDateString()}</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <Clock className="h-4 w-4 text-muted-foreground" />
@@ -496,12 +439,7 @@ export default function UpcomingInterviews() {
                   <div className="flex items-start gap-2 text-sm">
                     <LinkIcon className="h-4 w-4 text-muted-foreground mt-0.5" />
                     <span className="font-medium">Meeting Link:</span>
-                    <a 
-                      href={interview.meetingLink} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline"
-                    >
+                    <a href={interview.meetingLink} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
                       Join Meeting
                     </a>
                   </div>
@@ -510,16 +448,12 @@ export default function UpcomingInterviews() {
                   <div className="flex items-start gap-2 text-sm">
                     <Users className="h-4 w-4 text-muted-foreground mt-0.5" />
                     <span className="font-medium">Interviewers:</span>
-                    <span className="text-muted-foreground">
-                      {interview.interviewers.join(", ")}
-                    </span>
+                    <span className="text-muted-foreground">{interview.interviewers.join(", ")}</span>
                   </div>
                 )}
                 <div className="flex items-start gap-2 text-sm">
                   <span className="font-medium">Location:</span>
-                  <span className="text-muted-foreground">
-                    {interview.district}, {interview.area}
-                  </span>
+                  <span className="text-muted-foreground">{interview.district}, {interview.area}</span>
                 </div>
                 {interview.notes && (
                   <div className="flex items-start gap-2 text-sm">
@@ -531,10 +465,7 @@ export default function UpcomingInterviews() {
                 {interview.status === "completed" && interview.result && (
                   <div className="flex items-start gap-2 text-sm">
                     <span className="font-medium">Result:</span>
-                    <Badge 
-                      variant="outline" 
-                      className={interview.result === "passed" ? "text-green-600 border-green-600" : "text-red-600 border-red-600"}
-                    >
+                    <Badge variant="outline" className={interview.result === "passed" ? "text-green-600 border-green-600" : "text-red-600 border-red-600"}>
                       {interview.result.toUpperCase()}
                     </Badge>
                   </div>
@@ -543,63 +474,179 @@ export default function UpcomingInterviews() {
 
               {interview.status === "scheduled" && (
                 <div className="flex gap-2 pt-2">
-                  <Button 
-                    size="sm" 
-                    className="flex-1"
-                    onClick={() => handleViewForApproval(interview)}
-                  >
-                    <CheckCircle className="mr-2 h-4 w-4" />
-                    View & Approve
+                  <Button size="sm" className="flex-1" onClick={() => handleViewForApproval(interview)}>
+                    <CheckCircle className="mr-2 h-4 w-4" />View & Approve
                   </Button>
-                  <Button 
-                    size="sm" 
-                    variant="outline" 
-                    className="flex-1"
-                    onClick={() => handleAddNotes(interview)}
-                  >
-                    <FileText className="mr-2 h-4 w-4" />
-                    Add Notes
+                  <Button size="sm" variant="outline" className="flex-1" onClick={() => { setSelectedInterview(interview); setShowReportsModal(true); }}>
+                    <FileText className="mr-2 h-4 w-4" />Add Notes
                   </Button>
                 </div>
               )}
 
               {interview.status === "completed" && (
                 <div className="flex gap-2 pt-2">
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => handleEditCompleted(interview)}
-                  >
-                    <Edit className="mr-2 h-4 w-4" />
-                    Edit Decision
+                  <Button size="sm" variant="outline" className="flex-1" onClick={() => handleEditCompleted(interview)}>
+                    <Edit className="mr-2 h-4 w-4" />Edit Decision
                   </Button>
-                  <Button 
-                    size="sm" 
-                    variant="outline" 
-                    className="flex-1"
-                    onClick={() => handleAddNotes(interview)}
-                  >
-                    <FileText className="mr-2 h-4 w-4" />
-                    Add Notes
+                  <Button size="sm" variant="outline" className="flex-1" onClick={() => { setSelectedInterview(interview); setShowReportsModal(true); }}>
+                    <FileText className="mr-2 h-4 w-4" />Add Notes
                   </Button>
                 </div>
               )}
             </CardContent>
           </Card>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Applicant</TableHead>
+                  <TableHead>Application #</TableHead>
+                  <TableHead>Project / Scheme</TableHead>
+                  <TableHead>Interview Details</TableHead>
+                  <TableHead>Location</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {interviewList.map((interview) => (
+                  <TableRow key={interview.id}>
+                    <TableCell>
+                      <div>
+                        <div className="font-medium">{interview.applicantName}</div>
+                        <div className="text-sm text-muted-foreground">{interview.applicantPhone}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="font-mono text-sm">{interview.applicationNumber || interview.applicationId}</div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm">
+                        <div className="font-medium">{interview.projectName}</div>
+                        <div className="text-muted-foreground">{interview.schemeName}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1 text-sm">
+                        <div className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3 text-muted-foreground" />
+                          <span>{new Date(interview.date).toLocaleDateString()}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Clock className="h-3 w-3 text-muted-foreground" />
+                          <span>{interview.time}</span>
+                        </div>
+                        <Badge variant="outline" className="text-xs">
+                          {interview.type === "offline" ? "In-Person" : "Online"}
+                        </Badge>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm">
+                        {interview.type === "offline" && interview.location ? (
+                          <div className="flex items-start gap-1">
+                            <MapPin className="h-3 w-3 text-muted-foreground mt-0.5" />
+                            <span className="text-muted-foreground">{interview.location}</span>
+                          </div>
+                        ) : interview.type === "online" && interview.meetingLink ? (
+                          <a href={interview.meetingLink} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-blue-600 hover:underline">
+                            <LinkIcon className="h-3 w-3" />
+                            <span>Join Meeting</span>
+                          </a>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                        <div className="text-xs text-muted-foreground mt-1">{interview.district}, {interview.area}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        <Badge className={getStatusColor(interview.status)}>
+                          {interview.status}
+                        </Badge>
+                        {interview.status === "completed" && interview.result && (
+                          <Badge variant="outline" className={interview.result === "passed" ? "text-green-600 border-green-600" : "text-red-600 border-red-600"}>
+                            {interview.result}
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        {interview.status === "scheduled" && (
+                          <>
+                            <Button size="sm" variant="outline" onClick={() => handleViewForApproval(interview)}>
+                              <CheckCircle className="h-4 w-4" />
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => { setSelectedInterview(interview); setShowReportsModal(true); }}>
+                              <FileText className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
+                        {interview.status === "completed" && (
+                          <>
+                            <Button size="sm" variant="outline" onClick={() => handleEditCompleted(interview)}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => { setSelectedInterview(interview); setShowReportsModal(true); }}>
+                              <FileText className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
-      {filteredInterviews.length === 0 && (
+      {interviewList.length === 0 && (
         <Card>
           <CardContent className="py-12 text-center">
             <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <p className="text-lg font-medium">No interviews found</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Try adjusting your search or filters
-            </p>
+            <p className="text-sm text-muted-foreground mt-1">Try adjusting your search or filters</p>
           </CardContent>
         </Card>
+      )}
+
+      {pagination.pages > 1 && (
+        <div className="mt-6">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious 
+                  onClick={() => filterHook.setCurrentPage(Math.max(1, filterHook.filters.currentPage - 1))}
+                  className={filterHook.filters.currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                />
+              </PaginationItem>
+              {[...Array(pagination.pages)].map((_, i) => (
+                <PaginationItem key={i}>
+                  <PaginationLink
+                    onClick={() => filterHook.setCurrentPage(i + 1)}
+                    isActive={filterHook.filters.currentPage === i + 1}
+                    className="cursor-pointer"
+                  >
+                    {i + 1}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+              <PaginationItem>
+                <PaginationNext 
+                  onClick={() => filterHook.setCurrentPage(Math.min(pagination.pages, filterHook.filters.currentPage + 1))}
+                  className={filterHook.filters.currentPage === pagination.pages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
       )}
     </div>
   );

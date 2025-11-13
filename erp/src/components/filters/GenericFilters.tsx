@@ -61,6 +61,11 @@ interface GenericFiltersProps {
   onVerificationChange?: (value: string) => void;
   showVerificationFilter?: boolean;
   
+  // Payment method filter (optional)
+  methodFilter?: string;
+  onMethodChange?: (value: string) => void;
+  showMethodFilter?: boolean;
+  
   // Date filters
   fromDate?: Date;
   onFromDateChange?: (date: Date | undefined) => void;
@@ -114,6 +119,9 @@ export function GenericFilters({
   verificationFilter,
   onVerificationChange,
   showVerificationFilter = false,
+  methodFilter,
+  onMethodChange,
+  showMethodFilter = false,
   fromDate,
   onFromDateChange,
   toDate,
@@ -145,17 +153,32 @@ export function GenericFilters({
           />
         </div>
         
-        {showStatusFilter && statusFilter !== undefined && onStatusChange && statusOptions && (
+        {showStatusFilter && statusFilter !== undefined && onStatusChange && (
           <Select value={statusFilter} onValueChange={onStatusChange}>
             <SelectTrigger className="flex-1 min-w-[150px]">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              {statusOptions.map(option => (
+              {statusOptions ? statusOptions.map(option => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}
                 </SelectItem>
-              ))}
+              )) : (
+                <>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="under_review">Under Review</SelectItem>
+                  <SelectItem value="field_verification">Field Verification</SelectItem>
+                  <SelectItem value="interview_scheduled">Interview Scheduled</SelectItem>
+                  <SelectItem value="interview_completed">Interview Completed</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                  <SelectItem value="on_hold">On Hold</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                  <SelectItem value="disbursed">Disbursed</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                </>
+              )}
             </SelectContent>
           </Select>
         )}
@@ -214,8 +237,23 @@ export function GenericFilters({
         )}
       </div>
 
-      {/* Row 2: Location filters and date range */}
+      {/* Row 2: Location filters, method filter, and date range */}
       <div className="flex items-center gap-3 flex-wrap">
+        {showMethodFilter && methodFilter !== undefined && onMethodChange && (
+          <Select value={methodFilter} onValueChange={onMethodChange}>
+            <SelectTrigger className="w-44">
+              <SelectValue placeholder="Method" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Methods</SelectItem>
+              <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+              <SelectItem value="cheque">Cheque</SelectItem>
+              <SelectItem value="cash">Cash</SelectItem>
+              <SelectItem value="upi">UPI</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
+        
         {showDistrictFilter && districtFilter !== undefined && onDistrictChange && districtOptions && (
           <Combobox
             value={districtFilter}

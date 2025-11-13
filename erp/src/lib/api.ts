@@ -1211,6 +1211,18 @@ export const payments = {
   process: (id: string, data: any) => extendedApiClient.request(`/payments/${id}/process`, { method: 'PATCH', body: JSON.stringify(data) }),
   markAsCompleted: (id: string, data: { paymentDate: string; paymentMethod: string; chequeNumber?: string }) => 
     extendedApiClient.request(`/payments/${id}/complete`, { method: 'PATCH', body: JSON.stringify(data) }),
+  export: (params?: any) => {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          searchParams.append(key, value.toString());
+        }
+      });
+    }
+    const queryString = searchParams.toString();
+    return extendedApiClient.request(`/payments/export${queryString ? `?${queryString}` : ''}`);
+  },
 };
 
 export const reports = {

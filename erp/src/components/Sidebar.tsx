@@ -119,10 +119,41 @@ const menuCategories = [
     label: "Financial Management",
     items: [
       { 
-        to: "/payment-tracking", 
-        icon: Wallet, 
-        label: "Payment Management",
-        permissions: ["finances.read.all", "finances.read.regional", "finances.manage"]
+        label: "Payments",
+        icon: Wallet,
+        permissions: ["finances.read.all", "finances.read.regional", "finances.manage"],
+        submenu: [
+          {
+            to: "/payment-tracking/all",
+            label: "All Payments",
+            permissions: ["finances.read.all", "finances.read.regional", "finances.manage"]
+          },
+          {
+            to: "/payment-tracking/overdue",
+            label: "Overdue",
+            permissions: ["finances.read.all", "finances.read.regional", "finances.manage"]
+          },
+          {
+            to: "/payment-tracking/due-soon",
+            label: "Due Soon",
+            permissions: ["finances.read.all", "finances.read.regional", "finances.manage"]
+          },
+          {
+            to: "/payment-tracking/upcoming",
+            label: "Upcoming",
+            permissions: ["finances.read.all", "finances.read.regional", "finances.manage"]
+          },
+          {
+            to: "/payment-tracking/processing",
+            label: "Processing",
+            permissions: ["finances.read.all", "finances.read.regional", "finances.manage"]
+          },
+          {
+            to: "/payment-tracking/completed",
+            label: "Completed",
+            permissions: ["finances.read.all", "finances.read.regional", "finances.manage"]
+          }
+        ]
       },
       { 
         to: "/budget", 
@@ -400,7 +431,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                                 )}
                               />
                             </CollapsibleTrigger>
-                            <CollapsibleContent className="space-y-1 mt-1 ml-6">
+                            <CollapsibleContent className="space-y-1 mt-1 ml-8">
                               {item.submenu.filter(hasAccessToItem).map((subItem) => (
                                 <NavLink
                                   key={subItem.to}
@@ -408,7 +439,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                                   onClick={onClose}
                                   className={({ isActive }) =>
                                     cn(
-                                      "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                                      "flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                                       isActive
                                         ? "bg-gradient-primary text-primary-foreground shadow-elegant"
                                         : "text-muted-foreground hover:bg-muted hover:text-foreground"

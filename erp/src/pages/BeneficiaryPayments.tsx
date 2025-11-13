@@ -1,10 +1,8 @@
 import { useState, useEffect } from "react";
-import { IndianRupee, Calendar, Download, Eye, Wallet, Loader2, Edit, Save, X, Grid, List, AlertCircle, Clock, CheckCircle2, Filter } from "lucide-react";
+import { IndianRupee, Calendar, Download, Eye, Wallet, Loader2, Edit, Save, X, Grid, List, AlertCircle, Clock, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Combobox } from "@/components/ui/combobox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,7 +20,11 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import { useRBAC } from "@/hooks/useRBAC";
-import { payments, projects, schemes } from "@/lib/api";
+import { payments } from "@/lib/api";
+import { GenericFilters } from "@/components/filters/GenericFilters";
+import { usePaymentFilters } from "@/hooks/usePaymentFilters";
+import { usePaymentExport } from "@/hooks/usePaymentExport";
+import { Input } from "@/components/ui/input";
 
 interface PaymentSchedule {
   id: string;
@@ -57,13 +59,6 @@ interface PaymentSchedule {
   }>; // Money distribution timeline from scheme
 }
 
-interface FilterState {
-  project: string;
-  scheme: string;
-  gender: string;
-  search: string;
-}
-
 const statusConfig = {
   pending: { color: "bg-warning/10 text-warning border-warning/20", label: "Pending", icon: Clock },
   processing: { color: "bg-blue/10 text-blue border-blue/20", label: "Processing", icon: Loader2 },
@@ -77,103 +72,61 @@ const statusConfig = {
 
 export default function BeneficiaryPayments() {
   const { hasAnyPermission, hasPermission } = useRBAC();
+  const filterHook = usePaymentFilters();
+  const { exportPayments, exporting } = usePaymentExport();
   
   // Permission checks
   const canViewPayments = hasAnyPermission(['finances.read.all', 'finances.read.regional', 'super_admin', 'state_admin']);
   const canManagePayments = hasAnyPermission(['finances.manage', 'finances.read.regional', 'finances.read.all', 'super_admin', 'state_admin']);
   
   const [paymentSchedules, setPaymentSchedules] = useState<PaymentSchedule[]>([]);
-  const [filteredPaymentSchedules, setFilteredPaymentSchedules] = useState<PaymentSchedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  
-  // Filter states
-  const [filters, setFilters] = useState<FilterState>({
-    project: 'all',
-    scheme: 'all',
-    gender: 'all',
-    search: ''
-  });
-  const [showFilters, setShowFilters] = useState(false);
-  
-  // Data for filter dropdowns
-  const [projectList, setProjectList] = useState<any[]>([]);
-  const [schemeList, setSchemeList] = useState<any[]>([]);
-  const [loadingFilters, setLoadingFilters] = useState(false);
 
   const [showViewModal, setShowViewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedSchedule, setSelectedSchedule] = useState<PaymentSchedule | null>(null);
   const [editingSchedule, setEditingSchedule] = useState<PaymentSchedule | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const [pagination, setPagination] = useState({ current: 1, pages: 1, total: 0, limit: 10 });
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [activeTab, setActiveTab] = useState("all");
 
-  // Load payments data and filter options
+  // Load payments data with filters
   useEffect(() => {
     if (canViewPayments) {
       loadPayments();
-      loadFilterOptions();
     } else {
       setLoading(false);
     }
-  }, [canViewPayments, currentPage, statusFilter, filters]);
-
-  // Reset to first page when filters change
-  useEffect(() => {
-    if (currentPage !== 1) {
-      setCurrentPage(1);
-    }
-  }, [filters, statusFilter, searchTerm]);
+  }, [
+    canViewPayments,
+    filterHook.filters.currentPage,
+    filterHook.filters.searchTerm,
+    filterHook.filters.statusFilter,
+    filterHook.filters.projectFilter,
+    filterHook.filters.districtFilter,
+    filterHook.filters.areaFilter,
+    filterHook.filters.unitFilter,
+    filterHook.filters.schemeFilter,
+    filterHook.filters.genderFilter,
+    filterHook.filters.methodFilter,
+    filterHook.filters.fromDate,
+    filterHook.filters.toDate,
+    filterHook.filters.quickDateFilter,
+    pagination.limit,
+  ]);
 
   const loadPayments = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      const params: any = {
-        page: currentPage,
-        limit: 10,
-      };
-      
-      // Add server-side filters
-      if (statusFilter !== "all") {
-        params.status = statusFilter;
-      }
-      
-      if (searchTerm) {
-        params.search = searchTerm;
-      }
-
-      // Add advanced filters
-      if (filters.project && filters.project !== 'all') {
-        params.project = filters.project;
-      }
-      
-      if (filters.scheme && filters.scheme !== 'all') {
-        params.scheme = filters.scheme;
-      }
-      
-      if (filters.gender && filters.gender !== 'all') {
-        params.gender = filters.gender;
-      }
-
-      // Use advanced search if available, otherwise use basic search
-      if (filters.search) {
-        params.search = filters.search;
-      }
-      
+      const params = filterHook.getApiParams(filterHook.filters.currentPage, pagination.limit);
       const response = await payments.getAll(params);
       
       if (response.success) {
         setPaymentSchedules(response.data.payments);
-        setTotalPages(response.data.pagination.pages);
-        
-        // Clear filtered schedules since we're using server-side filtering
-        setFilteredPaymentSchedules([]);
+        setPagination(response.data.pagination);
       } else {
         setError(response.message || "Failed to load payments");
       }
@@ -187,58 +140,6 @@ export default function BeneficiaryPayments() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const loadFilterOptions = async () => {
-    try {
-      setLoadingFilters(true);
-      
-      const [projectsResponse, schemesResponse] = await Promise.all([
-        projects.getAll({ limit: 100 }),
-        schemes.getAll({ limit: 100 })
-      ]);
-      
-      if (projectsResponse.success) {
-        setProjectList(projectsResponse.data.projects || []);
-      }
-      
-      if (schemesResponse.success) {
-        setSchemeList(schemesResponse.data.schemes || []);
-      }
-    } catch (err: any) {
-      console.error('Failed to load filter options:', err);
-    } finally {
-      setLoadingFilters(false);
-    }
-  };
-
-  // Remove client-side filtering since we're using server-side pagination
-  const applyFilters = () => {
-    // Trigger server-side reload when filters change
-    loadPayments();
-  };
-
-  const clearFilters = () => {
-    setFilters({
-      project: 'all',
-      scheme: 'all',
-      gender: 'all',
-      search: ''
-    });
-    setSearchTerm('');
-  };
-
-  const hasActiveFilters = () => {
-    return (filters.project && filters.project !== 'all') || 
-           (filters.scheme && filters.scheme !== 'all') || 
-           (filters.gender && filters.gender !== 'all') || 
-           filters.search.trim();
-  };
-
-  // Search handler
-  const handleSearch = () => {
-    setCurrentPage(1);
-    // loadPayments will be called automatically by useEffect when currentPage changes
   };
 
   // Access denied check
@@ -755,21 +656,14 @@ export default function BeneficiaryPayments() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {/* Filter Toggle */}
-          <Button
-            variant={showFilters ? "default" : "outline"}
-            size="sm"
-            onClick={() => setShowFilters(!showFilters)}
+          <Button 
+            variant="outline" 
+            onClick={() => exportPayments(filterHook.getExportParams(), `payments_${activeTab}`)} 
+            disabled={exporting}
           >
-            <Filter className="h-4 w-4 mr-2" />
-            Filters
-            {hasActiveFilters() && (
-              <Badge variant="secondary" className="ml-2 h-5 w-5 p-0 flex items-center justify-center">
-                {Object.values(filters).filter(v => v).length}
-              </Badge>
-            )}
+            <Download className="mr-2 h-4 w-4" />
+            {exporting ? "Exporting..." : "Export"}
           </Button>
-          
           {/* View Mode Toggle */}
           <div className="flex items-center border rounded-lg p-1">
             <Button
@@ -790,195 +684,57 @@ export default function BeneficiaryPayments() {
         </div>
       </div>
 
-      {/* Advanced Filters Panel */}
-      {showFilters && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg">Advanced Filters</CardTitle>
-              <div className="flex gap-2">
-                {hasActiveFilters() && (
-                  <Button variant="outline" size="sm" onClick={clearFilters}>
-                    <X className="h-4 w-4 mr-2" />
-                    Clear All
-                  </Button>
-                )}
-                <Button variant="ghost" size="sm" onClick={() => setShowFilters(false)}>
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Search Filter */}
-              <div className="space-y-2">
-                <Label htmlFor="advanced-search">Search</Label>
-                <Input
-                  id="advanced-search"
-                  placeholder="Search payments..."
-                  value={filters.search}
-                  onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-                  onKeyPress={(e) => e.key === 'Enter' && applyFilters()}
-                />
-              </div>
-
-              {/* Project Filter */}
-              <div className="space-y-2">
-                <Label htmlFor="project-filter">Project</Label>
-                <Select
-                  value={filters.project}
-                  onValueChange={(value) => setFilters(prev => ({ ...prev, project: value, scheme: 'all' }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="All Projects" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Projects</SelectItem>
-                    {projectList.map((project) => (
-                      <SelectItem key={project.id} value={project.id}>
-                        {project.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Scheme Filter */}
-              <div className="space-y-2">
-                <Label htmlFor="scheme-filter">Scheme</Label>
-                <Select
-                  value={filters.scheme}
-                  onValueChange={(value) => setFilters(prev => ({ ...prev, scheme: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="All Schemes" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Schemes</SelectItem>
-                    {schemeList
-                      .filter(scheme => filters.project === 'all' || scheme.project === filters.project)
-                      .map((scheme) => (
-                        <SelectItem key={scheme.id} value={scheme.id}>
-                          {scheme.name}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Gender Filter */}
-              <div className="space-y-2">
-                <Label htmlFor="gender-filter">Gender</Label>
-                <Select
-                  value={filters.gender}
-                  onValueChange={(value) => setFilters(prev => ({ ...prev, gender: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="All Genders" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Genders</SelectItem>
-                    <SelectItem value="male">Male</SelectItem>
-                    <SelectItem value="female">Female</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Apply Filters Button */}
-            <div className="flex justify-end mt-4">
-              <Button onClick={applyFilters} disabled={loading} className="min-w-[120px]">
-                {loading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Loading...
-                  </>
-                ) : (
-                  'Apply Filters'
-                )}
-              </Button>
-            </div>
-
-            {/* Active Filters Display */}
-            {hasActiveFilters() && (
-              <div className="mt-4 pt-4 border-t">
-                <div className="flex flex-wrap gap-2">
-                  <span className="text-sm font-medium text-muted-foreground">Active filters:</span>
-                  {filters.search && (
-                    <Badge variant="secondary" className="gap-1">
-                      Search: {filters.search}
-                      <X 
-                        className="h-3 w-3 cursor-pointer" 
-                        onClick={() => setFilters(prev => ({ ...prev, search: '' }))}
-                      />
-                    </Badge>
-                  )}
-                  {filters.project && filters.project !== 'all' && (
-                    <Badge variant="secondary" className="gap-1">
-                      Project: {projectList.find(p => p.id === filters.project)?.name}
-                      <X 
-                        className="h-3 w-3 cursor-pointer" 
-                        onClick={() => setFilters(prev => ({ ...prev, project: 'all', scheme: 'all' }))}
-                      />
-                    </Badge>
-                  )}
-                  {filters.scheme && filters.scheme !== 'all' && (
-                    <Badge variant="secondary" className="gap-1">
-                      Scheme: {schemeList.find(s => s.id === filters.scheme)?.name}
-                      <X 
-                        className="h-3 w-3 cursor-pointer" 
-                        onClick={() => setFilters(prev => ({ ...prev, scheme: 'all' }))}
-                      />
-                    </Badge>
-                  )}
-                  {filters.gender && filters.gender !== 'all' && (
-                    <Badge variant="secondary" className="gap-1">
-                      Gender: {filters.gender.charAt(0).toUpperCase() + filters.gender.slice(1)}
-                      <X 
-                        className="h-3 w-3 cursor-pointer" 
-                        onClick={() => setFilters(prev => ({ ...prev, gender: 'all' }))}
-                      />
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Basic Filters */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col gap-4 md:flex-row">
-            <div className="flex-1">
-              <Input
-                placeholder="Search by beneficiary name or payment number..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-              />
-            </div>
-            <div className="flex gap-2">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Filter by status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="processing">Processing</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="failed">Failed</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button onClick={handleSearch}>Search</Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <GenericFilters
+        searchTerm={filterHook.filters.searchTerm}
+        onSearchChange={filterHook.setSearchTerm}
+        searchPlaceholder="Search by name, ID, or payment number..."
+        showStatusFilter={true}
+        statusFilter={filterHook.filters.statusFilter}
+        onStatusChange={filterHook.setStatusFilter}
+        statusOptions={[
+          { value: "all", label: "All Status" },
+          { value: "pending", label: "Pending" },
+          { value: "processing", label: "Processing" },
+          { value: "completed", label: "Completed" },
+          { value: "failed", label: "Failed" },
+          { value: "cancelled", label: "Cancelled" },
+        ]}
+        showProjectFilter={true}
+        projectFilter={filterHook.filters.projectFilter}
+        onProjectChange={filterHook.setProjectFilter}
+        projectOptions={filterHook.dropdownOptions.projectOptions}
+        showDistrictFilter={true}
+        districtFilter={filterHook.filters.districtFilter}
+        onDistrictChange={filterHook.setDistrictFilter}
+        districtOptions={filterHook.dropdownOptions.districtOptions}
+        showAreaFilter={true}
+        areaFilter={filterHook.filters.areaFilter}
+        onAreaChange={filterHook.setAreaFilter}
+        areaOptions={filterHook.dropdownOptions.areaOptions}
+        showUnitFilter={true}
+        unitFilter={filterHook.filters.unitFilter}
+        onUnitChange={filterHook.setUnitFilter}
+        unitOptions={filterHook.dropdownOptions.unitOptions}
+        showSchemeFilter={true}
+        schemeFilter={filterHook.filters.schemeFilter}
+        onSchemeChange={filterHook.setSchemeFilter}
+        schemeOptions={filterHook.dropdownOptions.schemeOptions}
+        showGenderFilter={true}
+        genderFilter={filterHook.filters.genderFilter}
+        onGenderChange={filterHook.setGenderFilter}
+        showMethodFilter={true}
+        methodFilter={filterHook.filters.methodFilter}
+        onMethodChange={filterHook.setMethodFilter}
+        showDateFilters={true}
+        fromDate={filterHook.filters.fromDate}
+        onFromDateChange={filterHook.setFromDate}
+        toDate={filterHook.filters.toDate}
+        onToDateChange={filterHook.setToDate}
+        showQuickDateFilter={true}
+        quickDateFilter={filterHook.filters.quickDateFilter}
+        onQuickDateFilterChange={filterHook.setQuickDateFilter}
+        onClearFilters={filterHook.clearAllFilters}
+      />
 
       {/* Loading State */}
       {loading && (
@@ -1008,16 +764,8 @@ export default function BeneficiaryPayments() {
           <CardContent className="py-4">
             <div className="flex items-center justify-between text-sm text-muted-foreground">
               <div>
-                Showing {paymentSchedules.length} payments on page {currentPage} of {totalPages}
+                Showing {paymentSchedules.length} payments on page {pagination.current} of {pagination.pages} (Total: {pagination.total})
               </div>
-              {hasActiveFilters() && (
-                <div className="flex items-center gap-2">
-                  <span>Filters applied:</span>
-                  <Button variant="outline" size="sm" onClick={clearFilters}>
-                    Clear all filters
-                  </Button>
-                </div>
-              )}
             </div>
           </CardContent>
         </Card>
@@ -1284,85 +1032,36 @@ export default function BeneficiaryPayments() {
       )}
 
       {/* Pagination */}
-      {!loading && !error && totalPages > 1 && (
-        <Card>
-          <CardContent className="py-4">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-muted-foreground">
-                Showing page {currentPage} of {totalPages}
-              </div>
-              <Pagination>
-                <PaginationContent>
-                  <PaginationItem>
-                    <PaginationPrevious 
-                      onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                      className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                    />
-                  </PaginationItem>
-                  
-                  {/* Show first page */}
-                  {currentPage > 3 && (
-                    <>
-                      <PaginationItem>
-                        <PaginationLink
-                          onClick={() => setCurrentPage(1)}
-                          className="cursor-pointer"
-                        >
-                          1
-                        </PaginationLink>
-                      </PaginationItem>
-                      {currentPage > 4 && <span className="px-2">...</span>}
-                    </>
-                  )}
-                  
-                  {/* Show pages around current page */}
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    const page = Math.max(1, Math.min(totalPages - 4, currentPage - 2)) + i;
-                    if (page <= totalPages) {
-                      return (
-                        <PaginationItem key={page}>
-                          <PaginationLink
-                            onClick={() => setCurrentPage(page)}
-                            isActive={currentPage === page}
-                            className="cursor-pointer"
-                          >
-                            {page}
-                          </PaginationLink>
-                        </PaginationItem>
-                      );
-                    }
-                    return null;
-                  })}
-                  
-                  {/* Show last page */}
-                  {currentPage < totalPages - 2 && (
-                    <>
-                      {currentPage < totalPages - 3 && <span className="px-2">...</span>}
-                      <PaginationItem>
-                        <PaginationLink
-                          onClick={() => setCurrentPage(totalPages)}
-                          className="cursor-pointer"
-                        >
-                          {totalPages}
-                        </PaginationLink>
-                      </PaginationItem>
-                    </>
-                  )}
-                  
-                  <PaginationItem>
-                    <PaginationNext 
-                      onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                      className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                    />
-                  </PaginationItem>
-                </PaginationContent>
-              </Pagination>
-              <div className="text-sm text-muted-foreground">
-                10 items per page
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {!loading && !error && pagination.pages > 1 && (
+        <div className="mt-6">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious 
+                  onClick={() => filterHook.setCurrentPage(Math.max(1, filterHook.filters.currentPage - 1))}
+                  className={filterHook.filters.currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                />
+              </PaginationItem>
+              {[...Array(pagination.pages)].map((_, i) => (
+                <PaginationItem key={i}>
+                  <PaginationLink
+                    onClick={() => filterHook.setCurrentPage(i + 1)}
+                    isActive={filterHook.filters.currentPage === i + 1}
+                    className="cursor-pointer"
+                  >
+                    {i + 1}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+              <PaginationItem>
+                <PaginationNext 
+                  onClick={() => filterHook.setCurrentPage(Math.min(pagination.pages, filterHook.filters.currentPage + 1))}
+                  className={filterHook.filters.currentPage === pagination.pages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
       )}
 
       {/* View Details Modal */}

@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { ReportsModal } from "@/components/modals/ReportsModal";
-import { Download, Eye, XCircle, FileText, Loader2 } from "lucide-react";
+import { Download, Eye, XCircle, FileText, Loader2, Grid, List } from "lucide-react";
 import { useRBAC } from "@/hooks/useRBAC";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ApplicationViewModal } from "@/components/modals/ApplicationViewModal";
-import { ApplicationFilters } from "@/components/filters/ApplicationFilters";
+import { GenericFilters } from "@/components/filters/GenericFilters";
 import { useApplicationFilters } from "@/hooks/useApplicationFilters";
 import { useApplicationExport } from "@/hooks/useApplicationExport";
 import { toast } from "@/hooks/use-toast";
@@ -41,6 +42,7 @@ export default function RejectedApplications() {
   const [showReportsModal, setShowReportsModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ current: 1, pages: 1, total: 0, limit: 10 });
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
   const canViewApplications = hasAnyPermission(['applications.read.all', 'applications.read.regional', 'applications.read.own']);
   const hasAdminAccess = user && ['super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'].includes(user.role);
@@ -112,30 +114,54 @@ export default function RejectedApplications() {
           <h1 className="text-3xl font-bold">Rejected Applications</h1>
           <p className="text-muted-foreground mt-1">View rejected applications</p>
         </div>
-        <Button variant="outline" onClick={handleExport} disabled={exporting}>
-          <Download className="mr-2 h-4 w-4" />{exporting ? "Exporting..." : "Export Report"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={handleExport} disabled={exporting}>
+            <Download className="mr-2 h-4 w-4" />{exporting ? "Exporting..." : "Export Report"}
+          </Button>
+          <div className="flex items-center border rounded-lg p-1">
+            <Button variant={viewMode === 'cards' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('cards')}>
+              <Grid className="h-4 w-4" />
+            </Button>
+            <Button variant={viewMode === 'table' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('table')}>
+              <List className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
       </div>
 
-      <ApplicationFilters
+      <GenericFilters
         searchTerm={filterHook.filters.searchTerm}
         onSearchChange={filterHook.setSearchTerm}
+        searchPlaceholder="Search by name or ID..."
+        showProjectFilter={true}
         projectFilter={filterHook.filters.projectFilter}
         onProjectChange={filterHook.setProjectFilter}
         projectOptions={filterHook.dropdownOptions.projectOptions}
+        showDistrictFilter={true}
         districtFilter={filterHook.filters.districtFilter}
         onDistrictChange={filterHook.setDistrictFilter}
         districtOptions={filterHook.dropdownOptions.districtOptions}
+        showAreaFilter={true}
         areaFilter={filterHook.filters.areaFilter}
         onAreaChange={filterHook.setAreaFilter}
         areaOptions={filterHook.dropdownOptions.areaOptions}
+        showUnitFilter={true}
+        unitFilter={filterHook.filters.unitFilter}
+        onUnitChange={filterHook.setUnitFilter}
+        unitOptions={filterHook.dropdownOptions.unitOptions}
+        showSchemeFilter={true}
         schemeFilter={filterHook.filters.schemeFilter}
         onSchemeChange={filterHook.setSchemeFilter}
         schemeOptions={filterHook.dropdownOptions.schemeOptions}
+        showGenderFilter={true}
+        genderFilter={filterHook.filters.genderFilter}
+        onGenderChange={filterHook.setGenderFilter}
+        showDateFilters={true}
         fromDate={filterHook.filters.fromDate}
         onFromDateChange={filterHook.setFromDate}
         toDate={filterHook.filters.toDate}
         onToDateChange={filterHook.setToDate}
+        showQuickDateFilter={true}
         quickDateFilter={filterHook.filters.quickDateFilter}
         onQuickDateFilterChange={filterHook.setQuickDateFilter}
         onClearFilters={filterHook.clearAllFilters}
@@ -148,7 +174,7 @@ export default function RejectedApplications() {
             <div className="flex items-center justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /><span className="ml-2">Loading...</span></div>
           ) : applicationList.length === 0 ? (
             <p className="text-muted-foreground text-center py-8">No rejected applications found</p>
-          ) : (
+          ) : viewMode === 'cards' ? (
             <div className="space-y-4">
               {applicationList.map((app) => (
                 <div key={app._id} className="border rounded-lg p-4 hover:shadow-elegant transition-shadow">
@@ -179,6 +205,54 @@ export default function RejectedApplications() {
                 </div>
               ))}
             </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Applicant</TableHead>
+                  <TableHead>Application #</TableHead>
+                  <TableHead>Scheme</TableHead>
+                  <TableHead>Project</TableHead>
+                  <TableHead>Location</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {applicationList.map((app) => (
+                  <TableRow key={app._id}>
+                    <TableCell>
+                      <div>
+                        <div className="font-medium">{app.beneficiary.name}</div>
+                        <div className="text-sm text-muted-foreground">{app.beneficiary.phone}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="font-mono text-sm">{app.applicationNumber}</div>
+                      <div className="text-xs text-muted-foreground">{new Date(app.createdAt).toLocaleDateString()}</div>
+                      <div className="text-sm font-medium mt-1">₹{app.requestedAmount.toLocaleString()}</div>
+                    </TableCell>
+                    <TableCell>{app.scheme.name}</TableCell>
+                    <TableCell>{app.project?.name || 'N/A'}</TableCell>
+                    <TableCell>
+                      <div className="text-sm">
+                        <div>{app.district.name}</div>
+                        <div className="text-muted-foreground">{app.area.name}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button variant="outline" size="sm" onClick={() => handleViewApplication(app)}>
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => { setSelectedApp(app); setShowReportsModal(true); }}>
+                          <FileText className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
 
           {pagination.pages > 1 && (

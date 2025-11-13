@@ -217,6 +217,40 @@ const applicationSchema = new mongoose.Schema({
       default: 'pending'
     }
   },
+
+  // Interview History (tracks all schedule/reschedule changes)
+  interviewHistory: [{
+    scheduledDate: {
+      type: Date,
+      required: true
+    },
+    scheduledTime: {
+      type: String,
+      required: true
+    },
+    type: {
+      type: String,
+      enum: ['offline', 'online'],
+      required: true
+    },
+    location: String,
+    meetingLink: String,
+    scheduledBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    },
+    scheduledAt: {
+      type: Date,
+      default: Date.now
+    },
+    action: {
+      type: String,
+      enum: ['scheduled', 'rescheduled', 'cancelled'],
+      default: 'scheduled'
+    },
+    reason: String
+  }],
   
   // Location Information (inherited from beneficiary)
   state: {

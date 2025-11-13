@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import { QuickDateRange, getDateRangeFromQuickFilter } from "@/components/filters/QuickDateFilter";
 import { projects, schemes, locations } from "@/lib/api";
 
-export interface ApplicationFilterState {
+export interface PaymentFilterState {
   searchTerm: string;
   statusFilter: string;
   projectFilter: string;
@@ -11,21 +11,14 @@ export interface ApplicationFilterState {
   unitFilter: string;
   schemeFilter: string;
   genderFilter: string;
+  methodFilter: string;
   fromDate?: Date;
   toDate?: Date;
   quickDateFilter: QuickDateRange;
   currentPage: number;
 }
 
-export interface DropdownData {
-  projectsList: any[];
-  schemesList: any[];
-  districts: any[];
-  areas: any[];
-  units: any[];
-}
-
-export function useApplicationFilters(defaultStatus?: string) {
+export function usePaymentFilters(defaultStatus?: string) {
   // Filter states
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState(defaultStatus || "all");
@@ -35,6 +28,7 @@ export function useApplicationFilters(defaultStatus?: string) {
   const [unitFilter, setUnitFilter] = useState("all");
   const [schemeFilter, setSchemeFilter] = useState("all");
   const [genderFilter, setGenderFilter] = useState("all");
+  const [methodFilter, setMethodFilter] = useState("all");
   const [fromDate, setFromDate] = useState<Date | undefined>();
   const [toDate, setToDate] = useState<Date | undefined>();
   const [quickDateFilter, setQuickDateFilter] = useState<QuickDateRange>(null);
@@ -120,6 +114,7 @@ export function useApplicationFilters(defaultStatus?: string) {
     setUnitFilter("all");
     setSchemeFilter("all");
     setGenderFilter("all");
+    setMethodFilter("all");
     setFromDate(undefined);
     setToDate(undefined);
     setQuickDateFilter(null);
@@ -138,13 +133,16 @@ export function useApplicationFilters(defaultStatus?: string) {
     if (projectFilter !== "all") params.project = projectFilter;
     if (districtFilter !== "all") params.district = districtFilter;
     if (areaFilter !== "all") params.area = areaFilter;
+    if (unitFilter !== "all") params.unit = unitFilter;
     if (schemeFilter !== "all") params.scheme = schemeFilter;
+    if (genderFilter !== "all") params.gender = genderFilter;
+    if (methodFilter !== "all") params.method = methodFilter;
     if (fromDate) params.fromDate = fromDate.toISOString();
     if (toDate) params.toDate = toDate.toISOString();
     if (quickDateFilter) params.quickDateFilter = quickDateFilter;
 
     // Debug log to verify filters are being sent
-    console.log('🔍 API Params:', {
+    console.log('🔍 Payment API Params:', {
       page: params.page,
       limit: params.limit,
       hasSearch: !!params.search,
@@ -155,6 +153,7 @@ export function useApplicationFilters(defaultStatus?: string) {
       hasUnit: !!params.unit,
       hasScheme: !!params.scheme,
       hasGender: !!params.gender,
+      hasMethod: !!params.method,
       hasDateRange: !!(params.fromDate && params.toDate),
       quickDateFilter: params.quickDateFilter,
       fromDate: params.fromDate ? new Date(params.fromDate).toLocaleDateString() : null,
@@ -172,6 +171,7 @@ export function useApplicationFilters(defaultStatus?: string) {
     unitFilter,
     schemeFilter,
     genderFilter,
+    methodFilter,
     fromDate,
     toDate,
     quickDateFilter
@@ -189,6 +189,7 @@ export function useApplicationFilters(defaultStatus?: string) {
     if (unitFilter !== "all") params.unit = unitFilter;
     if (schemeFilter !== "all") params.scheme = schemeFilter;
     if (genderFilter !== "all") params.gender = genderFilter;
+    if (methodFilter !== "all") params.method = methodFilter;
     if (fromDate) params.fromDate = fromDate.toISOString();
     if (toDate) params.toDate = toDate.toISOString();
     if (quickDateFilter) params.quickDateFilter = quickDateFilter;
@@ -203,6 +204,7 @@ export function useApplicationFilters(defaultStatus?: string) {
     unitFilter,
     schemeFilter,
     genderFilter,
+    methodFilter,
     fromDate,
     toDate,
     quickDateFilter
@@ -245,6 +247,7 @@ export function useApplicationFilters(defaultStatus?: string) {
       unitFilter,
       schemeFilter,
       genderFilter,
+      methodFilter,
       fromDate,
       toDate,
       quickDateFilter,
@@ -260,6 +263,7 @@ export function useApplicationFilters(defaultStatus?: string) {
     setUnitFilter: (value: string) => { setUnitFilter(value); setCurrentPage(1); },
     setSchemeFilter: (value: string) => { setSchemeFilter(value); setCurrentPage(1); },
     setGenderFilter: (value: string) => { setGenderFilter(value); setCurrentPage(1); },
+    setMethodFilter: (value: string) => { setMethodFilter(value); setCurrentPage(1); },
     setFromDate: handleFromDateChange,
     setToDate: handleToDateChange,
     setQuickDateFilter: handleQuickDateFilterChange,

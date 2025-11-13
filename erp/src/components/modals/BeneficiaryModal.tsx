@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { X, Search } from 'lucide-react';
+import { X, Search, FileText, ExternalLink } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { api } from '../../lib/api';
+import { Badge } from '../ui/badge';
+import { locations as locationsApi, applications as applicationsApi, beneficiaries as beneficiariesApi } from '../../lib/api';
 import { useToast } from '@/hooks/use-toast';
 
 interface Location {
@@ -11,6 +13,23 @@ interface Location {
   code: string;
   type: string;
   parent?: string;
+}
+
+interface Application {
+  _id: string;
+  applicationNumber: string;
+  scheme: {
+    _id: string;
+    name: string;
+    code: string;
+  };
+  project: {
+    _id: string;
+    name: string;
+  };
+  status: string;
+  amount?: number;
+  createdAt: string;
 }
 
 interface Beneficiary {
@@ -27,21 +46,27 @@ interface Beneficiary {
   verifiedAt?: string;
   createdBy: { name: string };
   createdAt: string;
-  applications: string[];
+  applications: string[] | Application[];
 }
 
 interface BeneficiaryModalProps {
+  isOpen: boolean;
   beneficiary: Beneficiary | null;
   mode: 'create' | 'edit' | 'view';
   onClose: (shouldRefresh?: boolean) => void;
 }
 
 export const BeneficiaryModal: React.FC<BeneficiaryModalProps> = ({
+  isOpen,
   beneficiary,
   mode,
   onClose
 }) => {
+  if (!isOpen) {
+    return null;
+  }
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -73,6 +98,8 @@ export const BeneficiaryModal: React.FC<BeneficiaryModalProps> = ({
 
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [loadingApplications, setLoadingApplications] = useState(false);
 
   useEffect(() => {
     if (beneficiary && (mode === 'edit' || mode === 'view')) {
@@ -92,10 +119,45 @@ export const BeneficiaryModal: React.FC<BeneficiaryModalProps> = ({
         area: beneficiary.area.name,
         unit: beneficiary.unit.name
       });
+
+      // Fetch applications if in view mode and applications are IDs (strings)
+      if (mode === 'view' && beneficiary.applications.length > 0) {
+        // Check if applications are just IDs (strings) or already populated objects
+        const isPopulated = typeof beneficiary.applications[0] === 'object';
+        if (!isPopulated) {
+          fetchApplications(beneficiary._id);
+        } else {
+          // Already populated, use them directly
+          setApplications(beneficiary.applications as Application[]);
+        }
+      }
     }
     
     fetchStates();
   }, [beneficiary, mode]);
+
+  const fetchApplications = async (beneficiaryId: string) => {
+    setLoadingApplications(true);
+    try {
+      const response = await applicationsApi.getAll({ 
+        beneficiary: beneficiaryId, 
+        limit: 100 
+      });
+      
+      if (response.success && response.data?.applications) {
+        setApplications(response.data.applications);
+      }
+    } catch (error: any) {
+      console.error('Error fetching applications:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to load applications",
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingApplications(false);
+    }
+  };
 
   useEffect(() => {
     if (formData.state) {
@@ -126,8 +188,10 @@ export const BeneficiaryModal: React.FC<BeneficiaryModalProps> = ({
 
   const fetchStates = async () => {
     try {
-      const response = await api.get('/locations?type=state&limit=100');
-      setLocations(prev => ({ ...prev, states: response.data.locations }));
+      const response = await locationsApi.getAll({ type: 'state', limit: 100 });
+      if (response.success && response.data?.locations) {
+        setLocations(prev => ({ ...prev, states: response.data.locations }));
+      }
     } catch (error) {
       console.error('Error fetching states:', error);
     }
@@ -135,8 +199,10 @@ export const BeneficiaryModal: React.FC<BeneficiaryModalProps> = ({
 
   const fetchDistricts = async (stateId: string) => {
     try {
-      const response = await api.get(`/locations?type=district&parent=${stateId}&limit=100`);
-      setLocations(prev => ({ ...prev, districts: response.data.locations }));
+      const response = await locationsApi.getAll({ type: 'district', parent: stateId, limit: 100 });
+      if (response.success && response.data?.locations) {
+        setLocations(prev => ({ ...prev, districts: response.data.locations }));
+      }
     } catch (error) {
       console.error('Error fetching districts:', error);
     }
@@ -144,8 +210,10 @@ export const BeneficiaryModal: React.FC<BeneficiaryModalProps> = ({
 
   const fetchAreas = async (districtId: string) => {
     try {
-      const response = await api.get(`/locations?type=area&parent=${districtId}&limit=100`);
-      setLocations(prev => ({ ...prev, areas: response.data.locations }));
+      const response = await locationsApi.getAll({ type: 'area', parent: districtId, limit: 100 });
+      if (response.success && response.data?.locations) {
+        setLocations(prev => ({ ...prev, areas: response.data.locations }));
+      }
     } catch (error) {
       console.error('Error fetching areas:', error);
     }
@@ -153,8 +221,10 @@ export const BeneficiaryModal: React.FC<BeneficiaryModalProps> = ({
 
   const fetchUnits = async (areaId: string) => {
     try {
-      const response = await api.get(`/locations?type=unit&parent=${areaId}&limit=100`);
-      setLocations(prev => ({ ...prev, units: response.data.locations }));
+      const response = await locationsApi.getAll({ type: 'unit', parent: areaId, limit: 100 });
+      if (response.success && response.data?.locations) {
+        setLocations(prev => ({ ...prev, units: response.data.locations }));
+      }
     } catch (error) {
       console.error('Error fetching units:', error);
     }
@@ -202,24 +272,29 @@ export const BeneficiaryModal: React.FC<BeneficiaryModalProps> = ({
     setLoading(true);
     try {
       if (mode === 'create') {
-        await api.post('/beneficiaries', formData);
-        toast({
-          title: "Success",
-          description: "Beneficiary created successfully"
-        });
+        const response = await beneficiariesApi.create(formData);
+        if (response.success) {
+          toast({
+            title: "Success",
+            description: "Beneficiary created successfully"
+          });
+          onClose(true);
+        }
       } else if (mode === 'edit') {
-        await api.put(`/beneficiaries/${beneficiary!._id}`, formData);
-        toast({
-          title: "Success",
-          description: "Beneficiary updated successfully"
-        });
+        const response = await beneficiariesApi.update(beneficiary!._id, formData);
+        if (response.success) {
+          toast({
+            title: "Success",
+            description: "Beneficiary updated successfully"
+          });
+          onClose(true);
+        }
       }
-      onClose(true);
     } catch (error: any) {
       console.error('Error saving beneficiary:', error);
       toast({
         title: "Error",
-        description: error.response?.data?.message || "Failed to save beneficiary",
+        description: error.message || "Failed to save beneficiary",
         variant: "destructive"
       });
     } finally {
@@ -403,7 +478,7 @@ export const BeneficiaryModal: React.FC<BeneficiaryModalProps> = ({
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Applications
+                    Total Applications
                   </label>
                   <div className="px-3 py-2 bg-gray-50 rounded-md">
                     {beneficiary.applications.length} applications
@@ -422,6 +497,85 @@ export const BeneficiaryModal: React.FC<BeneficiaryModalProps> = ({
                   </div>
                 </div>
               </div>
+
+              {/* Applications List */}
+              {beneficiary.applications.length > 0 && (
+                <div className="mt-6">
+                  <h3 className="text-lg font-medium text-gray-900 mb-3">Applications ({applications.length})</h3>
+                  {loadingApplications ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                    </div>
+                  ) : applications.length > 0 ? (
+                    <div className="border rounded-lg overflow-hidden">
+                      <table className="w-full">
+                        <thead className="bg-gray-50 border-b">
+                          <tr>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-700">App Number</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-700">Scheme</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-700">Project</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-700">Amount</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-700">Status</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-700">Date</th>
+                            <th className="px-4 py-2 text-center text-xs font-medium text-gray-700">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {applications.map((app) => (
+                            <tr key={app._id} className="hover:bg-gray-50">
+                              <td className="px-4 py-2 text-sm font-medium">{app.applicationNumber || 'N/A'}</td>
+                              <td className="px-4 py-2 text-sm">
+                                {app.scheme ? (
+                                  <>
+                                    <div>{app.scheme.name}</div>
+                                    <div className="text-xs text-gray-500">{app.scheme.code}</div>
+                                  </>
+                                ) : (
+                                  <span className="text-gray-400">N/A</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-2 text-sm">
+                                {app.project?.name || <span className="text-gray-400">N/A</span>}
+                              </td>
+                              <td className="px-4 py-2 text-sm">
+                                {app.amount ? `₹${app.amount.toLocaleString()}` : <span className="text-gray-400">N/A</span>}
+                              </td>
+                              <td className="px-4 py-2">
+                                <Badge variant="outline" className="text-xs">
+                                  {app.status}
+                                </Badge>
+                              </td>
+                              <td className="px-4 py-2 text-sm text-gray-500">
+                                {new Date(app.createdAt).toLocaleDateString()}
+                              </td>
+                              <td className="px-4 py-2 text-center">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    navigate(`/applications/${app._id}`);
+                                    onClose();
+                                  }}
+                                  className="h-7 w-7 p-0"
+                                >
+                                  <ExternalLink className="h-3.5 w-3.5" />
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center py-8 border rounded-lg bg-gray-50">
+                      <div className="text-center">
+                        <FileText className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                        <p className="text-sm text-gray-500">No applications found</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
