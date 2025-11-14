@@ -23,7 +23,11 @@
     "seed:test": "node seed-applications.js",
     "clear:test": "node clear-test-data.js",
     "rbac:init": "node src/scripts/initializeRBAC.js",
-    "rbac:cleanup": "node -e \"require('./src/services/rbacService').cleanupExpiredAssignments().then(console.log)\""
+    "rbac:cleanup": "node -e \"require('./src/services/rbacService').cleanupExpiredAssignments().then(console.log)\"",
+    "validate:nazim": "node src/scripts/validateNazimData.js",
+    "import:nazim": "node src/scripts/importNazimData.js",
+    "verify:nazim": "node src/scripts/verifyImport.js",
+    "clear:nazim": "node src/scripts/clearNazimData.js"
   },
   "keywords": [
     "ngo",

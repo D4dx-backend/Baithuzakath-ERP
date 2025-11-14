@@ -48,6 +48,9 @@ export default function FieldVerificationApplications() {
   const canViewApplications = hasAnyPermission(['applications.read.all', 'applications.read.regional', 'applications.read.own']);
   const canApproveApplications = hasPermission('applications.approve');
   const hasAdminAccess = user && ['super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'].includes(user.role);
+  
+  // Only area_admin, state_admin, and super_admin can review/approve applications
+  const canReviewApplications = user && ['super_admin', 'state_admin', 'area_admin'].includes(user.role);
 
   useEffect(() => {
     if (!hasAdminAccess) {
@@ -225,8 +228,12 @@ export default function FieldVerificationApplications() {
                       <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20"><FileText className="mr-1 h-3 w-3" />FIELD VERIFICATION</Badge>
                       <div className="flex gap-2">
                         <Button variant="outline" size="sm" onClick={() => handleViewApplication(app, "view")}><Eye className="mr-2 h-4 w-4" />View</Button>
-                        <Button variant="outline" size="sm" onClick={() => handleViewApplication(app, "approve")} disabled={!canApproveApplications}><CheckCircle className="mr-2 h-4 w-4" />Approve</Button>
-                        <Button variant="outline" size="sm" onClick={() => handleViewApplication(app, "reject")} disabled={!canApproveApplications}><XCircle className="mr-2 h-4 w-4" />Reject</Button>
+                        {canReviewApplications && (
+                          <>
+                            <Button variant="outline" size="sm" onClick={() => handleViewApplication(app, "approve")} disabled={!canApproveApplications}><CheckCircle className="mr-2 h-4 w-4" />Approve</Button>
+                            <Button variant="outline" size="sm" onClick={() => handleViewApplication(app, "reject")} disabled={!canApproveApplications}><XCircle className="mr-2 h-4 w-4" />Reject</Button>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -272,12 +279,16 @@ export default function FieldVerificationApplications() {
                         <Button variant="outline" size="sm" onClick={() => handleViewApplication(app, "view")}>
                           <Eye className="h-4 w-4" />
                         </Button>
-                        <Button variant="outline" size="sm" onClick={() => handleViewApplication(app, "approve")} disabled={!canApproveApplications}>
-                          <CheckCircle className="h-4 w-4" />
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => handleViewApplication(app, "reject")} disabled={!canApproveApplications}>
-                          <XCircle className="h-4 w-4" />
-                        </Button>
+                        {canReviewApplications && (
+                          <>
+                            <Button variant="outline" size="sm" onClick={() => handleViewApplication(app, "approve")} disabled={!canApproveApplications}>
+                              <CheckCircle className="h-4 w-4" />
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => handleViewApplication(app, "reject")} disabled={!canApproveApplications}>
+                              <XCircle className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

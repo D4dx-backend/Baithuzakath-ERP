@@ -175,6 +175,9 @@ export default function Applications() {
   const canViewApplications = hasAnyPermission(['applications.read.all', 'applications.read.regional', 'applications.read.own']);
   const canUpdateApplications = hasPermission('applications.update.regional');
   const canApproveApplications = hasPermission('applications.approve');
+  
+  // Only area_admin, state_admin, and super_admin can review/approve applications
+  const canReviewApplications = user && ['super_admin', 'state_admin', 'area_admin'].includes(user.role);
 
   // Check if user has admin permissions
   const hasAdminAccess = user && ['super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'].includes(user.role);
@@ -399,6 +402,11 @@ export default function Applications() {
 
   // Function to get the appropriate action button based on application status and scheme requirements
   const getActionButton = (app: Application) => {
+    // Unit Admin and District Admin can only view - no action buttons
+    if (!canReviewApplications) {
+      return null;
+    }
+
     // Check if scheme requires interview
     const requiresInterview = app.scheme?.requiresInterview || false;
 
@@ -465,14 +473,7 @@ export default function Applications() {
       case 'completed':
       case 'disbursed':
         // No action buttons for final states
-        return (
-          <Button variant="outline" size="sm" disabled className="flex-1">
-            <CheckCircle className="mr-2 h-4 w-4" />
-            {app.status === 'approved' ? 'Approved' : 
-             app.status === 'rejected' ? 'Rejected' : 
-             app.status === 'completed' ? 'Completed' : 'Disbursed'}
-          </Button>
-        );
+        return null;
       
       default:
         // Default action based on interview requirement

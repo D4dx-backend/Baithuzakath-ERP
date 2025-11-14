@@ -98,10 +98,13 @@ const authenticate = async (req, res, next) => {
 const authorize = (...roles) => {
   return (req, res, next) => {
     console.log('🔍 AUTHORIZATION DEBUG:');
+    console.log('- Path:', req.path);
+    console.log('- Method:', req.method);
     console.log('- Required roles:', roles);
     console.log('- User exists:', !!req.user);
     console.log('- User role:', req.user?.role);
-    console.log('- Role check result:', roles.includes(req.user?.role));
+    console.log('- User ID:', req.user?._id);
+    console.log('- Role check result:', req.user ? roles.includes(req.user.role) : false);
     
     if (!req.user) {
       console.log('❌ No user found in request');
@@ -115,13 +118,19 @@ const authorize = (...roles) => {
       console.log('❌ Role check failed');
       console.log('- User role:', req.user.role);
       console.log('- Required roles:', roles);
+      console.log('- User object:', {
+        id: req.user._id,
+        name: req.user.name,
+        phone: req.user.phone,
+        role: req.user.role
+      });
       return res.status(403).json({
         success: false,
         message: 'Access denied. Insufficient permissions.'
       });
     }
 
-    console.log('✅ Authorization successful');
+    console.log('✅ Authorization successful for role:', req.user.role);
     next();
   };
 };

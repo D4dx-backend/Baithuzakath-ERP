@@ -103,14 +103,14 @@ router.put('/:id',
 
 router.patch('/:id/review', 
   authenticate, 
-  authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'), 
+  authorize('super_admin', 'state_admin', 'area_admin'), 
   reviewApplicationValidation, 
   reviewApplication
 );
 
 router.patch('/:id/approve', 
   authenticate, 
-  authorize('super_admin', 'state_admin', 'district_admin', 'area_admin'), 
+  authorize('super_admin', 'state_admin', 'area_admin'), 
   approveApplicationValidation, 
   approveApplication
 );

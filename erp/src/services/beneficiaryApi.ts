@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
 
 interface ApiResponse<T> {
   success: boolean;
@@ -75,12 +75,28 @@ interface Application {
 }
 
 class BeneficiaryApiService {
-  private getAuthHeaders() {
+  private getAuthHeaders(): HeadersInit {
     const token = localStorage.getItem('beneficiary_token');
-    return {
+    console.log('🔑 BeneficiaryApi - Getting auth headers');
+    console.log('- Token exists:', !!token);
+    
+    if (!token) {
+      console.error('❌ No token found in localStorage!');
+      console.log('- All localStorage keys:', Object.keys(localStorage));
+    } else {
+      console.log('✅ Token found (first 30 chars):', token.substring(0, 30) + '...');
+    }
+    
+    const headers: HeadersInit = {
       'Content-Type': 'application/json',
-      ...(token && { Authorization: `Bearer ${token}` })
     };
+    
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+      console.log('✅ Authorization header will be:', `Bearer ${token.substring(0, 30)}...`);
+    }
+    
+    return headers;
   }
 
   private async handleResponse<T>(response: Response): Promise<T> {
@@ -109,18 +125,52 @@ class BeneficiaryApiService {
   }
 
   async verifyOTP(phone: string, otp: string): Promise<LoginResponse> {
+    console.log('🔐 BeneficiaryApi - Verifying OTP');
+    console.log('- Phone:', phone);
+    console.log('- OTP:', otp);
+    console.log('- API URL:', `${API_BASE_URL}/beneficiary/auth/verify-otp`);
+    
     const response = await fetch(`${API_BASE_URL}/beneficiary/auth/verify-otp`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone, otp })
     });
 
-    const data = await this.handleResponse<LoginResponse>(response);
+    console.log('- Response status:', response.status);
+    console.log('- Response ok:', response.ok);
     
-    // Store token in localStorage
+    const rawData = await response.json();
+    console.log('- Raw response:', rawData);
+    
+    if (!response.ok) {
+      throw new Error(rawData.message || `HTTP error! status: ${response.status}`);
+    }
+    
+    if (!rawData.success) {
+      throw new Error(rawData.message || 'API request failed');
+    }
+    
+    const data = rawData.data;
+    
+    console.log('🔑 BeneficiaryApi - verifyOTP response:', {
+      hasToken: !!data.token,
+      tokenLength: data.token?.length,
+      tokenPreview: data.token ? data.token.substring(0, 50) + '...' : 'null',
+      user: data.user
+    });
+    
+    // Store token and user data in localStorage
     if (data.token) {
       localStorage.setItem('beneficiary_token', data.token);
       localStorage.setItem('beneficiary_user', JSON.stringify(data.user));
+      localStorage.setItem('user_role', 'beneficiary');
+      localStorage.setItem('user_phone', phone);
+      
+      console.log('✅ Token and user data saved to localStorage');
+      console.log('- Stored token (first 50 chars):', data.token.substring(0, 50) + '...');
+      console.log('- Verify stored token:', localStorage.getItem('beneficiary_token')?.substring(0, 50) + '...');
+    } else {
+      console.error('❌ No token in response!');
     }
     
     return data;
@@ -173,10 +223,15 @@ class BeneficiaryApiService {
     if (params?.category) queryParams.append('category', params.category);
     if (params?.search) queryParams.append('search', params.search);
 
-    const response = await fetch(
-      `${API_BASE_URL}/beneficiary/schemes?${queryParams.toString()}`,
-      { headers: this.getAuthHeaders() }
-    );
+    const url = `${API_BASE_URL}/beneficiary/schemes?${queryParams.toString()}`;
+    console.log('🔍 BeneficiaryApi - getAvailableSchemes');
+    console.log('- URL:', url);
+    console.log('- Headers:', this.getAuthHeaders());
+
+    const response = await fetch(url, { headers: this.getAuthHeaders() });
+    
+    console.log('- Response status:', response.status);
+    console.log('- Response ok:', response.ok);
 
     return this.handleResponse<{ 
       schemes: Scheme[]; 
@@ -232,10 +287,17 @@ class BeneficiaryApiService {
     if (params?.page) queryParams.append('page', params.page.toString());
     if (params?.limit) queryParams.append('limit', params.limit.toString());
 
-    const response = await fetch(
-      `${API_BASE_URL}/beneficiary/applications?${queryParams.toString()}`,
-      { headers: this.getAuthHeaders() }
-    );
+    const url = `${API_BASE_URL}/beneficiary/applications?${queryParams.toString()}`;
+    const headers = this.getAuthHeaders();
+    
+    console.log('📋 BeneficiaryApi - getMyApplications');
+    console.log('- URL:', url);
+    console.log('- Headers:', headers);
+
+    const response = await fetch(url, { headers });
+    
+    console.log('- Response status:', response.status);
+    console.log('- Response ok:', response.ok);
 
     return this.handleResponse<{
       applications: Application[];
@@ -286,9 +348,17 @@ class BeneficiaryApiService {
       totalApprovedAmount: number;
     };
   }> {
-    const response = await fetch(`${API_BASE_URL}/beneficiary/stats`, {
-      headers: this.getAuthHeaders()
-    });
+    const url = `${API_BASE_URL}/beneficiary/stats`;
+    const headers = this.getAuthHeaders();
+    
+    console.log('📊 BeneficiaryApi - getApplicationStats');
+    console.log('- URL:', url);
+    console.log('- Headers:', headers);
+
+    const response = await fetch(url, { headers });
+    
+    console.log('- Response status:', response.status);
+    console.log('- Response ok:', response.ok);
 
     return this.handleResponse<{
       stats: {
@@ -308,6 +378,8 @@ class BeneficiaryApiService {
   logout(): void {
     localStorage.removeItem('beneficiary_token');
     localStorage.removeItem('beneficiary_user');
+    localStorage.removeItem('user_role');
+    localStorage.removeItem('user_phone');
   }
 
   isAuthenticated(): boolean {

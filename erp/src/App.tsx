@@ -51,6 +51,7 @@ import NotFound from "./pages/NotFound";
 import PublicSchemes from "./pages/PublicSchemes";
 import Login from "./pages/Login";
 import BeneficiaryLogin from "./pages/BeneficiaryLogin";
+import BeneficiaryProfileCompletion from "./pages/BeneficiaryProfileCompletion";
 import BeneficiaryDashboard from "./pages/BeneficiaryDashboard";
 import BeneficiarySchemes from "./pages/BeneficiarySchemes";
 import BeneficiaryApplication from "./pages/BeneficiaryApplication";
@@ -83,6 +84,7 @@ const App = () => (
             <Route path="/public-schemes" element={<PublicSchemes />} />
 
             {/* Beneficiary Routes */}
+            <Route path="/beneficiary/profile-completion" element={<BeneficiaryAuthGuard requireVerification={false}><BeneficiaryProfileCompletion /></BeneficiaryAuthGuard>} />
             <Route path="/beneficiary/dashboard" element={<BeneficiaryAuthGuard><BeneficiaryDashboard /></BeneficiaryAuthGuard>} />
             <Route path="/beneficiary/schemes" element={<BeneficiaryAuthGuard><BeneficiarySchemes /></BeneficiaryAuthGuard>} />
             <Route path="/beneficiary/apply/:schemeId" element={<BeneficiaryAuthGuard><BeneficiaryApplication /></BeneficiaryAuthGuard>} />

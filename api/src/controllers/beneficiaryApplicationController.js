@@ -11,12 +11,10 @@ class BeneficiaryApplicationController {
     try {
       const { category, search } = req.query;
 
-      // Build query for active schemes that are accepting applications
+      // Build query for active schemes
       const today = new Date();
       const query = {
-        status: 'active',
-        'applicationSettings.startDate': { $lte: today },
-        'applicationSettings.endDate': { $gte: today }
+        status: 'active'
       };
 
       if (category && category !== 'all') {
@@ -30,6 +28,12 @@ class BeneficiaryApplicationController {
         ];
       }
 
+      console.log('🔍 Beneficiary Schemes Query:', JSON.stringify(query, null, 2));
+      
+      // Count total schemes matching query
+      const totalCount = await Scheme.countDocuments(query);
+      console.log('📊 Total active schemes found:', totalCount);
+
       const schemes = await Scheme.find(query)
         .populate('project', 'name')
         .select(`
@@ -42,6 +46,11 @@ class BeneficiaryApplicationController {
           hasFormConfiguration
         `)
         .sort({ priority: -1, createdAt: -1 });
+
+      console.log('📋 Schemes retrieved:', schemes.length);
+      if (schemes.length > 0) {
+        console.log('- First scheme:', schemes[0].name);
+      }
 
       // Add additional information for each scheme
       const schemesWithStats = await Promise.all(

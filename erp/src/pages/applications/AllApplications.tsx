@@ -69,6 +69,9 @@ export default function AllApplications() {
   const canViewApplications = hasAnyPermission(['applications.read.all', 'applications.read.regional', 'applications.read.own']);
   const canApproveApplications = hasPermission('applications.approve');
   const hasAdminAccess = user && ['super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'].includes(user.role);
+  
+  // Only area_admin, state_admin, and super_admin can review/approve applications
+  const canReviewApplications = user && ['super_admin', 'state_admin', 'area_admin'].includes(user.role);
 
   useEffect(() => {
     if (!hasAdminAccess) {
@@ -178,6 +181,11 @@ export default function AllApplications() {
   };
 
   const getActionButton = (app: Application, isTableView: boolean = false) => {
+    // Unit Admin and District Admin can only view - no action buttons
+    if (!canReviewApplications) {
+      return null;
+    }
+
     const requiresInterview = app.scheme?.requiresInterview || false;
 
     switch (app.status) {

@@ -57,29 +57,77 @@ export default function BeneficiaryDashboard() {
     try {
       setIsLoading(true);
       
+      // Debug: Check if token exists
+      const token = localStorage.getItem('beneficiary_token');
+      console.log('🔍 Dashboard - Loading data');
+      console.log('- Token exists:', !!token);
+      console.log('- Token (first 20 chars):', token ? token.substring(0, 20) + '...' : 'null');
+      console.log('- User role:', localStorage.getItem('user_role'));
+      
+      if (!token) {
+        console.error('❌ No token found! Redirecting to login...');
+        toast({
+          title: "Authentication Required",
+          description: "Please login again",
+          variant: "destructive",
+        });
+        navigate('/beneficiary-login', { replace: true });
+        return;
+      }
+      
       // Load applications and stats in parallel
       const [applicationsResponse, statsResponse] = await Promise.all([
         beneficiaryApi.getMyApplications({ limit: 10 }),
         beneficiaryApi.getApplicationStats()
       ]);
 
-      setApplications(applicationsResponse.applications);
+      setApplications(applicationsResponse.applications || []);
       setStats(statsResponse.stats);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to load dashboard data:', error);
-      toast({
-        title: "Failed to Load Data",
-        description: "Could not load your applications. Please try again.",
-        variant: "destructive",
-      });
+      
+      // Check if it's an authentication error
+      if (error.message && error.message.includes('permissions')) {
+        toast({
+          title: "Authentication Error",
+          description: "Your session may have expired. Please login again.",
+          variant: "destructive",
+        });
+        // Clear invalid token and redirect
+        localStorage.removeItem('beneficiary_token');
+        localStorage.removeItem('beneficiary_user');
+        navigate('/beneficiary-login', { replace: true });
+        return;
+      }
+      
+      // Only show error toast if it's an actual error (not empty data)
+      if (error.message && !error.message.includes('No applications found')) {
+        toast({
+          title: "Failed to Load Data",
+          description: error.message || "Could not load your applications. Please try again.",
+          variant: "destructive",
+        });
+      } else {
+        // No applications is a normal state, just set empty arrays
+        setApplications([]);
+        setStats({
+          total: 0,
+          submitted: 0,
+          under_review: 0,
+          approved: 0,
+          rejected: 0,
+          completed: 0,
+          cancelled: 0,
+          totalApprovedAmount: 0
+        });
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("user_role");
-    localStorage.removeItem("user_phone");
+    beneficiaryApi.logout();
     toast({ title: "Logged out successfully" });
     navigate("/");
   };
