@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ApplicationViewModal } from "@/components/modals/ApplicationViewModal";
+import { ApplicationDetailModal } from "@/components/modals/ApplicationDetailModal";
 import { GenericFilters } from "@/components/filters/GenericFilters";
 import { useApplicationFilters } from "@/hooks/useApplicationFilters";
 import { useApplicationExport } from "@/hooks/useApplicationExport";
@@ -39,9 +39,9 @@ export default function UnderReviewApplications() {
   
   const [applicationList, setApplicationList] = useState<Application[]>([]);
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
-  const [showViewModal, setShowViewModal] = useState(false);
+  const [selectedApplicationId, setSelectedApplicationId] = useState<string | null>(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
   const [showReportsModal, setShowReportsModal] = useState(false);
-  const [modalMode, setModalMode] = useState<"view" | "approve" | "reject">("view");
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ current: 1, pages: 1, total: 0, limit: 10 });
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
@@ -111,10 +111,9 @@ export default function UnderReviewApplications() {
     );
   }
 
-  const handleViewApplication = (app: Application, mode: "view" | "approve" | "reject" = "view") => {
-    setSelectedApp(app);
-    setModalMode(mode);
-    setShowViewModal(true);
+  const handleViewApplication = (app: Application) => {
+    setSelectedApplicationId(app._id);
+    setShowDetailModal(true);
   };
 
   const handleApprove = async (id: string, remarks: string) => {
@@ -147,7 +146,14 @@ export default function UnderReviewApplications() {
 
   return (
     <div className="space-y-6">
-      <ApplicationViewModal open={showViewModal} onOpenChange={setShowViewModal} application={selectedApp} mode={modalMode} onApprove={handleApprove} onReject={handleReject} />
+      <ApplicationDetailModal 
+        isOpen={showDetailModal} 
+        applicationId={selectedApplicationId}
+        onClose={() => {
+          setShowDetailModal(false);
+          setSelectedApplicationId(null);
+        }}
+      />
       
       <div className="flex items-center justify-between">
         <div>
@@ -237,11 +243,11 @@ export default function UnderReviewApplications() {
                     <div className="flex flex-col gap-2 items-end">
                       <Badge variant="outline" className="bg-info/10 text-info border-info/20"><Eye className="mr-1 h-3 w-3" />UNDER REVIEW</Badge>
                       <div className="flex gap-2">
-                        <Button variant="outline" size="sm" onClick={() => handleViewApplication(app, "view")}><Eye className="mr-2 h-4 w-4" />View</Button>
+                        <Button variant="outline" size="sm" onClick={() => handleViewApplication(app)}><Eye className="mr-2 h-4 w-4" />Details</Button>
                         {canReviewApplications && (
                           <>
-                            <Button variant="outline" size="sm" onClick={() => handleViewApplication(app, "approve")} disabled={!canApproveApplications}><CheckCircle className="mr-2 h-4 w-4" />Approve</Button>
-                            <Button variant="outline" size="sm" onClick={() => handleViewApplication(app, "reject")} disabled={!canApproveApplications}><XCircle className="mr-2 h-4 w-4" />Reject</Button>
+                            <Button variant="outline" size="sm" onClick={() => handleApprove(app._id, '')} disabled={!canApproveApplications}><CheckCircle className="mr-2 h-4 w-4" />Approve</Button>
+                            <Button variant="outline" size="sm" onClick={() => handleReject(app._id, '')} disabled={!canApproveApplications}><XCircle className="mr-2 h-4 w-4" />Reject</Button>
                           </>
                         )}
                       </div>
@@ -286,15 +292,15 @@ export default function UnderReviewApplications() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button variant="outline" size="sm" onClick={() => handleViewApplication(app, "view")}>
+                        <Button variant="outline" size="sm" onClick={() => handleViewApplication(app)}>
                           <Eye className="h-4 w-4" />
                         </Button>
                         {canReviewApplications && (
                           <>
-                            <Button variant="outline" size="sm" onClick={() => handleViewApplication(app, "approve")} disabled={!canApproveApplications}>
+                            <Button variant="outline" size="sm" onClick={() => handleApprove(app._id, '')} disabled={!canApproveApplications}>
                               <CheckCircle className="h-4 w-4" />
                             </Button>
-                            <Button variant="outline" size="sm" onClick={() => handleViewApplication(app, "reject")} disabled={!canApproveApplications}>
+                            <Button variant="outline" size="sm" onClick={() => handleReject(app._id, '')} disabled={!canApproveApplications}>
                               <XCircle className="h-4 w-4" />
                             </Button>
                           </>

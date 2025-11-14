@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ApplicationViewModal } from "@/components/modals/ApplicationViewModal";
+import { ApplicationDetailModal } from "@/components/modals/ApplicationDetailModal";
 import { GenericFilters } from "@/components/filters/GenericFilters";
 import { useApplicationFilters } from "@/hooks/useApplicationFilters";
 import { useApplicationExport } from "@/hooks/useApplicationExport";
@@ -38,7 +38,8 @@ export default function RejectedApplications() {
   
   const [applicationList, setApplicationList] = useState<Application[]>([]);
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
-  const [showViewModal, setShowViewModal] = useState(false);
+  const [selectedApplicationId, setSelectedApplicationId] = useState<string | null>(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
   const [showReportsModal, setShowReportsModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ current: 1, pages: 1, total: 0, limit: 10 });
@@ -97,8 +98,8 @@ export default function RejectedApplications() {
   }
 
   const handleViewApplication = (app: Application) => {
-    setSelectedApp(app);
-    setShowViewModal(true);
+    setSelectedApplicationId(app._id);
+    setShowDetailModal(true);
   };
 
   const handleExport = () => {
@@ -107,7 +108,14 @@ export default function RejectedApplications() {
 
   return (
     <div className="space-y-6">
-      <ApplicationViewModal open={showViewModal} onOpenChange={setShowViewModal} application={selectedApp} mode="view" />
+      <ApplicationDetailModal 
+        isOpen={showDetailModal} 
+        applicationId={selectedApplicationId}
+        onClose={() => {
+          setShowDetailModal(false);
+          setSelectedApplicationId(null);
+        }}
+      />
       
       <div className="flex items-center justify-between">
         <div>

@@ -369,34 +369,48 @@ class BeneficiaryApplicationController {
         return ResponseHelper.error(res, 'Scheme is not currently accepting applications', 400);
       }
 
+      // Get user's profile location data
+      const user = await User.findById(userId).select('profile');
+      
+      // Validate that user has completed profile with location
+      if (!user?.profile?.location?.district || !user?.profile?.location?.area || !user?.profile?.location?.unit) {
+        return ResponseHelper.error(res, 'Please complete your profile with location information before applying', 400);
+      }
+
       // Find or create beneficiary record
       let beneficiary = await Beneficiary.findOne({ phone: req.user.phone });
       
       if (!beneficiary) {
-        // Get default locations (you may want to make this dynamic based on user input)
-        const defaultState = await Location.findOne({ type: 'state', name: 'Kerala' });
-        const defaultDistrict = await Location.findOne({ type: 'district', parent: defaultState?._id });
-        const defaultArea = await Location.findOne({ type: 'area', parent: defaultDistrict?._id });
-        const defaultUnit = await Location.findOne({ type: 'unit', parent: defaultArea?._id });
-
-        if (!defaultState || !defaultDistrict || !defaultArea || !defaultUnit) {
-          return ResponseHelper.error(res, 'Location data not properly configured. Please contact administrator.', 500);
+        // Get state from district's parent
+        const district = await Location.findById(user.profile.location.district);
+        if (!district || !district.parent) {
+          return ResponseHelper.error(res, 'Invalid location data. Please update your profile.', 400);
         }
 
-        // Create beneficiary record
+        // Create beneficiary record using user's profile location
         beneficiary = new Beneficiary({
           name: req.user.name,
           phone: req.user.phone,
-          state: defaultState._id,
-          district: defaultDistrict._id,
-          area: defaultArea._id,
-          unit: defaultUnit._id,
+          state: district.parent, // State is parent of district
+          district: user.profile.location.district,
+          area: user.profile.location.area,
+          unit: user.profile.location.unit,
           status: 'active',
           isVerified: true,
           createdBy: userId
         });
         
         await beneficiary.save();
+        console.log('✅ Created beneficiary record with location from user profile');
+      } else {
+        // Update beneficiary location if it has changed in user profile
+        const district = await Location.findById(user.profile.location.district);
+        beneficiary.state = district?.parent || beneficiary.state;
+        beneficiary.district = user.profile.location.district;
+        beneficiary.area = user.profile.location.area;
+        beneficiary.unit = user.profile.location.unit;
+        await beneficiary.save();
+        console.log('✅ Updated beneficiary location from user profile');
       }
 
       // Check if beneficiary has already applied for this scheme
@@ -422,14 +436,16 @@ class BeneficiaryApplicationController {
       const applicationNumber = `APP${year}${String(applicationCount + 1).padStart(6, '0')}`;
 
       console.log('📝 Generated application number:', applicationNumber);
+      console.log('📝 Form data received:', formData);
 
-      // Create application with all required fields
+      // Create application with all required fields INCLUDING formData
       const application = new Application({
         applicationNumber: applicationNumber,
         beneficiary: beneficiary._id,
         scheme: schemeId,
         project: scheme.project?._id || scheme.project, // Handle if project is populated or just ID
         requestedAmount: requestedAmount,
+        formData: formData, // ✅ SAVE THE FORM DATA!
         status: 'pending', // Use valid enum value
         state: beneficiary.state,
         district: beneficiary.district,
@@ -444,7 +460,8 @@ class BeneficiaryApplicationController {
         beneficiary: application.beneficiary,
         scheme: application.scheme,
         status: application.status,
-        requestedAmount: application.requestedAmount
+        requestedAmount: application.requestedAmount,
+        formDataKeys: Object.keys(formData || {})
       });
 
       await application.save();

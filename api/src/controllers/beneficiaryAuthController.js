@@ -1,5 +1,5 @@
 const authService = require('../services/authService');
-const { User } = require('../models');
+const { User, Location } = require('../models');
 const ResponseHelper = require('../utils/responseHelper');
 const staticOTPConfig = require('../config/staticOTP');
 
@@ -176,13 +176,29 @@ class BeneficiaryAuthController {
         if (profile.emergencyContact) {
           updateData['profile.emergencyContact'] = profile.emergencyContact;
         }
+        // Update location references
+        if (profile.location) {
+          if (profile.location.district) {
+            updateData['profile.location.district'] = profile.location.district;
+          }
+          if (profile.location.area) {
+            updateData['profile.location.area'] = profile.location.area;
+          }
+          if (profile.location.unit) {
+            updateData['profile.location.unit'] = profile.location.unit;
+          }
+        }
       }
 
       const user = await User.findByIdAndUpdate(
         userId,
         { $set: updateData },
         { new: true, runValidators: true }
-      ).select('-password -otp');
+      )
+        .select('-password -otp')
+        .populate('profile.location.district', 'name code type')
+        .populate('profile.location.area', 'name code type')
+        .populate('profile.location.unit', 'name code type');
 
       if (!user) {
         return ResponseHelper.error(res, 'User not found', 404);
@@ -202,7 +218,11 @@ class BeneficiaryAuthController {
    */
   async getProfile(req, res) {
     try {
-      const user = await User.findById(req.user._id).select('-password -otp');
+      const user = await User.findById(req.user._id)
+        .select('-password -otp')
+        .populate('profile.location.district', 'name code type')
+        .populate('profile.location.area', 'name code type')
+        .populate('profile.location.unit', 'name code type');
 
       if (!user) {
         return ResponseHelper.error(res, 'User not found', 404);
@@ -280,6 +300,36 @@ class BeneficiaryAuthController {
     } catch (error) {
       console.error('❌ Resend OTP Error:', error);
       return ResponseHelper.error(res, error.message, 500);
+    }
+  }
+
+  /**
+   * Get locations for beneficiary signup
+   * GET /api/beneficiary/auth/locations
+   */
+  async getLocations(req, res) {
+    try {
+      const { type, parent } = req.query;
+
+      const query = { isActive: true };
+      
+      if (type) {
+        query.type = type;
+      }
+      
+      if (parent) {
+        query.parent = parent;
+      }
+
+      const locations = await Location.find(query)
+        .select('_id name code type parent')
+        .sort({ name: 1 });
+
+      return ResponseHelper.success(res, { locations }, 'Locations retrieved successfully');
+
+    } catch (error) {
+      console.error('❌ Get Locations Error:', error);
+      return ResponseHelper.error(res, 'Failed to retrieve locations', 500);
     }
   }
 }

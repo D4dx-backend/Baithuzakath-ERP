@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { LogOut, FileText, Calendar, IndianRupee, Bell, Search, Loader2 } from "lucide-react";
+import { LogOut, FileText, Calendar, IndianRupee, Bell, Search, Loader2, User } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -167,9 +167,23 @@ export default function BeneficiaryDashboard() {
           </div>
           
           <div className="flex items-center gap-2">
-            {/* Notifications - Placeholder for future implementation */}
-            <Button variant="ghost" size="sm" className="relative opacity-50 cursor-not-allowed">
-              <Bell className="h-5 w-5" />
+            {/* Update Profile */}
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => navigate("/beneficiary/profile-completion")}
+              className="hidden sm:flex"
+            >
+              <User className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Profile</span>
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => navigate("/beneficiary/profile-completion")}
+              className="sm:hidden"
+            >
+              <User className="h-5 w-5" />
             </Button>
 
             {/* Logout */}

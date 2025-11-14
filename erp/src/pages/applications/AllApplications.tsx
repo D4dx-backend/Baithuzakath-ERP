@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ApplicationViewModal } from "@/components/modals/ApplicationViewModal";
+import { ApplicationDetailModal } from "@/components/modals/ApplicationDetailModal";
 import { GenericFilters } from "@/components/filters/GenericFilters";
 import { useApplicationFilters } from "@/hooks/useApplicationFilters";
 import { useApplicationExport } from "@/hooks/useApplicationExport";
@@ -20,7 +21,15 @@ interface Application {
   _id: string;
   applicationNumber: string;
   beneficiary: { _id: string; name: string; phone: string; };
-  scheme: { _id: string; name: string; code: string; requiresInterview?: boolean; };
+  scheme: { 
+    _id: string; 
+    name: string; 
+    code: string; 
+    requiresInterview?: boolean;
+    applicationSettings?: {
+      requiresInterview?: boolean;
+    };
+  };
   project?: { _id: string; name: string; code: string; };
   status: string;
   requestedAmount: number;
@@ -59,6 +68,8 @@ export default function AllApplications() {
   const [applicationList, setApplicationList] = useState<Application[]>([]);
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
   const [showViewModal, setShowViewModal] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedApplicationId, setSelectedApplicationId] = useState<string | null>(null);
   const [showShortlistModal, setShowShortlistModal] = useState(false);
   const [showReportsModal, setShowReportsModal] = useState(false);
   const [modalMode, setModalMode] = useState<"view" | "approve" | "reject">("view");
@@ -186,46 +197,45 @@ export default function AllApplications() {
       return null;
     }
 
-    const requiresInterview = app.scheme?.requiresInterview || false;
+    const requiresInterview = app.scheme?.requiresInterview || app.scheme?.applicationSettings?.requiresInterview || false;
+    const hasInterviewScheduled = app.interview?.scheduledDate != null;
 
-    switch (app.status) {
-      case 'pending':
-      case 'under_review':
-      case 'field_verification':
-        if (requiresInterview) {
-          return isTableView ? (
-            <Button variant="outline" size="sm" onClick={() => { setSelectedApp(app); setShowShortlistModal(true); }}>
-              <UserCheck className="h-4 w-4" />
-            </Button>
-          ) : (
-            <Button variant="outline" size="sm" onClick={() => { setSelectedApp(app); setShowShortlistModal(true); }} className="flex-1">
-              <UserCheck className="mr-2 h-4 w-4" />Schedule Interview
-            </Button>
-          );
-        } else {
-          return isTableView ? (
-            <>
-              <Button variant="outline" size="sm" onClick={() => handleViewApplication(app, "approve")} disabled={!canApproveApplications}>
-                <CheckCircle className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => handleViewApplication(app, "reject")} disabled={!canApproveApplications}>
-                <XCircle className="h-4 w-4" />
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button variant="outline" size="sm" onClick={() => handleViewApplication(app, "approve")} className="flex-1" disabled={!canApproveApplications}>
-                <CheckCircle className="mr-2 h-4 w-4" />Approve
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => handleViewApplication(app, "reject")} className="flex-1" disabled={!canApproveApplications}>
-                <XCircle className="mr-2 h-4 w-4" />Reject
-              </Button>
-            </>
-          );
-        }
-      default:
-        return null;
+    // Don't show schedule interview button for approved, rejected, or completed applications
+    if (app.status === 'approved' || app.status === 'rejected' || app.status === 'completed') {
+      return null;
     }
+
+    // For schemes requiring interview
+    if (requiresInterview) {
+      // Check if interview is scheduled but not completed
+      if (hasInterviewScheduled || app.status === 'interview_scheduled') {
+        // Interview is scheduled, show reschedule button
+        return isTableView ? (
+          <Button variant="outline" size="sm" onClick={() => { setSelectedApp(app); setShowShortlistModal(true); }}>
+            <CalendarIcon className="h-4 w-4" />
+          </Button>
+        ) : (
+          <Button variant="outline" size="sm" onClick={() => { setSelectedApp(app); setShowShortlistModal(true); }} className="flex-1">
+            <CalendarIcon className="mr-2 h-4 w-4" />Reschedule
+          </Button>
+        );
+      }
+      
+      // Interview not scheduled yet, show schedule button
+      return isTableView ? (
+        <Button variant="outline" size="sm" onClick={() => { setSelectedApp(app); setShowShortlistModal(true); }}>
+          <UserCheck className="h-4 w-4" />
+        </Button>
+      ) : (
+        <Button variant="outline" size="sm" onClick={() => { setSelectedApp(app); setShowShortlistModal(true); }} className="flex-1">
+          <UserCheck className="mr-2 h-4 w-4" />Schedule Interview
+        </Button>
+      );
+    }
+
+    // For schemes NOT requiring interview - no action buttons in list view
+    // Users should approve/reject from the Details modal
+    return null;
   };
 
   return (
@@ -332,8 +342,16 @@ export default function AllApplications() {
                         </Badge>
                         <div className="flex flex-col gap-2 w-full">
                           <div className="flex gap-2">
-                            <Button variant="outline" size="sm" onClick={() => handleViewApplication(app, "view")} className="flex-1">
-                              <Eye className="mr-2 h-4 w-4" />View
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => {
+                                setSelectedApplicationId(app._id);
+                                setShowDetailModal(true);
+                              }} 
+                              className="flex-1"
+                            >
+                              <Eye className="mr-2 h-4 w-4" />Details
                             </Button>
                             {getActionButton(app)}
                           </div>
@@ -391,10 +409,18 @@ export default function AllApplications() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <Button variant="outline" size="sm" onClick={() => handleViewApplication(app, "view")}>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => {
+                              setSelectedApplicationId(app._id);
+                              setShowDetailModal(true);
+                            }}
+                            title="View Details"
+                          >
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button variant="outline" size="sm" onClick={() => { setSelectedApp(app); setShowReportsModal(true); }}>
+                          <Button variant="outline" size="sm" onClick={() => { setSelectedApp(app); setShowReportsModal(true); }} title="Reports">
                             <FileText className="h-4 w-4" />
                           </Button>
                           {getActionButton(app, true)}
@@ -427,6 +453,16 @@ export default function AllApplications() {
           <ReportsModal isOpen={showReportsModal} onClose={() => { setShowReportsModal(false); setSelectedApp(null); }} applicationId={selectedApp.applicationNumber} applicantName={selectedApp.beneficiary.name} />
         </>
       )}
+
+      {/* Application Detail Modal */}
+      <ApplicationDetailModal
+        isOpen={showDetailModal}
+        applicationId={selectedApplicationId}
+        onClose={() => {
+          setShowDetailModal(false);
+          setSelectedApplicationId(null);
+        }}
+      />
     </div>
   );
 }

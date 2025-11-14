@@ -29,7 +29,12 @@ const statusConfig = {
 
 export default function AllPayments() {
   const { hasAnyPermission } = useRBAC();
-  const filterHook = usePaymentFilters();
+  
+  // Read URL parameters for initial filter
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlFilter = urlParams.get('filter') || undefined;
+  
+  const filterHook = usePaymentFilters(urlFilter);
   const { exportPayments, exporting } = usePaymentExport();
   
   const canViewPayments = hasAnyPermission(['finances.read.all', 'finances.read.regional', 'super_admin', 'state_admin']);
@@ -381,7 +386,7 @@ export default function AllPayments() {
                           <Button size="sm" variant="outline" onClick={() => handleViewDetails(schedule)} title="View Details">
                             <Eye className="h-4 w-4" />
                           </Button>
-                          {canManagePayments && (
+                          {canManagePayments && schedule.status !== "completed" && (
                             <Button size="sm" variant="outline" onClick={() => handleEditSchedule(schedule)}>
                               <Edit className="mr-2 h-4 w-4" />
                               Process Payment
@@ -458,7 +463,7 @@ export default function AllPayments() {
                             <Button size="sm" variant="outline" onClick={() => handleViewDetails(schedule)} title="View Details">
                               <Eye className="h-4 w-4" />
                             </Button>
-                            {canManagePayments && (
+                            {canManagePayments && schedule.status !== "completed" && (
                               <Button size="sm" variant="outline" onClick={() => handleEditSchedule(schedule)} title="Process Payment">
                                 <Edit className="h-4 w-4" />
                               </Button>

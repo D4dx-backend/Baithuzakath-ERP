@@ -20,7 +20,6 @@ import InterviewScheduledApplications from "./pages/applications/InterviewSchedu
 import ApprovedApplications from "./pages/applications/ApprovedApplications";
 import RejectedApplications from "./pages/applications/RejectedApplications";
 import CompletedApplications from "./pages/applications/CompletedApplications";
-import UpcomingInterviews from "./pages/UpcomingInterviews";
 import Donors from "./pages/Donors";
 import AllDonors from "./pages/donors/AllDonors";
 import AllPayments from "./pages/payments/AllPayments";
@@ -103,7 +102,7 @@ const App = () => (
             <Route path="/applications/approved" element={<AuthGuard><Layout><ApprovedApplications /></Layout></AuthGuard>} />
             <Route path="/applications/rejected" element={<AuthGuard><Layout><RejectedApplications /></Layout></AuthGuard>} />
             <Route path="/applications/completed" element={<AuthGuard><Layout><CompletedApplications /></Layout></AuthGuard>} />
-            <Route path="/upcoming-interviews" element={<AuthGuard><Layout><UpcomingInterviews /></Layout></AuthGuard>} />
+            <Route path="/upcoming-interviews" element={<AuthGuard><Layout><InterviewScheduledApplications /></Layout></AuthGuard>} />
             <Route path="/beneficiaries" element={<AuthGuard><Layout><Beneficiaries /></Layout></AuthGuard>} />
             <Route path="/payment-tracking" element={<AuthGuard><Layout><BeneficiaryPayments /></Layout></AuthGuard>} />
             <Route path="/payment-tracking/all" element={<AuthGuard><Layout><AllPayments /></Layout></AuthGuard>} />

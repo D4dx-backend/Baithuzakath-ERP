@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ApplicationViewModal } from "@/components/modals/ApplicationViewModal";
+import { ApplicationDetailModal } from "@/components/modals/ApplicationDetailModal";
 import { GenericFilters } from "@/components/filters/GenericFilters";
 import { useApplicationFilters } from "@/hooks/useApplicationFilters";
 import { useApplicationExport } from "@/hooks/useApplicationExport";
@@ -41,7 +41,8 @@ export default function InterviewScheduledApplications() {
   
   const [applicationList, setApplicationList] = useState<Application[]>([]);
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
-  const [showViewModal, setShowViewModal] = useState(false);
+  const [selectedApplicationId, setSelectedApplicationId] = useState<string | null>(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
   const [showShortlistModal, setShowShortlistModal] = useState(false);
   const [showReportsModal, setShowReportsModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -105,8 +106,8 @@ export default function InterviewScheduledApplications() {
   }
 
   const handleViewApplication = (app: Application) => {
-    setSelectedApp(app);
-    setShowViewModal(true);
+    setSelectedApplicationId(app._id);
+    setShowDetailModal(true);
   };
 
   const handleViewHistory = async (app: Application) => {
@@ -115,15 +116,30 @@ export default function InterviewScheduledApplications() {
     setLoadingHistory(true);
     
     try {
+      console.log('📋 Fetching interview history for:', app.applicationNumber);
       const response = await interviews.getHistory(app.applicationNumber);
+      console.log('📋 Interview history response:', response);
+      
       if (response.success) {
-        setInterviewHistory(response.data.history || []);
+        const historyData = (response.data as any)?.history || response.data || [];
+        console.log('✅ History data:', historyData);
+        setInterviewHistory(Array.isArray(historyData) ? historyData : []);
       } else {
-        toast({ title: "Error", description: "Failed to load interview history", variant: "destructive" });
+        // If no history found, just set empty array without showing error toast
+        console.log('ℹ️ No interview history found');
+        setInterviewHistory([]);
       }
-    } catch (error) {
-      console.error('Error loading interview history:', error);
-      toast({ title: "Error", description: "Failed to load interview history", variant: "destructive" });
+    } catch (error: any) {
+      console.error('❌ Error loading interview history:', error);
+      // Only show error toast for actual errors, not for "no history found"
+      if (!error.message?.includes('Failed to fetch interview history')) {
+        toast({ 
+          title: "Error", 
+          description: error.message || "Failed to load interview history", 
+          variant: "destructive" 
+        });
+      }
+      setInterviewHistory([]);
     } finally {
       setLoadingHistory(false);
     }
@@ -149,9 +165,66 @@ export default function InterviewScheduledApplications() {
     }
   };
 
+  const handleApprove = async (id: string, remarks: string, distributionTimeline?: any[]) => {
+    try {
+      const response = await interviews.complete(id, {
+        result: 'passed',
+        notes: remarks,
+        distributionTimeline
+      });
+      
+      if (response.success) {
+        toast({ 
+          title: "Success", 
+          description: "Interview accepted and application approved successfully" 
+        });
+        loadApplications();
+      }
+    } catch (error: any) {
+      toast({ 
+        title: "Error", 
+        description: error.message || "Failed to approve application", 
+        variant: "destructive" 
+      });
+    }
+  };
+
+  const handleReject = async (id: string, remarks: string) => {
+    try {
+      const response = await interviews.complete(id, {
+        result: 'failed',
+        notes: remarks
+      });
+      
+      if (response.success) {
+        toast({ 
+          title: "Success", 
+          description: "Interview rejected and application declined successfully" 
+        });
+        loadApplications();
+      }
+    } catch (error: any) {
+      toast({ 
+        title: "Error", 
+        description: error.message || "Failed to reject application", 
+        variant: "destructive" 
+      });
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <ApplicationViewModal open={showViewModal} onOpenChange={setShowViewModal} application={selectedApp} mode="view" />
+      <ApplicationDetailModal 
+        isOpen={showDetailModal} 
+        applicationId={selectedApplicationId}
+        onClose={() => {
+          setShowDetailModal(false);
+          setSelectedApplicationId(null);
+        }}
+        onActionComplete={() => {
+          loadApplications();
+        }}
+      />
       
       <div className="flex items-center justify-between">
         <div>
@@ -232,7 +305,7 @@ export default function InterviewScheduledApplications() {
             <div className="flex items-center justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /><span className="ml-2">Loading...</span></div>
           ) : (() => {
             const filteredList = showRescheduledOnly 
-              ? applicationList.filter(app => app.interview?.scheduledAt && new Date(app.interview.scheduledAt) < new Date(app.createdAt))
+              ? applicationList.filter(app => app.interview?.scheduledDate && new Date(app.interview.scheduledDate) < new Date(app.createdAt))
               : applicationList;
             
             return filteredList.length === 0 ? (
@@ -248,7 +321,7 @@ export default function InterviewScheduledApplications() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="font-semibold">{app.beneficiary.name}</h3>
                         <Badge variant="outline" className="text-xs">{app.applicationNumber}</Badge>
-                        {app.interview?.scheduledAt && new Date(app.interview.scheduledAt) > new Date(app.createdAt) && (
+                        {app.interview?.scheduledDate && new Date(app.interview.scheduledAt) > new Date(app.createdAt) && (
                           <Badge variant="outline" className="text-xs bg-orange-500/10 text-orange-500 border-orange-500/20">Rescheduled</Badge>
                         )}
                         <div className="text-sm text-muted-foreground"><span className="font-medium">Amount:</span> ₹{app.requestedAmount.toLocaleString()}</div>
@@ -267,7 +340,7 @@ export default function InterviewScheduledApplications() {
                     <div className="flex flex-col gap-2 items-end">
                       <Badge variant="outline" className="bg-purple-500/10 text-purple-500 border-purple-500/20"><CalendarIcon className="mr-1 h-3 w-3" />INTERVIEW SCHEDULED</Badge>
                       <div className="flex gap-2 flex-wrap justify-end">
-                        <Button variant="outline" size="sm" onClick={() => handleViewApplication(app)}><Eye className="mr-2 h-4 w-4" />View</Button>
+                        <Button variant="outline" size="sm" onClick={() => handleViewApplication(app)}><Eye className="mr-2 h-4 w-4" />Details</Button>
                         <Button variant="secondary" size="sm" onClick={() => { setSelectedApp(app); setShowShortlistModal(true); }}><CalendarIcon className="mr-2 h-4 w-4" />Reschedule</Button>
                         <Button variant="secondary" size="sm" onClick={() => handleViewHistory(app)}><History className="mr-2 h-4 w-4" />History</Button>
                         <Button variant="secondary" size="sm" onClick={() => { setSelectedApp(app); setShowReportsModal(true); }}><FileText className="mr-2 h-4 w-4" />Reports</Button>
@@ -302,7 +375,7 @@ export default function InterviewScheduledApplications() {
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <div className="font-mono text-sm">{app.applicationNumber}</div>
-                        {app.interview?.scheduledAt && new Date(app.interview.scheduledAt) > new Date(app.createdAt) && (
+                        {app.interview?.scheduledDate && new Date(app.interview.scheduledAt) > new Date(app.createdAt) && (
                           <Badge variant="outline" className="text-xs bg-orange-500/10 text-orange-500 border-orange-500/20">Rescheduled</Badge>
                         )}
                       </div>

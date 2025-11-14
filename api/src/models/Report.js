@@ -24,6 +24,52 @@ const reportSchema = new mongoose.Schema({
     enum: ['interview', 'enquiry', 'field_verification', 'document_review', 'follow_up', 'other'],
     required: true
   },
+
+  // Field Verification Tracking (for field_verification reports)
+  fieldVerification: {
+    verifiedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    verifiedAt: {
+      type: Date
+    },
+    verificationStatus: {
+      type: String,
+      enum: ['pending', 'verified', 'rejected', 'needs_clarification'],
+      default: 'pending'
+    },
+    verificationNotes: String,
+    // Stage-based verification tracking
+    stageVerifications: [{
+      stageName: {
+        type: String,
+        required: true
+      },
+      stageOrder: {
+        type: Number,
+        required: true
+      },
+      isCompleted: {
+        type: Boolean,
+        default: false
+      },
+      completedAt: Date,
+      completedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+      },
+      notes: String,
+      documents: [{
+        fileName: String,
+        fileUrl: String,
+        uploadedAt: {
+          type: Date,
+          default: Date.now
+        }
+      }]
+    }]
+  },
   
   // Report Content
   title: {
@@ -33,6 +79,46 @@ const reportSchema = new mongoose.Schema({
   details: {
     type: String,
     required: true
+  },
+  
+  // Field Verification Information
+  fieldVerification: {
+    isRequired: {
+      type: Boolean,
+      default: false
+    },
+    status: {
+      type: String,
+      enum: ['pending', 'in_progress', 'completed', 'failed'],
+      default: 'pending'
+    },
+    verifiedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    verifiedAt: {
+      type: Date
+    },
+    verificationNotes: {
+      type: String
+    },
+    verificationHistory: [{
+      status: {
+        type: String,
+        enum: ['pending', 'in_progress', 'completed', 'failed'],
+        required: true
+      },
+      updatedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+      },
+      updatedAt: {
+        type: Date,
+        default: Date.now
+      },
+      notes: String
+    }]
   },
   
   // Status and Priority

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ApplicationViewModal } from "@/components/modals/ApplicationViewModal";
+import { ApplicationDetailModal } from "@/components/modals/ApplicationDetailModal";
 import { GenericFilters } from "@/components/filters/GenericFilters";
 import { useApplicationFilters } from "@/hooks/useApplicationFilters";
 import { useApplicationExport } from "@/hooks/useApplicationExport";
@@ -20,7 +20,15 @@ interface Application {
   _id: string;
   applicationNumber: string;
   beneficiary: { _id: string; name: string; phone: string; };
-  scheme: { _id: string; name: string; code: string; requiresInterview?: boolean; };
+  scheme: { 
+    _id: string; 
+    name: string; 
+    code: string; 
+    requiresInterview?: boolean;
+    applicationSettings?: {
+      requiresInterview?: boolean;
+    };
+  };
   project?: { _id: string; name: string; code: string; };
   status: string;
   requestedAmount: number;
@@ -41,10 +49,10 @@ export default function PendingApplications() {
   
   const [applicationList, setApplicationList] = useState<Application[]>([]);
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
-  const [showViewModal, setShowViewModal] = useState(false);
+  const [selectedApplicationId, setSelectedApplicationId] = useState<string | null>(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
   const [showShortlistModal, setShowShortlistModal] = useState(false);
   const [showReportsModal, setShowReportsModal] = useState(false);
-  const [modalMode, setModalMode] = useState<"view" | "approve" | "reject">("view");
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ current: 1, pages: 1, total: 0, limit: 10 });
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
@@ -114,9 +122,8 @@ export default function PendingApplications() {
   }
 
   const handleViewApplication = (app: Application, mode: "view" | "approve" | "reject" = "view") => {
-    setSelectedApp(app);
-    setModalMode(mode);
-    setShowViewModal(true);
+    setSelectedApplicationId(app._id);
+    setShowDetailModal(true);
   };
 
   const handleApprove = async (id: string, remarks: string) => {
@@ -147,31 +154,58 @@ export default function PendingApplications() {
     exportApplications(filterHook.getExportParams(), 'pending_applications');
   };
 
-  const getActionButton = (app: Application) => {
-    const requiresInterview = app.scheme?.requiresInterview || false;
+  const getActionButton = (app: Application, isTableView: boolean = false) => {
+    const requiresInterview = app.scheme?.requiresInterview || app.scheme?.applicationSettings?.requiresInterview || false;
+    const hasInterviewScheduled = app.interview?.scheduledDate != null;
+    
+    // Don't show schedule interview button for approved, rejected, or completed applications
+    if (app.status === 'approved' || app.status === 'rejected' || app.status === 'completed') {
+      return null;
+    }
+    
+    // Only show Schedule Interview button for schemes requiring interview
     if (requiresInterview) {
-      return (
+      // Check if interview is already scheduled
+      if (hasInterviewScheduled || app.status === 'interview_scheduled') {
+        // Interview is scheduled, show reschedule button
+        return isTableView ? (
+          <Button variant="outline" size="sm" onClick={() => { setSelectedApp(app); setShowShortlistModal(true); }}>
+            <UserCheck className="h-4 w-4" />
+          </Button>
+        ) : (
+          <Button variant="outline" size="sm" onClick={() => { setSelectedApp(app); setShowShortlistModal(true); }} className="flex-1">
+            <UserCheck className="mr-2 h-4 w-4" />Reschedule
+          </Button>
+        );
+      }
+      
+      // Interview not scheduled yet, show schedule button
+      return isTableView ? (
+        <Button variant="outline" size="sm" onClick={() => { setSelectedApp(app); setShowShortlistModal(true); }}>
+          <UserCheck className="h-4 w-4" />
+        </Button>
+      ) : (
         <Button variant="outline" size="sm" onClick={() => { setSelectedApp(app); setShowShortlistModal(true); }} className="flex-1">
           <UserCheck className="mr-2 h-4 w-4" />Schedule Interview
         </Button>
       );
-    } else {
-      return (
-        <>
-          <Button variant="outline" size="sm" onClick={() => handleViewApplication(app, "approve")} className="flex-1" disabled={!canApproveApplications}>
-            <CheckCircle className="mr-2 h-4 w-4" />Approve
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => handleViewApplication(app, "reject")} className="flex-1" disabled={!canApproveApplications}>
-            <XCircle className="mr-2 h-4 w-4" />Reject
-          </Button>
-        </>
-      );
     }
+    
+    // For schemes NOT requiring interview - no action buttons in list view
+    // Users should approve/reject from the Details modal
+    return null;
   };
 
   return (
     <div className="space-y-6">
-      <ApplicationViewModal open={showViewModal} onOpenChange={setShowViewModal} application={selectedApp} mode={modalMode} onApprove={handleApprove} onReject={handleReject} />
+      <ApplicationDetailModal 
+        isOpen={showDetailModal} 
+        applicationId={selectedApplicationId}
+        onClose={() => {
+          setShowDetailModal(false);
+          setSelectedApplicationId(null);
+        }}
+      />
       
       <div className="flex items-center justify-between">
         <div>
@@ -314,7 +348,7 @@ export default function PendingApplications() {
                         <Button variant="outline" size="sm" onClick={() => { setSelectedApp(app); setShowReportsModal(true); }}>
                           <FileText className="h-4 w-4" />
                         </Button>
-                        {getActionButton(app)}
+                        {getActionButton(app, true)}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -339,7 +373,15 @@ export default function PendingApplications() {
 
       {selectedApp && (
         <>
-          <ShortlistModal isOpen={showShortlistModal} onClose={() => { setShowShortlistModal(false); setSelectedApp(null); }} applicationId={selectedApp.applicationNumber} applicantName={selectedApp.beneficiary.name} mode="schedule" onSuccess={() => { loadApplications(); }} />
+          <ShortlistModal 
+            isOpen={showShortlistModal} 
+            onClose={() => { setShowShortlistModal(false); setSelectedApp(null); }} 
+            applicationId={selectedApp.applicationNumber} 
+            applicantName={selectedApp.beneficiary.name} 
+            mode={selectedApp.status === 'interview_scheduled' ? 'reschedule' : 'schedule'} 
+            existingInterview={selectedApp.status === 'interview_scheduled' ? selectedApp.interview : undefined}
+            onSuccess={() => { loadApplications(); }} 
+          />
           <ReportsModal isOpen={showReportsModal} onClose={() => { setShowReportsModal(false); setSelectedApp(null); }} applicationId={selectedApp.applicationNumber} applicantName={selectedApp.beneficiary.name} />
         </>
       )}

@@ -32,8 +32,7 @@ const applicationSchema = new mongoose.Schema({
   status: {
     type: String,
     enum: [
-      'pending', 'under_review', 'field_verification', 
-      'interview_scheduled', 'interview_completed', 'approved', 
+      'pending', 'interview_scheduled', 'interview_completed', 'approved', 
       'rejected', 'on_hold', 'cancelled', 'disbursed', 'completed'
     ],
     default: 'pending'
@@ -58,6 +57,12 @@ const applicationSchema = new mongoose.Schema({
       default: Date.now
     }
   }],
+  
+  // Form Data - Custom fields submitted by beneficiary
+  formData: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
   
   // Review Information
   reviewedBy: {
@@ -173,6 +178,23 @@ const applicationSchema = new mongoose.Schema({
       ref: 'User'
     },
     notes: String
+  }],
+
+  // Status History for tracking status changes
+  statusHistory: [{
+    status: {
+      type: String,
+      required: true
+    },
+    timestamp: {
+      type: Date,
+      default: Date.now
+    },
+    updatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    comment: String
   }],
   
   // Interview Information

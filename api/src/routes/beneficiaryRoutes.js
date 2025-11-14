@@ -45,6 +45,13 @@ router.post('/auth/resend-otp', [
   validateRequest
 ], beneficiaryAuthController.resendOTP);
 
+// Get locations for signup (no auth required)
+router.get('/auth/locations', [
+  query('type').optional().isIn(['district', 'area', 'unit']),
+  query('parent').optional().isMongoId(),
+  validateRequest
+], beneficiaryAuthController.getLocations);
+
 // Protected beneficiary routes (require authentication and beneficiary role)
 router.get('/auth/profile', 
   authenticate, 

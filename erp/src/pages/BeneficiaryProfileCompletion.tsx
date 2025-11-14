@@ -6,28 +6,18 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, User } from "lucide-react";
+import { Loader2, User, MapPin } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { beneficiaryApi } from "@/services/beneficiaryApi";
 import logo from "@/assets/logo.png";
 
-// Kerala Districts
-const KERALA_DISTRICTS = [
-  "Alappuzha",
-  "Ernakulam",
-  "Idukki",
-  "Kannur",
-  "Kasaragod",
-  "Kollam",
-  "Kottayam",
-  "Kozhikode",
-  "Malappuram",
-  "Palakkad",
-  "Pathanamthitta",
-  "Thiruvananthapuram",
-  "Thrissur",
-  "Wayanad"
-];
+interface Location {
+  _id: string;
+  name: string;
+  code: string;
+  type: string;
+  parent?: string;
+}
 
 export default function BeneficiaryProfileCompletion() {
   const navigate = useNavigate();
@@ -37,8 +27,15 @@ export default function BeneficiaryProfileCompletion() {
   const [formData, setFormData] = useState({
     name: "",
     gender: "",
-    district: ""
+    districtId: "",
+    areaId: "",
+    unitId: ""
   });
+
+  const [districts, setDistricts] = useState<Location[]>([]);
+  const [areas, setAreas] = useState<Location[]>([]);
+  const [units, setUnits] = useState<Location[]>([]);
+  const [loadingLocations, setLoadingLocations] = useState(false);
 
   useEffect(() => {
     // Check if user is authenticated
@@ -52,10 +49,115 @@ export default function BeneficiaryProfileCompletion() {
     if (phone) {
       setPhoneNumber(phone);
     }
+
+    // Load existing profile data
+    loadProfile();
+    
+    // Load districts
+    loadDistricts();
   }, [navigate]);
+
+  const loadProfile = async () => {
+    try {
+      const response = await beneficiaryApi.getProfile();
+      const user = response.user;
+      
+      // Pre-fill form with existing data
+      if (user) {
+        setFormData({
+          name: user.name || "",
+          gender: user.profile?.gender || "",
+          districtId: user.profile?.location?.district?._id || user.profile?.location?.district || "",
+          areaId: user.profile?.location?.area?._id || user.profile?.location?.area || "",
+          unitId: user.profile?.location?.unit?._id || user.profile?.location?.unit || ""
+        });
+
+        // Load dependent dropdowns if location data exists
+        if (user.profile?.location?.district) {
+          const districtId = user.profile.location.district._id || user.profile.location.district;
+          await loadAreas(districtId);
+          
+          if (user.profile?.location?.area) {
+            const areaId = user.profile.location.area._id || user.profile.location.area;
+            await loadUnits(areaId);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load profile:', error);
+      // Don't show error toast - user might be completing profile for first time
+    }
+  };
+
+  const loadDistricts = async () => {
+    setLoadingLocations(true);
+    try {
+      const response = await beneficiaryApi.getLocations({ type: 'district' });
+      setDistricts(response.locations);
+    } catch (error) {
+      console.error('Failed to load districts:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load districts",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingLocations(false);
+    }
+  };
+
+  const loadAreas = async (districtId: string) => {
+    setLoadingLocations(true);
+    try {
+      const response = await beneficiaryApi.getLocations({ type: 'area', parent: districtId });
+      setAreas(response.locations);
+    } catch (error) {
+      console.error('Failed to load areas:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load areas",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingLocations(false);
+    }
+  };
+
+  const loadUnits = async (areaId: string) => {
+    setLoadingLocations(true);
+    try {
+      const response = await beneficiaryApi.getLocations({ type: 'unit', parent: areaId });
+      setUnits(response.locations);
+    } catch (error) {
+      console.error('Failed to load units:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load units",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingLocations(false);
+    }
+  };
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+
+    // Load dependent dropdowns
+    if (field === 'districtId') {
+      setFormData(prev => ({ ...prev, areaId: '', unitId: '' }));
+      setAreas([]);
+      setUnits([]);
+      if (value) {
+        loadAreas(value);
+      }
+    } else if (field === 'areaId') {
+      setFormData(prev => ({ ...prev, unitId: '' }));
+      setUnits([]);
+      if (value) {
+        loadUnits(value);
+      }
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -80,10 +182,28 @@ export default function BeneficiaryProfileCompletion() {
       return;
     }
 
-    if (!formData.district) {
+    if (!formData.districtId) {
       toast({
         title: "District Required",
         description: "Please select your district",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.areaId) {
+      toast({
+        title: "Area Required",
+        description: "Please select your area",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.unitId) {
+      toast({
+        title: "Unit Required",
+        description: "Please select your unit",
         variant: "destructive",
       });
       return;
@@ -95,9 +215,10 @@ export default function BeneficiaryProfileCompletion() {
         name: formData.name.trim(),
         profile: {
           gender: formData.gender,
-          address: {
-            district: formData.district,
-            state: "Kerala"
+          location: {
+            district: formData.districtId,
+            area: formData.areaId,
+            unit: formData.unitId
           }
         }
       };
@@ -108,11 +229,11 @@ export default function BeneficiaryProfileCompletion() {
       localStorage.setItem('beneficiary_user', JSON.stringify(response.user));
       
       toast({
-        title: "Profile Completed",
-        description: "Your profile has been set up successfully!",
+        title: "Profile Updated",
+        description: "Your profile has been updated successfully!",
       });
 
-      // Navigate to dashboard
+      // Navigate back to dashboard
       setTimeout(() => {
         navigate("/beneficiary/dashboard", { replace: true });
       }, 1000);
@@ -136,9 +257,9 @@ export default function BeneficiaryProfileCompletion() {
           <div className="flex justify-center mb-4">
             <img src={logo} alt="Logo" className="h-16 w-16 rounded-full" />
           </div>
-          <CardTitle className="text-2xl font-bold">Complete Your Profile</CardTitle>
+          <CardTitle className="text-2xl font-bold">Your Profile</CardTitle>
           <CardDescription>
-            Please provide your details to continue
+            Update your personal and location information
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -194,41 +315,109 @@ export default function BeneficiaryProfileCompletion() {
                   </div>
                 </RadioGroup>
               </div>
+            </div>
+
+            {/* Location Information */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+                <MapPin className="h-4 w-4" />
+                Location Details
+              </div>
 
               <div className="space-y-2">
                 <Label htmlFor="district">District *</Label>
                 <Select
-                  value={formData.district}
-                  onValueChange={(value) => handleInputChange('district', value)}
+                  value={formData.districtId}
+                  onValueChange={(value) => handleInputChange('districtId', value)}
+                  disabled={loadingLocations}
                 >
                   <SelectTrigger id="district">
                     <SelectValue placeholder="Select your district" />
                   </SelectTrigger>
                   <SelectContent>
-                    {KERALA_DISTRICTS.map((district) => (
-                      <SelectItem key={district} value={district}>
-                        {district}
+                    {districts.map((district) => (
+                      <SelectItem key={district._id} value={district._id}>
+                        {district.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="area">Area *</Label>
+                <Select
+                  value={formData.areaId}
+                  onValueChange={(value) => handleInputChange('areaId', value)}
+                  disabled={!formData.districtId || loadingLocations}
+                >
+                  <SelectTrigger id="area">
+                    <SelectValue placeholder={formData.districtId ? "Select your area" : "Select district first"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {areas.length > 0 ? (
+                      areas.map((area) => (
+                        <SelectItem key={area._id} value={area._id}>
+                          {area.name}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="no-areas" disabled>No areas available</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="unit">Unit *</Label>
+                <Select
+                  value={formData.unitId}
+                  onValueChange={(value) => handleInputChange('unitId', value)}
+                  disabled={!formData.areaId || loadingLocations}
+                >
+                  <SelectTrigger id="unit">
+                    <SelectValue placeholder={formData.areaId ? "Select your unit" : "Select area first"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {units.length > 0 ? (
+                      units.map((unit) => (
+                        <SelectItem key={unit._id} value={unit._id}>
+                          {unit.name}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="no-units" disabled>No units available</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
-            <Button 
-              type="submit" 
-              className="w-full bg-gradient-primary shadow-glow"
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving Profile...
-                </>
-              ) : (
-                "Complete Profile & Continue"
-              )}
-            </Button>
+            <div className="flex gap-3">
+              <Button 
+                type="button"
+                variant="outline"
+                className="flex-1"
+                onClick={() => navigate("/beneficiary/dashboard")}
+                disabled={isLoading}
+              >
+                Cancel
+              </Button>
+              <Button 
+                type="submit" 
+                className="flex-1 bg-gradient-primary shadow-glow"
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save Profile"
+                )}
+              </Button>
+            </div>
           </form>
         </CardContent>
       </Card>

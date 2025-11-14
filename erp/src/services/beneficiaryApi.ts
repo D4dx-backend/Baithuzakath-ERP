@@ -374,6 +374,23 @@ class BeneficiaryApiService {
     }>(response);
   }
 
+  // Location methods
+  async getLocations(params?: {
+    type?: 'district' | 'area' | 'unit';
+    parent?: string;
+  }): Promise<{ locations: Array<{ _id: string; name: string; code: string; type: string; parent?: string }> }> {
+    const queryParams = new URLSearchParams();
+    if (params?.type) queryParams.append('type', params.type);
+    if (params?.parent) queryParams.append('parent', params.parent);
+
+    const url = `${API_BASE_URL}/beneficiary/auth/locations?${queryParams.toString()}`;
+    const response = await fetch(url, {
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    return this.handleResponse<{ locations: Array<{ _id: string; name: string; code: string; type: string; parent?: string }> }>(response);
+  }
+
   // Utility methods
   logout(): void {
     localStorage.removeItem('beneficiary_token');

@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { X, Search, FileText, ExternalLink } from 'lucide-react';
+import { X, Search, FileText, ExternalLink, Eye } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
 import { locations as locationsApi, applications as applicationsApi, beneficiaries as beneficiariesApi } from '../../lib/api';
 import { useToast } from '@/hooks/use-toast';
+import { ApplicationDetailModal } from './ApplicationDetailModal';
 
 interface Location {
   _id: string;
@@ -100,6 +101,8 @@ export const BeneficiaryModal: React.FC<BeneficiaryModalProps> = ({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [applications, setApplications] = useState<Application[]>([]);
   const [loadingApplications, setLoadingApplications] = useState(false);
+  const [showApplicationDetail, setShowApplicationDetail] = useState(false);
+  const [selectedApplicationId, setSelectedApplicationId] = useState<string | null>(null);
 
   useEffect(() => {
     if (beneficiary && (mode === 'edit' || mode === 'view')) {
@@ -549,17 +552,33 @@ export const BeneficiaryModal: React.FC<BeneficiaryModalProps> = ({
                                 {new Date(app.createdAt).toLocaleDateString()}
                               </td>
                               <td className="px-4 py-2 text-center">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    navigate(`/applications/${app._id}`);
-                                    onClose();
-                                  }}
-                                  className="h-7 w-7 p-0"
-                                >
-                                  <ExternalLink className="h-3.5 w-3.5" />
-                                </Button>
+                                <div className="flex items-center justify-center gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      setSelectedApplicationId(app._id);
+                                      setShowApplicationDetail(true);
+                                    }}
+                                    className="h-7 px-2"
+                                    title="View Details"
+                                  >
+                                    <Eye className="h-3.5 w-3.5 mr-1" />
+                                    Details
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      navigate(`/applications/${app._id}`);
+                                      onClose();
+                                    }}
+                                    className="h-7 w-7 p-0"
+                                    title="Open in Applications"
+                                  >
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
                               </td>
                             </tr>
                           ))}
@@ -599,6 +618,16 @@ export const BeneficiaryModal: React.FC<BeneficiaryModalProps> = ({
           </div>
         </form>
       </div>
+
+      {/* Application Detail Modal */}
+      <ApplicationDetailModal
+        isOpen={showApplicationDetail}
+        applicationId={selectedApplicationId}
+        onClose={() => {
+          setShowApplicationDetail(false);
+          setSelectedApplicationId(null);
+        }}
+      />
     </div>
   );
 };

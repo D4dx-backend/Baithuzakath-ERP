@@ -385,7 +385,7 @@ router.patch('/:id/process',
     try {
       const { transactionId, utrNumber, notes } = req.body;
       
-      const payment = await Payment.findById(req.params.id);
+      const payment = await Payment.findById(req.params.id).populate('application');
       
       if (!payment) {
         return res.status(404).json({
@@ -418,9 +418,34 @@ router.patch('/:id/process',
 
       await payment.save();
 
+      // Mark application as completed when first payment is done
+      if (payment.application) {
+        const Application = require('../models/Application');
+        const application = await Application.findById(payment.application._id || payment.application);
+        
+        if (application && application.status !== 'completed') {
+          application.status = 'completed';
+          application.updatedBy = req.user._id;
+          
+          // Add to status history
+          if (!application.statusHistory) {
+            application.statusHistory = [];
+          }
+          application.statusHistory.push({
+            status: 'completed',
+            timestamp: new Date(),
+            updatedBy: req.user._id,
+            comment: 'Application marked as completed after first payment'
+          });
+          
+          await application.save();
+          console.log(`✅ Application ${application.applicationNumber} marked as completed after payment`);
+        }
+      }
+
       res.json({
         success: true,
-        message: 'Payment processed successfully',
+        message: 'Payment processed successfully and application marked as completed',
         data: payment,
         timestamp: new Date().toISOString()
       });
@@ -667,9 +692,9 @@ router.put('/:id',
   RBACMiddleware.hasAnyPermission(['finances.update.regional', 'finances.manage', 'super_admin', 'state_admin']),
   async (req, res) => {
     try {
-      const { amount, dueDate, method, phase, percentage, status } = req.body;
+      const { amount, dueDate, method, phase, percentage, status, paymentDate, chequeNumber } = req.body;
       
-      const payment = await Payment.findById(req.params.id);
+      const payment = await Payment.findById(req.params.id).populate('application');
       
       if (!payment) {
         return res.status(404).json({
@@ -697,13 +722,58 @@ router.put('/:id',
           payment.installment.number = Math.ceil((percentage / 100) * payment.installment.totalInstallments);
         }
       }
-      if (status !== undefined) payment.status = status;
+      if (status !== undefined) {
+        payment.status = status;
+        
+        // If payment is marked as completed, update timeline
+        if (status === 'completed') {
+          if (!payment.timeline) payment.timeline = {};
+          payment.timeline.completedAt = paymentDate ? new Date(paymentDate) : new Date();
+          payment.timeline.processedAt = new Date();
+          payment.processedBy = req.user._id;
+        }
+      }
+      
+      if (paymentDate !== undefined) {
+        if (!payment.timeline) payment.timeline = {};
+        payment.timeline.completedAt = new Date(paymentDate);
+      }
+      
+      if (chequeNumber !== undefined) {
+        if (!payment.cheque) payment.cheque = {};
+        payment.cheque.number = chequeNumber;
+      }
       
       // Update audit fields
       payment.lastModifiedBy = req.user._id;
       payment.updatedAt = new Date();
 
       await payment.save();
+
+      // Update application status to completed when payment is completed
+      if (status === 'completed' && payment.application) {
+        const Application = require('../models/Application');
+        const application = await Application.findById(payment.application._id || payment.application);
+        
+        if (application && application.status !== 'completed') {
+          application.status = 'completed';
+          application.updatedBy = req.user._id;
+          
+          // Add to status history
+          if (!application.statusHistory) {
+            application.statusHistory = [];
+          }
+          application.statusHistory.push({
+            status: 'completed',
+            timestamp: new Date(),
+            updatedBy: req.user._id,
+            comment: 'Application marked as completed after payment completion'
+          });
+          
+          await application.save();
+          console.log(`✅ Application ${application.applicationNumber} marked as completed after payment`);
+        }
+      }
 
       // Populate the updated payment for response
       const updatedPayment = await Payment.findById(payment._id)
@@ -714,7 +784,7 @@ router.put('/:id',
 
       res.json({
         success: true,
-        message: 'Payment updated successfully',
+        message: status === 'completed' ? 'Payment completed and application status updated' : 'Payment updated successfully',
         data: updatedPayment,
         timestamp: new Date().toISOString()
       });
