@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
 import { ShortlistModal } from "@/components/modals/ShortlistModal";
 import { ReportsModal } from "@/components/modals/ReportsModal";
-import { Download, Eye, CheckCircle, XCircle, Clock, CalendarIcon, FileText, Loader2, UserCheck } from "lucide-react";
+import { Download, Eye, CheckCircle, XCircle, Clock, CalendarIcon, FileText, Loader2, UserCheck, Grid, List } from "lucide-react";
 import { useRBAC } from "@/hooks/useRBAC";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ApplicationViewModal } from "@/components/modals/ApplicationViewModal";
-import { ApplicationFilters } from "@/components/filters/ApplicationFilters";
+import { ApplicationDetailModal } from "@/components/modals/ApplicationDetailModal";
+import { GenericFilters } from "@/components/filters/GenericFilters";
 import { useApplicationFilters } from "@/hooks/useApplicationFilters";
 import { useApplicationExport } from "@/hooks/useApplicationExport";
 import { toast } from "@/hooks/use-toast";
@@ -19,7 +21,15 @@ interface Application {
   _id: string;
   applicationNumber: string;
   beneficiary: { _id: string; name: string; phone: string; };
-  scheme: { _id: string; name: string; code: string; requiresInterview?: boolean; };
+  scheme: { 
+    _id: string; 
+    name: string; 
+    code: string; 
+    requiresInterview?: boolean;
+    applicationSettings?: {
+      requiresInterview?: boolean;
+    };
+  };
   project?: { _id: string; name: string; code: string; };
   status: string;
   requestedAmount: number;
@@ -58,15 +68,21 @@ export default function AllApplications() {
   const [applicationList, setApplicationList] = useState<Application[]>([]);
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
   const [showViewModal, setShowViewModal] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedApplicationId, setSelectedApplicationId] = useState<string | null>(null);
   const [showShortlistModal, setShowShortlistModal] = useState(false);
   const [showReportsModal, setShowReportsModal] = useState(false);
   const [modalMode, setModalMode] = useState<"view" | "approve" | "reject">("view");
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ current: 1, pages: 1, total: 0, limit: 10 });
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
   const canViewApplications = hasAnyPermission(['applications.read.all', 'applications.read.regional', 'applications.read.own']);
   const canApproveApplications = hasPermission('applications.approve');
   const hasAdminAccess = user && ['super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'].includes(user.role);
+  
+  // Only area_admin, state_admin, and super_admin can review/approve applications
+  const canReviewApplications = user && ['super_admin', 'state_admin', 'area_admin'].includes(user.role);
 
   useEffect(() => {
     if (!hasAdminAccess) {
@@ -175,34 +191,51 @@ export default function AllApplications() {
     exportApplications(exportParams, 'all_applications');
   };
 
-  const getActionButton = (app: Application) => {
-    const requiresInterview = app.scheme?.requiresInterview || false;
-
-    switch (app.status) {
-      case 'pending':
-      case 'under_review':
-      case 'field_verification':
-        if (requiresInterview) {
-          return (
-            <Button variant="outline" size="sm" onClick={() => { setSelectedApp(app); setShowShortlistModal(true); }} className="flex-1">
-              <UserCheck className="mr-2 h-4 w-4" />Schedule Interview
-            </Button>
-          );
-        } else {
-          return (
-            <>
-              <Button variant="outline" size="sm" onClick={() => handleViewApplication(app, "approve")} className="flex-1" disabled={!canApproveApplications}>
-                <CheckCircle className="mr-2 h-4 w-4" />Approve
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => handleViewApplication(app, "reject")} className="flex-1" disabled={!canApproveApplications}>
-                <XCircle className="mr-2 h-4 w-4" />Reject
-              </Button>
-            </>
-          );
-        }
-      default:
-        return null;
+  const getActionButton = (app: Application, isTableView: boolean = false) => {
+    // Unit Admin and District Admin can only view - no action buttons
+    if (!canReviewApplications) {
+      return null;
     }
+
+    const requiresInterview = app.scheme?.requiresInterview || app.scheme?.applicationSettings?.requiresInterview || false;
+    const hasInterviewScheduled = app.interview?.scheduledDate != null;
+
+    // Don't show schedule interview button for approved, rejected, or completed applications
+    if (app.status === 'approved' || app.status === 'rejected' || app.status === 'completed') {
+      return null;
+    }
+
+    // For schemes requiring interview
+    if (requiresInterview) {
+      // Check if interview is scheduled but not completed
+      if (hasInterviewScheduled || app.status === 'interview_scheduled') {
+        // Interview is scheduled, show reschedule button
+        return isTableView ? (
+          <Button variant="outline" size="sm" onClick={() => { setSelectedApp(app); setShowShortlistModal(true); }}>
+            <CalendarIcon className="h-4 w-4" />
+          </Button>
+        ) : (
+          <Button variant="outline" size="sm" onClick={() => { setSelectedApp(app); setShowShortlistModal(true); }} className="flex-1">
+            <CalendarIcon className="mr-2 h-4 w-4" />Reschedule
+          </Button>
+        );
+      }
+      
+      // Interview not scheduled yet, show schedule button
+      return isTableView ? (
+        <Button variant="outline" size="sm" onClick={() => { setSelectedApp(app); setShowShortlistModal(true); }}>
+          <UserCheck className="h-4 w-4" />
+        </Button>
+      ) : (
+        <Button variant="outline" size="sm" onClick={() => { setSelectedApp(app); setShowShortlistModal(true); }} className="flex-1">
+          <UserCheck className="mr-2 h-4 w-4" />Schedule Interview
+        </Button>
+      );
+    }
+
+    // For schemes NOT requiring interview - no action buttons in list view
+    // Users should approve/reject from the Details modal
+    return null;
   };
 
   return (
@@ -214,34 +247,58 @@ export default function AllApplications() {
           <h1 className="text-3xl font-bold">All Applications</h1>
           <p className="text-muted-foreground mt-1">View and manage all scheme applications</p>
         </div>
-        <Button variant="outline" onClick={handleExport} disabled={exporting}>
-          <Download className="mr-2 h-4 w-4" />
-          {exporting ? "Exporting..." : "Export Report"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={handleExport} disabled={exporting}>
+            <Download className="mr-2 h-4 w-4" />
+            {exporting ? "Exporting..." : "Export Report"}
+          </Button>
+          <div className="flex items-center border rounded-lg p-1">
+            <Button variant={viewMode === 'cards' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('cards')}>
+              <Grid className="h-4 w-4" />
+            </Button>
+            <Button variant={viewMode === 'table' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('table')}>
+              <List className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
       </div>
 
-      <ApplicationFilters
+      <GenericFilters
         searchTerm={filterHook.filters.searchTerm}
         onSearchChange={filterHook.setSearchTerm}
+        searchPlaceholder="Search by name or ID..."
         showStatusFilter={true}
         statusFilter={filterHook.filters.statusFilter}
         onStatusChange={filterHook.setStatusFilter}
+        showProjectFilter={true}
         projectFilter={filterHook.filters.projectFilter}
         onProjectChange={filterHook.setProjectFilter}
         projectOptions={filterHook.dropdownOptions.projectOptions}
+        showDistrictFilter={true}
         districtFilter={filterHook.filters.districtFilter}
         onDistrictChange={filterHook.setDistrictFilter}
         districtOptions={filterHook.dropdownOptions.districtOptions}
+        showAreaFilter={true}
         areaFilter={filterHook.filters.areaFilter}
         onAreaChange={filterHook.setAreaFilter}
         areaOptions={filterHook.dropdownOptions.areaOptions}
+        showUnitFilter={true}
+        unitFilter={filterHook.filters.unitFilter}
+        onUnitChange={filterHook.setUnitFilter}
+        unitOptions={filterHook.dropdownOptions.unitOptions}
+        showSchemeFilter={true}
         schemeFilter={filterHook.filters.schemeFilter}
         onSchemeChange={filterHook.setSchemeFilter}
         schemeOptions={filterHook.dropdownOptions.schemeOptions}
+        showGenderFilter={true}
+        genderFilter={filterHook.filters.genderFilter}
+        onGenderChange={filterHook.setGenderFilter}
+        showDateFilters={true}
         fromDate={filterHook.filters.fromDate}
         onFromDateChange={filterHook.setFromDate}
         toDate={filterHook.filters.toDate}
         onToDateChange={filterHook.setToDate}
+        showQuickDateFilter={true}
         quickDateFilter={filterHook.filters.quickDateFilter}
         onQuickDateFilterChange={filterHook.setQuickDateFilter}
         onClearFilters={filterHook.clearAllFilters}
@@ -254,7 +311,7 @@ export default function AllApplications() {
             <div className="flex items-center justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /><span className="ml-2">Loading applications...</span></div>
           ) : applicationList.length === 0 ? (
             <p className="text-muted-foreground text-center py-8">No applications found</p>
-          ) : (
+          ) : viewMode === 'cards' ? (
             <div className="space-y-4">
               {applicationList.map((app) => {
                 const statusInfo = statusConfig[app.status as keyof typeof statusConfig] || statusConfig.pending;
@@ -285,8 +342,16 @@ export default function AllApplications() {
                         </Badge>
                         <div className="flex flex-col gap-2 w-full">
                           <div className="flex gap-2">
-                            <Button variant="outline" size="sm" onClick={() => handleViewApplication(app, "view")} className="flex-1">
-                              <Eye className="mr-2 h-4 w-4" />View
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => {
+                                setSelectedApplicationId(app._id);
+                                setShowDetailModal(true);
+                              }} 
+                              className="flex-1"
+                            >
+                              <Eye className="mr-2 h-4 w-4" />Details
                             </Button>
                             {getActionButton(app)}
                           </div>
@@ -300,6 +365,72 @@ export default function AllApplications() {
                 );
               })}
             </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Applicant</TableHead>
+                  <TableHead>Application #</TableHead>
+                  <TableHead>Scheme</TableHead>
+                  <TableHead>Project</TableHead>
+                  <TableHead>Location</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {applicationList.map((app) => {
+                  const statusInfo = statusConfig[app.status as keyof typeof statusConfig] || statusConfig.pending;
+                  const StatusIcon = statusInfo.icon;
+                  
+                  return (
+                    <TableRow key={app._id}>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{app.beneficiary.name}</div>
+                          <div className="text-sm text-muted-foreground">{app.beneficiary.phone}</div>
+                          <Badge variant="outline" className={`${statusInfo.color} mt-1`}>
+                            <StatusIcon className="mr-1 h-3 w-3" />
+                            {app.status.replace('_', ' ').toUpperCase()}
+                          </Badge>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-mono text-sm">{app.applicationNumber}</div>
+                        <div className="text-xs text-muted-foreground">{new Date(app.createdAt).toLocaleDateString()}</div>
+                        <div className="text-sm font-medium mt-1">₹{app.requestedAmount.toLocaleString()}</div>
+                      </TableCell>
+                      <TableCell>{app.scheme.name}</TableCell>
+                      <TableCell>{app.project?.name || 'N/A'}</TableCell>
+                      <TableCell>
+                        <div className="text-sm">
+                          <div>{app.district.name}</div>
+                          <div className="text-muted-foreground">{app.area.name}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => {
+                              setSelectedApplicationId(app._id);
+                              setShowDetailModal(true);
+                            }}
+                            title="View Details"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => { setSelectedApp(app); setShowReportsModal(true); }} title="Reports">
+                            <FileText className="h-4 w-4" />
+                          </Button>
+                          {getActionButton(app, true)}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           )}
 
           {pagination.pages > 1 && (
@@ -322,6 +453,16 @@ export default function AllApplications() {
           <ReportsModal isOpen={showReportsModal} onClose={() => { setShowReportsModal(false); setSelectedApp(null); }} applicationId={selectedApp.applicationNumber} applicantName={selectedApp.beneficiary.name} />
         </>
       )}
+
+      {/* Application Detail Modal */}
+      <ApplicationDetailModal
+        isOpen={showDetailModal}
+        applicationId={selectedApplicationId}
+        onClose={() => {
+          setShowDetailModal(false);
+          setSelectedApplicationId(null);
+        }}
+      />
     </div>
   );
 }

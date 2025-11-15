@@ -41,7 +41,7 @@ export function SchemeModal({ open, onOpenChange, scheme, mode, onSuccess }: Sch
     benefitDescription: "",
     maxApplications: "1000",
     maxBeneficiaries: "",
-    autoApproval: false,
+    requireFieldVerification: false,
     requiresInterview: false,
     allowMultipleApplications: false,
     // Eligibility
@@ -81,7 +81,7 @@ export function SchemeModal({ open, onOpenChange, scheme, mode, onSuccess }: Sch
         benefitDescription: scheme.benefits?.description || "",
         maxApplications: scheme.applicationSettings?.maxApplications?.toString() || "1000",
         maxBeneficiaries: scheme.applicationSettings?.maxBeneficiaries?.toString() || "",
-        autoApproval: scheme.applicationSettings?.autoApproval || false,
+        requireFieldVerification: scheme.applicationSettings?.requireFieldVerification || false,
         requiresInterview: scheme.applicationSettings?.requiresInterview || false,
         allowMultipleApplications: scheme.applicationSettings?.allowMultipleApplications || false,
         minAge: scheme.eligibility?.ageRange?.min?.toString() || "",
@@ -115,7 +115,7 @@ export function SchemeModal({ open, onOpenChange, scheme, mode, onSuccess }: Sch
         benefitDescription: "",
         maxApplications: "1000",
         maxBeneficiaries: "",
-        autoApproval: false,
+        requireFieldVerification: false,
         requiresInterview: false,
         allowMultipleApplications: false,
         minAge: "",
@@ -191,7 +191,7 @@ export function SchemeModal({ open, onOpenChange, scheme, mode, onSuccess }: Sch
           endDate: endDate?.toISOString(),
           maxApplications: parseInt(formData.maxApplications),
           maxBeneficiaries: formData.maxBeneficiaries ? parseInt(formData.maxBeneficiaries) : undefined,
-          autoApproval: formData.autoApproval,
+          requireFieldVerification: formData.requireFieldVerification,
           requiresInterview: formData.requiresInterview,
           allowMultipleApplications: formData.allowMultipleApplications
         },
@@ -478,10 +478,10 @@ export function SchemeModal({ open, onOpenChange, scheme, mode, onSuccess }: Sch
 
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <Label>Auto Approval</Label>
+                <Label>Require Field Verification</Label>
                 <Switch 
-                  checked={formData.autoApproval} 
-                  onCheckedChange={(checked) => handleInputChange("autoApproval", checked)}
+                  checked={formData.requireFieldVerification} 
+                  onCheckedChange={(checked) => handleInputChange("requireFieldVerification", checked)}
                 />
               </div>
               

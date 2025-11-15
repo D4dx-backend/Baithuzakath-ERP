@@ -138,7 +138,7 @@ const schemeSchema = new mongoose.Schema({
       type: Number,
       min: 1
     },
-    autoApproval: {
+    requireFieldVerification: {
       type: Boolean,
       default: false
     },

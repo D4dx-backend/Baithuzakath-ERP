@@ -1,21 +1,28 @@
 import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 
 interface BeneficiaryAuthGuardProps {
   children: React.ReactNode;
+  requireVerification?: boolean; // If true, requires profile to be completed
 }
 
-export default function BeneficiaryAuthGuard({ children }: BeneficiaryAuthGuardProps) {
+export default function BeneficiaryAuthGuard({ 
+  children, 
+  requireVerification = true 
+}: BeneficiaryAuthGuardProps) {
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     const token = localStorage.getItem('beneficiary_token');
     const userRole = localStorage.getItem('user_role');
+    const userStr = localStorage.getItem('beneficiary_user');
     
     console.log('🔍 BeneficiaryAuthGuard - Token exists:', !!token);
     console.log('🔍 BeneficiaryAuthGuard - User role:', userRole);
     
+    // Check authentication
     if (!token || userRole !== 'beneficiary') {
       console.log('❌ BeneficiaryAuthGuard - Authentication failed, redirecting to login');
       toast({
@@ -27,8 +34,35 @@ export default function BeneficiaryAuthGuard({ children }: BeneficiaryAuthGuardP
       return;
     }
     
+    // Check profile completion if required
+    if (requireVerification && userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        
+        // If user is not verified and not already on profile completion page
+        if (!user.isVerified && location.pathname !== '/beneficiary/profile-completion') {
+          console.log('⚠️ BeneficiaryAuthGuard - Profile incomplete, redirecting to profile completion');
+          toast({
+            title: "Complete Your Profile",
+            description: "Please complete your profile to continue",
+          });
+          navigate('/beneficiary/profile-completion', { replace: true });
+          return;
+        }
+        
+        // If user is verified but trying to access profile completion page
+        if (user.isVerified && location.pathname === '/beneficiary/profile-completion') {
+          console.log('✅ BeneficiaryAuthGuard - Profile already complete, redirecting to dashboard');
+          navigate('/beneficiary/dashboard', { replace: true });
+          return;
+        }
+      } catch (error) {
+        console.error('Error parsing user data:', error);
+      }
+    }
+    
     console.log('✅ BeneficiaryAuthGuard - Authentication successful');
-  }, [navigate]);
+  }, [navigate, location.pathname, requireVerification]);
 
   // Only render children if authenticated
   const token = localStorage.getItem('beneficiary_token');

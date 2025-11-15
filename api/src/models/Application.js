@@ -32,8 +32,7 @@ const applicationSchema = new mongoose.Schema({
   status: {
     type: String,
     enum: [
-      'pending', 'under_review', 'field_verification', 
-      'interview_scheduled', 'interview_completed', 'approved', 
+      'pending', 'interview_scheduled', 'interview_completed', 'approved', 
       'rejected', 'on_hold', 'cancelled', 'disbursed', 'completed'
     ],
     default: 'pending'
@@ -58,6 +57,12 @@ const applicationSchema = new mongoose.Schema({
       default: Date.now
     }
   }],
+  
+  // Form Data - Custom fields submitted by beneficiary
+  formData: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
   
   // Review Information
   reviewedBy: {
@@ -174,6 +179,23 @@ const applicationSchema = new mongoose.Schema({
     },
     notes: String
   }],
+
+  // Status History for tracking status changes
+  statusHistory: [{
+    status: {
+      type: String,
+      required: true
+    },
+    timestamp: {
+      type: Date,
+      default: Date.now
+    },
+    updatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    comment: String
+  }],
   
   // Interview Information
   interview: {
@@ -217,6 +239,40 @@ const applicationSchema = new mongoose.Schema({
       default: 'pending'
     }
   },
+
+  // Interview History (tracks all schedule/reschedule changes)
+  interviewHistory: [{
+    scheduledDate: {
+      type: Date,
+      required: true
+    },
+    scheduledTime: {
+      type: String,
+      required: true
+    },
+    type: {
+      type: String,
+      enum: ['offline', 'online'],
+      required: true
+    },
+    location: String,
+    meetingLink: String,
+    scheduledBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    },
+    scheduledAt: {
+      type: Date,
+      default: Date.now
+    },
+    action: {
+      type: String,
+      enum: ['scheduled', 'rescheduled', 'cancelled'],
+      default: 'scheduled'
+    },
+    reason: String
+  }],
   
   // Location Information (inherited from beneficiary)
   state: {

@@ -8,56 +8,8 @@ const { validateRequest } = require('../middleware/validation');
 const { body, param, query } = require('express-validator');
 
 // ============================================================================
-// ADMIN ROUTES FOR BENEFICIARY MANAGEMENT
-// These are defined FIRST and have their own authorization
-// ============================================================================
-
-router.get('/export', 
-  authenticate, 
-  authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'), 
-  beneficiaryController.exportBeneficiaries
-);
-
-router.get('/', 
-  authenticate, 
-  authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'), 
-  beneficiaryController.getBeneficiaries
-);
-
-router.post('/', 
-  authenticate, 
-  authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'), 
-  beneficiaryController.createBeneficiary
-);
-
-router.put('/:id', 
-  authenticate, 
-  authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'), 
-  beneficiaryController.updateBeneficiary
-);
-
-router.delete('/:id', 
-  authenticate, 
-  authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'), 
-  beneficiaryController.deleteBeneficiary
-);
-
-router.patch('/:id/verify', 
-  authenticate, 
-  authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'), 
-  beneficiaryController.verifyBeneficiary
-);
-
-// Admin GET /:id route - must come after other specific routes
-router.get('/:id', 
-  authenticate, 
-  authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'), 
-  beneficiaryController.getBeneficiary
-);
-
-// ============================================================================
 // BENEFICIARY-FACING ROUTES (Public & Protected)
-// These come AFTER admin routes
+// These MUST come FIRST to avoid being caught by admin routes
 // ============================================================================
 
 // Authentication routes (no auth required)
@@ -92,6 +44,13 @@ router.post('/auth/resend-otp', [
     .withMessage('Please enter a valid Indian mobile number'),
   validateRequest
 ], beneficiaryAuthController.resendOTP);
+
+// Get locations for signup (no auth required)
+router.get('/auth/locations', [
+  query('type').optional().isIn(['district', 'area', 'unit']),
+  query('parent').optional().isMongoId(),
+  validateRequest
+], beneficiaryAuthController.getLocations);
 
 // Protected beneficiary routes (require authentication and beneficiary role)
 router.get('/auth/profile', 

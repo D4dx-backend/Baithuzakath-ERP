@@ -597,12 +597,23 @@ router.patch('/:id/complete',
       if (!interview) {
         console.log('🔍 Trying to find by application ID/number:', id);
         
-        application = await Application.findOne({
-          $or: [
-            { _id: id },
-            { applicationNumber: id }
-          ]
-        });
+        // Build query based on whether id is a valid ObjectId
+        const mongoose = require('mongoose');
+        let query;
+        if (mongoose.Types.ObjectId.isValid(id) && id.match(/^[0-9a-fA-F]{24}$/)) {
+          // Valid ObjectId format - search by both _id and applicationNumber
+          query = {
+            $or: [
+              { _id: id },
+              { applicationNumber: id }
+            ]
+          };
+        } else {
+          // Not a valid ObjectId - only search by applicationNumber
+          query = { applicationNumber: id };
+        }
+        
+        application = await Application.findOne(query);
 
         if (application) {
           console.log('📄 Found application:', application.applicationNumber);
@@ -636,16 +647,27 @@ router.patch('/:id/complete',
       }
 
       // Check permission
-      const hasPermission = await RBACMiddleware.checkApplicationAccess(req.user, application);
-      if (!hasPermission) {
-        console.log('❌ Access denied');
-        return res.status(403).json({
-          success: false,
-          message: 'Access denied for this application',
-          timestamp: new Date().toISOString()
-        });
+      console.log('🔐 Checking access for user:', {
+        userId: req.user._id,
+        role: req.user.role,
+        applicationId: application._id,
+        applicationNumber: application.applicationNumber
+      });
+      
+      // Super admin and state admin have full access
+      if (req.user.role !== 'super_admin' && req.user.role !== 'state_admin') {
+        const hasPermission = await RBACMiddleware.checkApplicationAccess(req.user, application);
+        if (!hasPermission) {
+          console.log('❌ Access denied for user:', req.user.role);
+          return res.status(403).json({
+            success: false,
+            message: 'Access denied for this application',
+            timestamp: new Date().toISOString()
+          });
+        }
       }
-
+      
+      console.log('✅ Access granted');
       console.log('✅ Completing interview:', interview.interviewNumber);
 
       // Update the Interview document
@@ -687,9 +709,65 @@ router.patch('/:id/complete',
         console.log('💰 Distribution timeline saved:', req.body.distributionTimeline.length, 'phases');
       }
 
-      await application.save();
+      console.log('💾 Saving application with status:', application.status);
+      console.log('💾 Application interview data:', JSON.stringify(application.interview, null, 2));
+      
+      // Mark the document as modified to ensure save triggers
+      application.markModified('interview');
+      application.markModified('status');
+      
+      try {
+        const savedApp = await application.save();
+        console.log('✅ Application updated successfully, new status:', savedApp.status);
+      } catch (saveError) {
+        console.error('❌ Error saving application:', saveError);
+        console.error('❌ Error name:', saveError.name);
+        console.error('❌ Error message:', saveError.message);
+        if (saveError.errors) {
+          console.error('❌ Validation errors:', JSON.stringify(saveError.errors, null, 2));
+        }
+        console.error('Application data:', {
+          id: application._id,
+          status: application.status,
+          interview: application.interview
+        });
+        
+        // Return error response immediately
+        return res.status(400).json({
+          success: false,
+          message: 'Failed to save application',
+          error: saveError.message,
+          validationErrors: saveError.errors,
+          timestamp: new Date().toISOString()
+        });
+      }
 
-      console.log('✅ Application updated successfully');
+      // Create a report entry for the approval/rejection decision
+      try {
+        const Report = require('../models/Report');
+        const reportTitle = result === 'passed' 
+          ? 'Interview Passed - Application Approved' 
+          : 'Interview Failed - Application Rejected';
+        
+        const report = new Report({
+          application: application._id,
+          reportDate: new Date(),
+          reportType: 'interview',
+          title: reportTitle,
+          details: notes || `Interview ${result}. ${result === 'passed' ? 'Application has been approved.' : 'Application has been rejected.'}`,
+          status: 'submitted',
+          priority: result === 'passed' ? 'high' : 'medium',
+          followUpRequired: false,
+          isPublic: true,
+          createdBy: req.user._id
+        });
+
+        await report.save();
+        console.log('✅ Report created for interview decision:', report.reportNumber);
+      } catch (reportError) {
+        console.error('⚠️ Error creating report:', reportError);
+        // Don't fail the interview completion if report creation fails
+      }
 
       // If interview passed, create payment schedule/disbursement
       if (result === 'passed' && application.requestedAmount) {
@@ -899,16 +977,20 @@ router.patch('/interview/:interviewId/complete',
       }
 
       // Check permission
-      const hasPermission = await RBACMiddleware.checkApplicationAccess(req.user, application);
-      if (!hasPermission) {
-        console.log('❌ Access denied');
-        return res.status(403).json({
-          success: false,
-          message: 'Access denied for this application',
-          timestamp: new Date().toISOString()
-        });
+      // Super admin and state admin have full access
+      if (req.user.role !== 'super_admin' && req.user.role !== 'state_admin') {
+        const hasPermission = await RBACMiddleware.checkApplicationAccess(req.user, application);
+        if (!hasPermission) {
+          console.log('❌ Access denied');
+          return res.status(403).json({
+            success: false,
+            message: 'Access denied for this application',
+            timestamp: new Date().toISOString()
+          });
+        }
       }
 
+      console.log('✅ Access granted');
       console.log('✅ Completing interview:', interview.interviewNumber);
 
       // Check if interview was already completed (for editing)
@@ -943,9 +1025,65 @@ router.patch('/interview/:interviewId/complete',
         console.log('💰 Distribution timeline saved:', req.body.distributionTimeline.length, 'phases');
       }
 
-      await application.save();
+      console.log('💾 Saving application with status:', application.status);
+      console.log('💾 Application interview data:', JSON.stringify(application.interview, null, 2));
+      
+      // Mark the document as modified to ensure save triggers
+      application.markModified('interview');
+      application.markModified('status');
+      
+      try {
+        const savedApp = await application.save();
+        console.log('✅ Application updated successfully, new status:', savedApp.status);
+      } catch (saveError) {
+        console.error('❌ Error saving application:', saveError);
+        console.error('❌ Error name:', saveError.name);
+        console.error('❌ Error message:', saveError.message);
+        if (saveError.errors) {
+          console.error('❌ Validation errors:', JSON.stringify(saveError.errors, null, 2));
+        }
+        console.error('Application data:', {
+          id: application._id,
+          status: application.status,
+          interview: application.interview
+        });
+        
+        // Return error response immediately
+        return res.status(400).json({
+          success: false,
+          message: 'Failed to save application',
+          error: saveError.message,
+          validationErrors: saveError.errors,
+          timestamp: new Date().toISOString()
+        });
+      }
 
-      console.log('✅ Application updated successfully');
+      // Create a report entry for the approval/rejection decision
+      try {
+        const Report = require('../models/Report');
+        const reportTitle = result === 'passed' 
+          ? 'Interview Passed - Application Approved' 
+          : 'Interview Failed - Application Rejected';
+        
+        const report = new Report({
+          application: application._id,
+          reportDate: new Date(),
+          reportType: 'interview',
+          title: reportTitle,
+          details: notes || `Interview ${result}. ${result === 'passed' ? 'Application has been approved.' : 'Application has been rejected.'}`,
+          status: 'submitted',
+          priority: result === 'passed' ? 'high' : 'medium',
+          followUpRequired: false,
+          isPublic: true,
+          createdBy: req.user._id
+        });
+
+        await report.save();
+        console.log('✅ Report created for interview decision:', report.reportNumber);
+      } catch (reportError) {
+        console.error('⚠️ Error creating report:', reportError);
+        // Don't fail the interview completion if report creation fails
+      }
 
       // If interview passed, create payment schedule/disbursement (only if not already created)
       if (result === 'passed' && application.requestedAmount && !wasAlreadyCompleted) {

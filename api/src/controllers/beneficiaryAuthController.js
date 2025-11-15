@@ -1,5 +1,5 @@
 const authService = require('../services/authService');
-const { User } = require('../models');
+const { User, Location } = require('../models');
 const ResponseHelper = require('../utils/responseHelper');
 const staticOTPConfig = require('../config/staticOTP');
 
@@ -104,7 +104,13 @@ class BeneficiaryAuthController {
       }
 
       // Generate JWT token
+      console.log('🔑 Generating token for beneficiary:');
+      console.log('- User ID:', user._id);
+      console.log('- User role:', user.role);
+      console.log('- User phone:', user.phone);
+      
       const token = authService.generateToken(user);
+      console.log('- Token generated (first 50 chars):', token.substring(0, 50) + '...');
 
       // Update last login and clear OTP
       user.lastLogin = new Date();
@@ -120,6 +126,9 @@ class BeneficiaryAuthController {
         isVerified: user.isVerified,
         profile: user.profile
       };
+
+      console.log('✅ Beneficiary login successful');
+      console.log('- Returning user data:', userData);
 
       return ResponseHelper.success(res, {
         user: userData,
@@ -140,33 +149,60 @@ class BeneficiaryAuthController {
   async updateProfile(req, res) {
     try {
       const userId = req.user._id;
-      const updates = req.body;
+      const { name, profile } = req.body;
 
-      // Only allow specific fields to be updated
-      const allowedFields = [
-        'name', 
-        'profile.dateOfBirth', 
-        'profile.gender', 
-        'profile.address',
-        'profile.emergencyContact'
-      ];
+      // Build update object
+      const updateData = {
+        updatedBy: userId,
+        isVerified: true // Mark as verified after profile completion
+      };
 
-      const filteredUpdates = {};
-      Object.keys(updates).forEach(key => {
-        if (allowedFields.includes(key) || key.startsWith('profile.')) {
-          filteredUpdates[key] = updates[key];
+      // Update name if provided
+      if (name) {
+        updateData.name = name.trim();
+      }
+
+      // Update profile fields if provided
+      if (profile) {
+        if (profile.dateOfBirth) {
+          updateData['profile.dateOfBirth'] = profile.dateOfBirth;
         }
-      });
+        if (profile.gender) {
+          updateData['profile.gender'] = profile.gender;
+        }
+        if (profile.address) {
+          updateData['profile.address'] = profile.address;
+        }
+        if (profile.emergencyContact) {
+          updateData['profile.emergencyContact'] = profile.emergencyContact;
+        }
+        // Update location references
+        if (profile.location) {
+          if (profile.location.district) {
+            updateData['profile.location.district'] = profile.location.district;
+          }
+          if (profile.location.area) {
+            updateData['profile.location.area'] = profile.location.area;
+          }
+          if (profile.location.unit) {
+            updateData['profile.location.unit'] = profile.location.unit;
+          }
+        }
+      }
 
       const user = await User.findByIdAndUpdate(
         userId,
-        { 
-          ...filteredUpdates,
-          updatedBy: userId,
-          isVerified: true // Mark as verified after profile completion
-        },
+        { $set: updateData },
         { new: true, runValidators: true }
-      ).select('-password -otp');
+      )
+        .select('-password -otp')
+        .populate('profile.location.district', 'name code type')
+        .populate('profile.location.area', 'name code type')
+        .populate('profile.location.unit', 'name code type');
+
+      if (!user) {
+        return ResponseHelper.error(res, 'User not found', 404);
+      }
 
       return ResponseHelper.success(res, { user }, 'Profile updated successfully');
 
@@ -182,7 +218,11 @@ class BeneficiaryAuthController {
    */
   async getProfile(req, res) {
     try {
-      const user = await User.findById(req.user._id).select('-password -otp');
+      const user = await User.findById(req.user._id)
+        .select('-password -otp')
+        .populate('profile.location.district', 'name code type')
+        .populate('profile.location.area', 'name code type')
+        .populate('profile.location.unit', 'name code type');
 
       if (!user) {
         return ResponseHelper.error(res, 'User not found', 404);
@@ -260,6 +300,36 @@ class BeneficiaryAuthController {
     } catch (error) {
       console.error('❌ Resend OTP Error:', error);
       return ResponseHelper.error(res, error.message, 500);
+    }
+  }
+
+  /**
+   * Get locations for beneficiary signup
+   * GET /api/beneficiary/auth/locations
+   */
+  async getLocations(req, res) {
+    try {
+      const { type, parent } = req.query;
+
+      const query = { isActive: true };
+      
+      if (type) {
+        query.type = type;
+      }
+      
+      if (parent) {
+        query.parent = parent;
+      }
+
+      const locations = await Location.find(query)
+        .select('_id name code type parent')
+        .sort({ name: 1 });
+
+      return ResponseHelper.success(res, { locations }, 'Locations retrieved successfully');
+
+    } catch (error) {
+      console.error('❌ Get Locations Error:', error);
+      return ResponseHelper.error(res, 'Failed to retrieve locations', 500);
     }
   }
 }

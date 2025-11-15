@@ -509,8 +509,8 @@ class RBACMiddleware {
    */
   static async checkApplicationAccess(user, application) {
     try {
-      // Super admin has access to everything
-      if (user.role === 'super_admin') {
+      // Super admin and state admin have access to everything
+      if (user.role === 'super_admin' || user.role === 'state_admin') {
         return true;
       }
 

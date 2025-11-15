@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { LogOut, FileText, Calendar, IndianRupee, Bell, Search, Loader2 } from "lucide-react";
+import { LogOut, FileText, Calendar, IndianRupee, Bell, Search, Loader2, User } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -57,29 +57,77 @@ export default function BeneficiaryDashboard() {
     try {
       setIsLoading(true);
       
+      // Debug: Check if token exists
+      const token = localStorage.getItem('beneficiary_token');
+      console.log('🔍 Dashboard - Loading data');
+      console.log('- Token exists:', !!token);
+      console.log('- Token (first 20 chars):', token ? token.substring(0, 20) + '...' : 'null');
+      console.log('- User role:', localStorage.getItem('user_role'));
+      
+      if (!token) {
+        console.error('❌ No token found! Redirecting to login...');
+        toast({
+          title: "Authentication Required",
+          description: "Please login again",
+          variant: "destructive",
+        });
+        navigate('/beneficiary-login', { replace: true });
+        return;
+      }
+      
       // Load applications and stats in parallel
       const [applicationsResponse, statsResponse] = await Promise.all([
         beneficiaryApi.getMyApplications({ limit: 10 }),
         beneficiaryApi.getApplicationStats()
       ]);
 
-      setApplications(applicationsResponse.applications);
+      setApplications(applicationsResponse.applications || []);
       setStats(statsResponse.stats);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to load dashboard data:', error);
-      toast({
-        title: "Failed to Load Data",
-        description: "Could not load your applications. Please try again.",
-        variant: "destructive",
-      });
+      
+      // Check if it's an authentication error
+      if (error.message && error.message.includes('permissions')) {
+        toast({
+          title: "Authentication Error",
+          description: "Your session may have expired. Please login again.",
+          variant: "destructive",
+        });
+        // Clear invalid token and redirect
+        localStorage.removeItem('beneficiary_token');
+        localStorage.removeItem('beneficiary_user');
+        navigate('/beneficiary-login', { replace: true });
+        return;
+      }
+      
+      // Only show error toast if it's an actual error (not empty data)
+      if (error.message && !error.message.includes('No applications found')) {
+        toast({
+          title: "Failed to Load Data",
+          description: error.message || "Could not load your applications. Please try again.",
+          variant: "destructive",
+        });
+      } else {
+        // No applications is a normal state, just set empty arrays
+        setApplications([]);
+        setStats({
+          total: 0,
+          submitted: 0,
+          under_review: 0,
+          approved: 0,
+          rejected: 0,
+          completed: 0,
+          cancelled: 0,
+          totalApprovedAmount: 0
+        });
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("user_role");
-    localStorage.removeItem("user_phone");
+    beneficiaryApi.logout();
     toast({ title: "Logged out successfully" });
     navigate("/");
   };
@@ -119,9 +167,23 @@ export default function BeneficiaryDashboard() {
           </div>
           
           <div className="flex items-center gap-2">
-            {/* Notifications - Placeholder for future implementation */}
-            <Button variant="ghost" size="sm" className="relative opacity-50 cursor-not-allowed">
-              <Bell className="h-5 w-5" />
+            {/* Update Profile */}
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => navigate("/beneficiary/profile-completion")}
+              className="hidden sm:flex"
+            >
+              <User className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Profile</span>
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => navigate("/beneficiary/profile-completion")}
+              className="sm:hidden"
+            >
+              <User className="h-5 w-5" />
             </Button>
 
             {/* Logout */}

@@ -70,7 +70,7 @@ const getApplications = async (req, res) => {
     
     const applications = await Application.find(filter)
       .populate('beneficiary', 'name phone')
-      .populate('scheme', 'name code maxAmount distributionTimeline')
+      .populate('scheme', 'name code maxAmount distributionTimeline applicationSettings')
       .populate('project', 'name code')
       .populate('state', 'name code')
       .populate('district', 'name code')
@@ -113,7 +113,7 @@ const getApplication = async (req, res) => {
   try {
     const application = await Application.findById(req.params.id)
       .populate('beneficiary')
-      .populate('scheme', 'name code maxAmount distributionTimeline')
+      .populate('scheme', 'name code maxAmount distributionTimeline applicationSettings')
       .populate('project')
       .populate('state', 'name code')
       .populate('district', 'name code')
@@ -238,7 +238,7 @@ const createApplication = async (req, res) => {
 
     const populatedApplication = await Application.findById(application._id)
       .populate('beneficiary', 'name phone')
-      .populate('scheme', 'name code distributionTimeline')
+      .populate('scheme', 'name code distributionTimeline applicationSettings')
       .populate('project', 'name code')
       .populate('createdBy', 'name');
 
@@ -297,7 +297,7 @@ const updateApplication = async (req, res) => {
 
     const updatedApplication = await Application.findById(application._id)
       .populate('beneficiary', 'name phone')
-      .populate('scheme', 'name code distributionTimeline')
+      .populate('scheme', 'name code distributionTimeline applicationSettings')
       .populate('project', 'name code')
       .populate('createdBy', 'name')
       .populate('updatedBy', 'name');
@@ -345,7 +345,7 @@ const reviewApplication = async (req, res) => {
 
     const reviewedApplication = await Application.findById(application._id)
       .populate('beneficiary', 'name phone')
-      .populate('scheme', 'name code distributionTimeline')
+      .populate('scheme', 'name code distributionTimeline applicationSettings')
       .populate('project', 'name code')
       .populate('reviewedBy', 'name');
 
@@ -399,7 +399,7 @@ const approveApplication = async (req, res) => {
 
     const approvedApplication = await Application.findById(application._id)
       .populate('beneficiary', 'name phone')
-      .populate('scheme', 'name code distributionTimeline')
+      .populate('scheme', 'name code distributionTimeline applicationSettings')
       .populate('project', 'name code')
       .populate('approvedBy', 'name');
 

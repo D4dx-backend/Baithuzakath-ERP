@@ -174,6 +174,7 @@ export function ShortlistModal({ isOpen, onClose, applicationId, applicantName, 
                 type="date"
                 className="pl-10"
                 value={formData.date}
+                min={new Date().toISOString().split('T')[0]}
                 onChange={(e) => setFormData({ ...formData, date: e.target.value })}
               />
             </div>

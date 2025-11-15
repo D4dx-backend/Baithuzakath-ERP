@@ -10,6 +10,7 @@ const {
   deleteApplication
 } = require('../controllers/applicationController');
 const { authenticate, authorize } = require('../middleware/auth');
+const { syncApplicationStages } = require('../middleware/syncStages');
 
 const router = express.Router();
 
@@ -90,7 +91,8 @@ router.get('/:id',
 router.post('/', 
   authenticate, 
   authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'), 
-  applicationValidation, 
+  applicationValidation,
+  syncApplicationStages, // Automatically sync stages from scheme
   createApplication
 );
 
@@ -103,14 +105,14 @@ router.put('/:id',
 
 router.patch('/:id/review', 
   authenticate, 
-  authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'), 
+  authorize('super_admin', 'state_admin', 'area_admin'), 
   reviewApplicationValidation, 
   reviewApplication
 );
 
 router.patch('/:id/approve', 
   authenticate, 
-  authorize('super_admin', 'state_admin', 'district_admin', 'area_admin'), 
+  authorize('super_admin', 'state_admin', 'area_admin'), 
   approveApplicationValidation, 
   approveApplication
 );
@@ -119,6 +121,91 @@ router.delete('/:id',
   authenticate, 
   authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'), 
   deleteApplication
+);
+
+// Update application stage status (for area coordinators)
+router.patch('/:id/stages/:stageId', 
+  authenticate, 
+  authorize('super_admin', 'state_admin', 'area_admin'), 
+  async (req, res) => {
+    try {
+      const { id, stageId } = req.params;
+      const { status, notes } = req.body;
+
+      const Application = require('../models/Application');
+      
+      // Find the application
+      const application = await Application.findById(id);
+      
+      if (!application) {
+        return res.status(404).json({
+          success: false,
+          message: 'Application not found'
+        });
+      }
+
+      // Find the stage to update
+      const stageIndex = application.applicationStages.findIndex(
+        stage => stage._id.toString() === stageId
+      );
+
+      if (stageIndex === -1) {
+        return res.status(404).json({
+          success: false,
+          message: 'Stage not found'
+        });
+      }
+
+      // Update the stage
+      application.applicationStages[stageIndex].status = status;
+      application.applicationStages[stageIndex].notes = notes;
+      
+      if (status === 'completed') {
+        application.applicationStages[stageIndex].completedAt = new Date();
+        application.applicationStages[stageIndex].completedBy = req.user._id;
+      }
+
+      // Add to stage history
+      if (!application.stageHistory) {
+        application.stageHistory = [];
+      }
+      
+      application.stageHistory.push({
+        stageName: application.applicationStages[stageIndex].name,
+        status: status,
+        timestamp: new Date(),
+        updatedBy: req.user._id,
+        notes: notes
+      });
+
+      // Update current stage if needed
+      const completedStages = application.applicationStages.filter(s => s.status === 'completed').length;
+      const nextPendingStage = application.applicationStages.find(s => s.status === 'pending');
+      if (nextPendingStage) {
+        application.currentStage = nextPendingStage.name;
+      }
+
+      await application.save();
+
+      // Populate user data for response
+      await application.populate('applicationStages.completedBy', 'name role');
+      await application.populate('stageHistory.updatedBy', 'name role');
+
+      res.json({
+        success: true,
+        message: 'Stage updated successfully',
+        data: {
+          application
+        }
+      });
+    } catch (error) {
+      console.error('Error updating stage:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Failed to update stage'
+      });
+    }
+  }
 );
 
 module.exports = router;

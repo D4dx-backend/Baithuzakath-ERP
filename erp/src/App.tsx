@@ -20,9 +20,14 @@ import InterviewScheduledApplications from "./pages/applications/InterviewSchedu
 import ApprovedApplications from "./pages/applications/ApprovedApplications";
 import RejectedApplications from "./pages/applications/RejectedApplications";
 import CompletedApplications from "./pages/applications/CompletedApplications";
-import UpcomingInterviews from "./pages/UpcomingInterviews";
 import Donors from "./pages/Donors";
 import AllDonors from "./pages/donors/AllDonors";
+import AllPayments from "./pages/payments/AllPayments";
+import OverduePayments from "./pages/payments/OverduePayments";
+import DueSoonPayments from "./pages/payments/DueSoonPayments";
+import UpcomingPayments from "./pages/payments/UpcomingPayments";
+import ProcessingPayments from "./pages/payments/ProcessingPayments";
+import CompletedPayments from "./pages/payments/CompletedPayments";
 
 
 import AnonymousDonation from "./pages/donors/AnonymousDonation";
@@ -45,6 +50,7 @@ import NotFound from "./pages/NotFound";
 import PublicSchemes from "./pages/PublicSchemes";
 import Login from "./pages/Login";
 import BeneficiaryLogin from "./pages/BeneficiaryLogin";
+import BeneficiaryProfileCompletion from "./pages/BeneficiaryProfileCompletion";
 import BeneficiaryDashboard from "./pages/BeneficiaryDashboard";
 import BeneficiarySchemes from "./pages/BeneficiarySchemes";
 import BeneficiaryApplication from "./pages/BeneficiaryApplication";
@@ -77,6 +83,7 @@ const App = () => (
             <Route path="/public-schemes" element={<PublicSchemes />} />
 
             {/* Beneficiary Routes */}
+            <Route path="/beneficiary/profile-completion" element={<BeneficiaryAuthGuard requireVerification={false}><BeneficiaryProfileCompletion /></BeneficiaryAuthGuard>} />
             <Route path="/beneficiary/dashboard" element={<BeneficiaryAuthGuard><BeneficiaryDashboard /></BeneficiaryAuthGuard>} />
             <Route path="/beneficiary/schemes" element={<BeneficiaryAuthGuard><BeneficiarySchemes /></BeneficiaryAuthGuard>} />
             <Route path="/beneficiary/apply/:schemeId" element={<BeneficiaryAuthGuard><BeneficiaryApplication /></BeneficiaryAuthGuard>} />
@@ -95,9 +102,15 @@ const App = () => (
             <Route path="/applications/approved" element={<AuthGuard><Layout><ApprovedApplications /></Layout></AuthGuard>} />
             <Route path="/applications/rejected" element={<AuthGuard><Layout><RejectedApplications /></Layout></AuthGuard>} />
             <Route path="/applications/completed" element={<AuthGuard><Layout><CompletedApplications /></Layout></AuthGuard>} />
-            <Route path="/upcoming-interviews" element={<AuthGuard><Layout><UpcomingInterviews /></Layout></AuthGuard>} />
+            <Route path="/upcoming-interviews" element={<AuthGuard><Layout><InterviewScheduledApplications /></Layout></AuthGuard>} />
             <Route path="/beneficiaries" element={<AuthGuard><Layout><Beneficiaries /></Layout></AuthGuard>} />
             <Route path="/payment-tracking" element={<AuthGuard><Layout><BeneficiaryPayments /></Layout></AuthGuard>} />
+            <Route path="/payment-tracking/all" element={<AuthGuard><Layout><AllPayments /></Layout></AuthGuard>} />
+            <Route path="/payment-tracking/overdue" element={<AuthGuard><Layout><OverduePayments /></Layout></AuthGuard>} />
+            <Route path="/payment-tracking/due-soon" element={<AuthGuard><Layout><DueSoonPayments /></Layout></AuthGuard>} />
+            <Route path="/payment-tracking/upcoming" element={<AuthGuard><Layout><UpcomingPayments /></Layout></AuthGuard>} />
+            <Route path="/payment-tracking/processing" element={<AuthGuard><Layout><ProcessingPayments /></Layout></AuthGuard>} />
+            <Route path="/payment-tracking/completed" element={<AuthGuard><Layout><CompletedPayments /></Layout></AuthGuard>} />
             {/* Donor Routes */}
             <Route path="/donors" element={<AuthGuard><Layout><Donors /></Layout></AuthGuard>} />
             <Route path="/donors/all" element={<AuthGuard><Layout><AllDonors /></Layout></AuthGuard>} />

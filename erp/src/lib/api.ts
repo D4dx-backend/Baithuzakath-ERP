@@ -210,7 +210,7 @@ class ApiClient {
     return headers;
   }
 
-  private async request<T>(
+  async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
@@ -976,6 +976,11 @@ export const applications = {
   review: (id: string, data: any) => extendedApiClient.reviewApplication(id, data),
   approve: (id: string, data: any) => extendedApiClient.approveApplication(id, data),
   delete: (id: string) => extendedApiClient.deleteApplication(id),
+  updateStage: (id: string, stageId: string, data: { status: string; notes?: string }) => 
+    extendedApiClient.request(`/applications/${id}/stages/${stageId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
 };
 
 export const budget = {
@@ -1211,6 +1216,18 @@ export const payments = {
   process: (id: string, data: any) => extendedApiClient.request(`/payments/${id}/process`, { method: 'PATCH', body: JSON.stringify(data) }),
   markAsCompleted: (id: string, data: { paymentDate: string; paymentMethod: string; chequeNumber?: string }) => 
     extendedApiClient.request(`/payments/${id}/complete`, { method: 'PATCH', body: JSON.stringify(data) }),
+  export: (params?: any) => {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          searchParams.append(key, value.toString());
+        }
+      });
+    }
+    const queryString = searchParams.toString();
+    return extendedApiClient.request(`/payments/export${queryString ? `?${queryString}` : ''}`);
+  },
 };
 
 export const reports = {

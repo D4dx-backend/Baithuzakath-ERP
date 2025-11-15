@@ -553,7 +553,7 @@ Status: ${application?.status || 'N/A'}
           )}
 
           {/* Action Buttons - Show in view mode or edit mode */}
-          {((application?.status === "pending" && mode === "view") || mode === "edit") && !showAction && (
+          {(((application?.status === "pending" || application?.status === "interview_scheduled") && mode === "view") || mode === "edit") && !showAction && (
             <>
               <Separator />
               {mode === "edit" && (

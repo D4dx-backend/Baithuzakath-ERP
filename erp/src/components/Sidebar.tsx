@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import { useState } from "react";
 import {
   LayoutDashboard,
@@ -70,16 +70,6 @@ const menuCategories = [
             permissions: ["applications.read.all", "applications.read.regional", "applications.read.own"]
           },
           {
-            to: "/applications/under-review",
-            label: "Under Review",
-            permissions: ["applications.read.all", "applications.read.regional", "applications.read.own"]
-          },
-          {
-            to: "/applications/field-verification",
-            label: "Field Verification",
-            permissions: ["applications.read.all", "applications.read.regional", "applications.read.own"]
-          },
-          {
             to: "/applications/interview-scheduled",
             label: "Interview Scheduled",
             permissions: ["applications.read.all", "applications.read.regional", "applications.read.own"]
@@ -119,10 +109,41 @@ const menuCategories = [
     label: "Financial Management",
     items: [
       { 
-        to: "/payment-tracking", 
-        icon: Wallet, 
-        label: "Payment Management",
-        permissions: ["finances.read.all", "finances.read.regional", "finances.manage"]
+        label: "Payments",
+        icon: Wallet,
+        permissions: ["finances.read.all", "finances.read.regional", "finances.manage"],
+        submenu: [
+          {
+            to: "/payment-tracking/all",
+            label: "All Payments",
+            permissions: ["finances.read.all", "finances.read.regional", "finances.manage"]
+          },
+          {
+            to: "/payment-tracking/overdue",
+            label: "Overdue",
+            permissions: ["finances.read.all", "finances.read.regional", "finances.manage"]
+          },
+          {
+            to: "/payment-tracking/due-soon",
+            label: "Due Soon",
+            permissions: ["finances.read.all", "finances.read.regional", "finances.manage"]
+          },
+          {
+            to: "/payment-tracking/upcoming",
+            label: "Upcoming",
+            permissions: ["finances.read.all", "finances.read.regional", "finances.manage"]
+          },
+          {
+            to: "/payment-tracking/processing",
+            label: "Processing",
+            permissions: ["finances.read.all", "finances.read.regional", "finances.manage"]
+          },
+          {
+            to: "/payment-tracking/completed",
+            label: "Completed",
+            permissions: ["finances.read.all", "finances.read.regional", "finances.manage"]
+          }
+        ]
       },
       { 
         to: "/budget", 
@@ -275,6 +296,7 @@ interface SidebarProps {
 
 export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const { hasAnyPermission } = useRBAC();
+  const location = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({
     "Projects Management": true,
@@ -285,6 +307,54 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
 
   const toggleCategory = (label: string) => {
     setOpenCategories(prev => ({ ...prev, [label]: !prev[label] }));
+  };
+
+  // Helper function to check if a submenu item is active based on URL and query params
+  const isSubmenuItemActive = (itemPath: string) => {
+    const currentPath = location.pathname;
+    const searchParams = new URLSearchParams(location.search);
+    const filterParam = searchParams.get('filter');
+
+    // Check for payment tracking filter-based routes
+    if (currentPath === '/payment-tracking/all') {
+      if (filterParam) {
+        // If there's a filter, match it to the corresponding submenu item
+        const filterToPathMap: Record<string, string> = {
+          'overdue': '/payment-tracking/overdue',
+          'due-soon': '/payment-tracking/due-soon',
+          'upcoming': '/payment-tracking/upcoming',
+          'processing': '/payment-tracking/processing',
+          'completed': '/payment-tracking/completed',
+        };
+        return filterToPathMap[filterParam] === itemPath;
+      } else {
+        // No filter means "All Payments" should be active
+        return itemPath === '/payment-tracking/all';
+      }
+    }
+
+    // Check for application filter-based routes
+    if (currentPath === '/applications/all') {
+      if (filterParam) {
+        const filterToPathMap: Record<string, string> = {
+          'pending': '/applications/pending',
+          'interview-scheduled': '/applications/interview-scheduled',
+          'approved': '/applications/approved',
+          'rejected': '/applications/rejected',
+          'completed': '/applications/completed',
+        };
+        return filterToPathMap[filterParam] === itemPath;
+      } else {
+        return itemPath === '/applications/all';
+      }
+    }
+
+    // Direct path match for other routes
+    if (currentPath === itemPath) {
+      return true;
+    }
+
+    return false;
   };
 
   // Filter menu items based on permissions
@@ -400,16 +470,16 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                                 )}
                               />
                             </CollapsibleTrigger>
-                            <CollapsibleContent className="space-y-1 mt-1 ml-6">
+                            <CollapsibleContent className="space-y-1 mt-1 ml-8">
                               {item.submenu.filter(hasAccessToItem).map((subItem) => (
                                 <NavLink
                                   key={subItem.to}
                                   to={subItem.to}
                                   onClick={onClose}
-                                  className={({ isActive }) =>
+                                  className={() =>
                                     cn(
-                                      "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                                      isActive
+                                      "flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                                      isSubmenuItemActive(subItem.to)
                                         ? "bg-gradient-primary text-primary-foreground shadow-elegant"
                                         : "text-muted-foreground hover:bg-muted hover:text-foreground"
                                     )

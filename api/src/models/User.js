@@ -104,6 +104,21 @@ const userSchema = new mongoose.Schema({
       name: String,
       phone: String,
       relation: String
+    },
+    // Location references for beneficiaries
+    location: {
+      district: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Location'
+      },
+      area: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Location'
+      },
+      unit: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Location'
+      }
     }
   },
 

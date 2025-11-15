@@ -68,17 +68,20 @@ export default function BeneficiaryLogin() {
     try {
       const response = await beneficiaryApi.verifyOTP(phoneNumber, otp);
       
-      // Store user role for compatibility
-      localStorage.setItem("user_role", "beneficiary");
-      localStorage.setItem("user_phone", phoneNumber);
-      
       toast({
         title: "Login Successful",
         description: `Welcome, ${response.user.name}!`,
       });
       
+      // Check if profile is complete (isVerified flag)
       setTimeout(() => {
-        navigate("/beneficiary/dashboard");
+        if (!response.user.isVerified) {
+          // First-time user - redirect to profile completion
+          navigate("/beneficiary/profile-completion", { replace: true });
+        } else {
+          // Returning user - go to dashboard
+          navigate("/beneficiary/dashboard", { replace: true });
+        }
       }, 1000);
     } catch (error) {
       toast({

@@ -376,11 +376,27 @@ export default function BeneficiaryApplication() {
       // Navigate to dashboard
       navigate("/beneficiary/dashboard");
     } catch (error) {
-      toast({
-        title: "Submission Failed",
-        description: error instanceof Error ? error.message : "Please try again later",
-        variant: "destructive",
-      });
+      const errorMessage = error instanceof Error ? error.message : "Please try again later";
+      
+      // Check if it's a profile completion error
+      if (errorMessage.includes('complete your profile') || errorMessage.includes('location information')) {
+        toast({
+          title: "Profile Incomplete",
+          description: errorMessage,
+          variant: "destructive",
+        });
+        
+        // Navigate to profile completion after a short delay
+        setTimeout(() => {
+          navigate("/beneficiary/profile-completion");
+        }, 2000);
+      } else {
+        toast({
+          title: "Submission Failed",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsSubmitting(false);
     }

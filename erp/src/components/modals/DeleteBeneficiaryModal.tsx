@@ -12,16 +12,22 @@ interface Beneficiary {
 }
 
 interface DeleteBeneficiaryModalProps {
-  beneficiary: Beneficiary;
+  isOpen: boolean;
+  beneficiary: Beneficiary | null;
   onClose: (shouldRefresh?: boolean) => void;
 }
 
 export const DeleteBeneficiaryModal: React.FC<DeleteBeneficiaryModalProps> = ({
+  isOpen,
   beneficiary,
   onClose
 }) => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+
+  if (!isOpen || !beneficiary) {
+    return null;
+  }
 
   const handleDelete = async () => {
     setLoading(true);

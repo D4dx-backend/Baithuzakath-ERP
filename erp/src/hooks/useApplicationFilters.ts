@@ -8,7 +8,9 @@ export interface ApplicationFilterState {
   projectFilter: string;
   districtFilter: string;
   areaFilter: string;
+  unitFilter: string;
   schemeFilter: string;
+  genderFilter: string;
   fromDate?: Date;
   toDate?: Date;
   quickDateFilter: QuickDateRange;
@@ -20,6 +22,7 @@ export interface DropdownData {
   schemesList: any[];
   districts: any[];
   areas: any[];
+  units: any[];
 }
 
 export function useApplicationFilters(defaultStatus?: string) {
@@ -29,7 +32,9 @@ export function useApplicationFilters(defaultStatus?: string) {
   const [projectFilter, setProjectFilter] = useState("all");
   const [districtFilter, setDistrictFilter] = useState("all");
   const [areaFilter, setAreaFilter] = useState("all");
+  const [unitFilter, setUnitFilter] = useState("all");
   const [schemeFilter, setSchemeFilter] = useState("all");
+  const [genderFilter, setGenderFilter] = useState("all");
   const [fromDate, setFromDate] = useState<Date | undefined>();
   const [toDate, setToDate] = useState<Date | undefined>();
   const [quickDateFilter, setQuickDateFilter] = useState<QuickDateRange>(null);
@@ -40,23 +45,26 @@ export function useApplicationFilters(defaultStatus?: string) {
   const [schemesList, setSchemesList] = useState<any[]>([]);
   const [districts, setDistricts] = useState<any[]>([]);
   const [areas, setAreas] = useState<any[]>([]);
+  const [units, setUnits] = useState<any[]>([]);
   const [loadingDropdowns, setLoadingDropdowns] = useState(true);
 
   // Load dropdown data
   const loadDropdownData = useCallback(async () => {
     try {
       setLoadingDropdowns(true);
-      const [projectsResponse, schemesResponse, districtsResponse, areasResponse] = await Promise.all([
+      const [projectsResponse, schemesResponse, districtsResponse, areasResponse, unitsResponse] = await Promise.all([
         projects.getAll({ limit: 100 }),
         schemes.getAll({ limit: 100 }),
         locations.getByType('district', { active: true }),
-        locations.getByType('area', { active: true })
+        locations.getByType('area', { active: true }),
+        locations.getByType('unit', { active: true })
       ]);
 
       if (projectsResponse.success) setProjectsList(projectsResponse.data.projects || []);
       if (schemesResponse.success) setSchemesList(schemesResponse.data.schemes || []);
       if (districtsResponse.success) setDistricts(districtsResponse.data.locations || []);
       if (areasResponse.success) setAreas(areasResponse.data.locations || []);
+      if (unitsResponse.success) setUnits(unitsResponse.data.locations || []);
     } catch (error) {
       console.error('Error loading dropdown data:', error);
     } finally {
@@ -109,7 +117,9 @@ export function useApplicationFilters(defaultStatus?: string) {
     setProjectFilter("all");
     setDistrictFilter("all");
     setAreaFilter("all");
+    setUnitFilter("all");
     setSchemeFilter("all");
+    setGenderFilter("all");
     setFromDate(undefined);
     setToDate(undefined);
     setQuickDateFilter(null);
@@ -142,7 +152,9 @@ export function useApplicationFilters(defaultStatus?: string) {
       hasProject: !!params.project,
       hasDistrict: !!params.district,
       hasArea: !!params.area,
+      hasUnit: !!params.unit,
       hasScheme: !!params.scheme,
+      hasGender: !!params.gender,
       hasDateRange: !!(params.fromDate && params.toDate),
       quickDateFilter: params.quickDateFilter,
       fromDate: params.fromDate ? new Date(params.fromDate).toLocaleDateString() : null,
@@ -157,7 +169,9 @@ export function useApplicationFilters(defaultStatus?: string) {
     projectFilter,
     districtFilter,
     areaFilter,
+    unitFilter,
     schemeFilter,
+    genderFilter,
     fromDate,
     toDate,
     quickDateFilter
@@ -172,7 +186,9 @@ export function useApplicationFilters(defaultStatus?: string) {
     if (projectFilter !== "all") params.project = projectFilter;
     if (districtFilter !== "all") params.district = districtFilter;
     if (areaFilter !== "all") params.area = areaFilter;
+    if (unitFilter !== "all") params.unit = unitFilter;
     if (schemeFilter !== "all") params.scheme = schemeFilter;
+    if (genderFilter !== "all") params.gender = genderFilter;
     if (fromDate) params.fromDate = fromDate.toISOString();
     if (toDate) params.toDate = toDate.toISOString();
     if (quickDateFilter) params.quickDateFilter = quickDateFilter;
@@ -184,7 +200,9 @@ export function useApplicationFilters(defaultStatus?: string) {
     projectFilter,
     districtFilter,
     areaFilter,
+    unitFilter,
     schemeFilter,
+    genderFilter,
     fromDate,
     toDate,
     quickDateFilter
@@ -206,6 +224,11 @@ export function useApplicationFilters(defaultStatus?: string) {
     ...areas.map(area => ({ value: area._id, label: area.name }))
   ];
 
+  const unitOptions = [
+    { value: "all", label: "All Units" },
+    ...units.map(unit => ({ value: unit._id, label: unit.name }))
+  ];
+
   const schemeOptions = [
     { value: "all", label: "All Schemes" },
     ...schemesList.map(scheme => ({ value: scheme._id, label: scheme.name }))
@@ -219,7 +242,9 @@ export function useApplicationFilters(defaultStatus?: string) {
       projectFilter,
       districtFilter,
       areaFilter,
+      unitFilter,
       schemeFilter,
+      genderFilter,
       fromDate,
       toDate,
       quickDateFilter,
@@ -232,7 +257,9 @@ export function useApplicationFilters(defaultStatus?: string) {
     setProjectFilter: (value: string) => { setProjectFilter(value); setCurrentPage(1); },
     setDistrictFilter: (value: string) => { setDistrictFilter(value); setCurrentPage(1); },
     setAreaFilter: (value: string) => { setAreaFilter(value); setCurrentPage(1); },
+    setUnitFilter: (value: string) => { setUnitFilter(value); setCurrentPage(1); },
     setSchemeFilter: (value: string) => { setSchemeFilter(value); setCurrentPage(1); },
+    setGenderFilter: (value: string) => { setGenderFilter(value); setCurrentPage(1); },
     setFromDate: handleFromDateChange,
     setToDate: handleToDateChange,
     setQuickDateFilter: handleQuickDateFilterChange,
@@ -244,6 +271,7 @@ export function useApplicationFilters(defaultStatus?: string) {
       schemesList,
       districts,
       areas,
+      units,
     },
     
     // Dropdown options
@@ -251,6 +279,7 @@ export function useApplicationFilters(defaultStatus?: string) {
       projectOptions,
       districtOptions,
       areaOptions,
+      unitOptions,
       schemeOptions,
     },
     

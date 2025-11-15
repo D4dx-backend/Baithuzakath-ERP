@@ -41,13 +41,30 @@ export default function Login() {
 
     setLoading(true);
     try {
-      const response = await auth.requestOTP(phoneNumber, 'login');
+      let response;
       
-      // Store static OTP if provided
-      if (response.data?.staticOTP || response.data?.developmentOTP) {
-        const staticOTP = response.data?.staticOTP || response.data?.developmentOTP;
-        setDevelopmentOTP(staticOTP);
-        setOtp(staticOTP); // Auto-fill for convenience
+      // Use different API endpoints based on role
+      if (role === "beneficiary") {
+        // Use beneficiary API which auto-creates account
+        const beneficiaryApi = await import("@/services/beneficiaryApi");
+        response = await beneficiaryApi.beneficiaryApi.sendOTP(phoneNumber);
+        
+        // Store static OTP if provided
+        if (response.staticOTP || response.developmentOTP) {
+          const staticOTP = response.staticOTP || response.developmentOTP;
+          setDevelopmentOTP(staticOTP);
+          setOtp(staticOTP); // Auto-fill for convenience
+        }
+      } else {
+        // Use admin auth API
+        response = await auth.requestOTP(phoneNumber, 'login');
+        
+        // Store static OTP if provided
+        if (response.data?.staticOTP || response.data?.developmentOTP) {
+          const staticOTP = response.data?.staticOTP || response.data?.developmentOTP;
+          setDevelopmentOTP(staticOTP);
+          setOtp(staticOTP); // Auto-fill for convenience
+        }
       }
       
       toast({
@@ -78,18 +95,62 @@ export default function Login() {
 
     setLoading(true);
     try {
-      // Use the AuthContext login method
-      await login(phoneNumber, otp);
-      
-      toast({
-        title: "Login Successful",
-        description: "Welcome back!",
-      });
-      
-      // Navigate to the intended page or dashboard
       if (role === "beneficiary") {
-        navigate("/beneficiary/dashboard", { replace: true });
+        // Use beneficiary API for verification
+        const beneficiaryApi = await import("@/services/beneficiaryApi");
+        const response = await beneficiaryApi.beneficiaryApi.verifyOTP(phoneNumber, otp);
+        
+        console.log('✅ Login successful');
+        console.log('- Waiting 100ms for localStorage to persist...');
+        
+        // Small delay to ensure localStorage is written
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Verify token was saved
+        const savedToken = localStorage.getItem('beneficiary_token');
+        console.log('- Token saved?', !!savedToken);
+        console.log('- Token matches?', savedToken === response.token);
+        
+        // Test the token immediately by calling getProfile
+        try {
+          console.log('- Testing token with getProfile...');
+          const profileTest = await beneficiaryApi.beneficiaryApi.getProfile();
+          console.log('✅ Token test successful! Profile:', profileTest);
+        } catch (testError: any) {
+          console.error('❌ Token test failed:', testError);
+          toast({
+            title: "Token Verification Failed",
+            description: testError.message,
+            variant: "destructive",
+          });
+          return;
+        }
+        
+        toast({
+          title: "Login Successful",
+          description: `Welcome, ${response.user.name}!`,
+        });
+        
+        // Check if profile is complete (isVerified flag)
+        setTimeout(() => {
+          if (!response.user.isVerified) {
+            // First-time user - redirect to profile completion
+            navigate("/beneficiary/profile-completion", { replace: true });
+          } else {
+            // Returning user - go to dashboard
+            navigate("/beneficiary/dashboard", { replace: true });
+          }
+        }, 500);
       } else {
+        // Use admin auth for verification
+        await login(phoneNumber, otp);
+        
+        toast({
+          title: "Login Successful",
+          description: "Welcome back!",
+        });
+        
+        // Navigate to the intended page or dashboard
         navigate(from, { replace: true });
       }
     } catch (error: any) {
@@ -106,13 +167,30 @@ export default function Login() {
   const handleResendOTP = async () => {
     setLoading(true);
     try {
-      const response = await auth.requestOTP(phoneNumber, 'login');
+      let response;
       
-      // Store static OTP if provided
-      if (response.data?.staticOTP || response.data?.developmentOTP) {
-        const staticOTP = response.data?.staticOTP || response.data?.developmentOTP;
-        setDevelopmentOTP(staticOTP);
-        setOtp(staticOTP); // Auto-fill for convenience
+      // Use different API endpoints based on role
+      if (role === "beneficiary") {
+        // Use beneficiary API
+        const beneficiaryApi = await import("@/services/beneficiaryApi");
+        response = await beneficiaryApi.beneficiaryApi.resendOTP(phoneNumber);
+        
+        // Store static OTP if provided
+        if (response.staticOTP || response.developmentOTP) {
+          const staticOTP = response.staticOTP || response.developmentOTP;
+          setDevelopmentOTP(staticOTP);
+          setOtp(staticOTP); // Auto-fill for convenience
+        }
+      } else {
+        // Use admin auth API
+        response = await auth.requestOTP(phoneNumber, 'login');
+        
+        // Store static OTP if provided
+        if (response.data?.staticOTP || response.data?.developmentOTP) {
+          const staticOTP = response.data?.staticOTP || response.data?.developmentOTP;
+          setDevelopmentOTP(staticOTP);
+          setOtp(staticOTP); // Auto-fill for convenience
+        }
       }
       
       toast({
