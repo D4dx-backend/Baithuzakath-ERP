@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test File Upload to DigitalOcean Spaces</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .upload-section {
+            border: 2px dashed #ccc;
+            padding: 30px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        .upload-section h3 {
+            margin-top: 0;
+        }
+        input[type="file"] {
+            margin: 10px 0;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .file-list {
+            margin-top: 20px;
+        }
+        .file-item {
+            padding: 10px;
+            margin: 5px 0;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .delete-btn {
+            background-color: #dc3545;
+            padding: 5px 10px;
+            font-size: 12px;
+        }
+        .delete-btn:hover {
+            background-color: #c82333;
+        }
+    </style>
+</head>
+<body>
+    <h1>🚀 Test File Upload to DigitalOcean Spaces</h1>
+    
+    <div>
+        <label for="token">JWT Token:</label><br>
+        <input type="text" id="token" placeholder="Paste your JWT token here" style="width: 100%; padding: 8px; margin: 10px 0;">
+        <small>Get your token from localStorage or login response</small>
+    </div>
+
+    <!-- Single File Upload -->
+    <div class="upload-section">
+        <h3>📄 Single File Upload</h3>
+        <input type="file" id="singleFile">
+        <input type="text" id="singleFolder" placeholder="Folder (e.g., documents)" style="padding: 8px; margin: 10px 0;">
+        <br>
+        <button onclick="uploadSingle()">Upload Single File</button>
+        <div id="singleResult"></div>
+    </div>
+
+    <!-- Multiple Files Upload -->
+    <div class="upload-section">
+        <h3>📁 Multiple Files Upload</h3>
+        <input type="file" id="multipleFiles" multiple>
+        <input type="text" id="multipleFolder" placeholder="Folder (e.g., attachments)" style="padding: 8px; margin: 10px 0;">
+        <br>
+        <button onclick="uploadMultiple()">Upload Multiple Files</button>
+        <div id="multipleResult"></div>
+    </div>
+
+    <!-- Form Files Upload -->
+    <div class="upload-section">
+        <h3>📋 Form Files Upload</h3>
+        <input type="file" id="formFiles" multiple>
+        <input type="text" id="formId" placeholder="Form ID (required)" style="padding: 8px; margin: 10px 0;">
+        <input type="text" id="fieldName" placeholder="Field Name (optional)" style="padding: 8px; margin: 10px 0;">
+        <br>
+        <button onclick="uploadFormFiles()">Upload Form Files</button>
+        <div id="formResult"></div>
+    </div>
+
+    <!-- Uploaded Files List -->
+    <div class="upload-section">
+        <h3>📦 Uploaded Files</h3>
+        <button onclick="listFiles()">Refresh List</button>
+        <input type="text" id="listFolder" placeholder="Folder to list (optional)" style="padding: 8px; margin: 10px 0;">
+        <div id="filesList" class="file-list"></div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:4000';
+
+        function getToken() {
+            const token = document.getElementById('token').value.trim();
+            if (!token) {
+                alert('Please enter your JWT token');
+                return null;
+            }
+            return token;
+        }
+
+        function showResult(elementId, message, isError = false) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="result ${isError ? 'error' : 'success'}">${message}</div>`;
+        }
+
+        async function uploadSingle() {
+            const token = getToken();
+            if (!token) return;
+
+            const fileInput = document.getElementById('singleFile');
+            const folder = document.getElementById('singleFolder').value || 'uploads';
+
+            if (!fileInput.files.length) {
+                showResult('singleResult', 'Please select a file', true);
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('folder', folder);
+
+            try {
+                const response = await fetch(`${API_URL}/api/upload/single`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    showResult('singleResult', `✅ File uploaded successfully!<br>URL: <a href="${data.file.url}" target="_blank">${data.file.url}</a>`);
+                    listFiles();
+                } else {
+                    showResult('singleResult', `❌ ${data.message}`, true);
+                }
+            } catch (error) {
+                showResult('singleResult', `❌ Error: ${error.message}`, true);
+            }
+        }
+
+        async function uploadMultiple() {
+            const token = getToken();
+            if (!token) return;
+
+            const fileInput = document.getElementById('multipleFiles');
+            const folder = document.getElementById('multipleFolder').value || 'uploads';
+
+            if (!fileInput.files.length) {
+                showResult('multipleResult', 'Please select files', true);
+                return;
+            }
+
+            const formData = new FormData();
+            Array.from(fileInput.files).forEach(file => {
+                formData.append('files', file);
+            });
+            formData.append('folder', folder);
+
+            try {
+                const response = await fetch(`${API_URL}/api/upload/multiple`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    const filesList = data.files.map(f => `<a href="${f.url}" target="_blank">${f.originalName}</a>`).join('<br>');
+                    showResult('multipleResult', `✅ ${data.count} file(s) uploaded successfully!<br>${filesList}`);
+                    listFiles();
+                } else {
+                    showResult('multipleResult', `❌ ${data.message}`, true);
+                }
+            } catch (error) {
+                showResult('multipleResult', `❌ Error: ${error.message}`, true);
+            }
+        }
+
+        async function uploadFormFiles() {
+            const token = getToken();
+            if (!token) return;
+
+            const fileInput = document.getElementById('formFiles');
+            const formId = document.getElementById('formId').value;
+            const fieldName = document.getElementById('fieldName').value;
+
+            if (!fileInput.files.length) {
+                showResult('formResult', 'Please select files', true);
+                return;
+            }
+
+            if (!formId) {
+                showResult('formResult', 'Form ID is required', true);
+                return;
+            }
+
+            const formData = new FormData();
+            Array.from(fileInput.files).forEach(file => {
+                formData.append('files', file);
+            });
+            formData.append('formId', formId);
+            if (fieldName) formData.append('fieldName', fieldName);
+
+            try {
+                const response = await fetch(`${API_URL}/api/upload/form`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    const filesList = data.files.map(f => `<a href="${f.url}" target="_blank">${f.originalName}</a>`).join('<br>');
+                    showResult('formResult', `✅ ${data.count} file(s) uploaded successfully!<br>${filesList}`);
+                    listFiles();
+                } else {
+                    showResult('formResult', `❌ ${data.message}`, true);
+                }
+            } catch (error) {
+                showResult('formResult', `❌ Error: ${error.message}`, true);
+            }
+        }
+
+        async function listFiles() {
+            const token = getToken();
+            if (!token) return;
+
+            const folder = document.getElementById('listFolder').value || '';
+
+            try {
+                const response = await fetch(`${API_URL}/api/upload/list?folder=${folder}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const data = await response.json();
+                
+                if (data.success && data.files.length > 0) {
+                    const filesList = data.files.map(file => `
+                        <div class="file-item">
+                            <div>
+                                <a href="${file.url}" target="_blank">${file.key}</a>
+                                <small>(${(file.size / 1024).toFixed(2)} KB)</small>
+                            </div>
+                            <button class="delete-btn" onclick="deleteFile('${file.key}')">Delete</button>
+                        </div>
+                    `).join('');
+                    document.getElementById('filesList').innerHTML = filesList;
+                } else {
+                    document.getElementById('filesList').innerHTML = '<p>No files found</p>';
+                }
+            } catch (error) {
+                document.getElementById('filesList').innerHTML = `<p class="error">Error: ${error.message}</p>`;
+            }
+        }
+
+        async function deleteFile(fileKey) {
+            const token = getToken();
+            if (!token) return;
+
+            if (!confirm(`Delete ${fileKey}?`)) return;
+
+            try {
+                const response = await fetch(`${API_URL}/api/upload/${encodeURIComponent(fileKey)}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('✅ File deleted successfully');
+                    listFiles();
+                } else {
+                    alert(`❌ ${data.message}`);
+                }
+            } catch (error) {
+                alert(`❌ Error: ${error.message}`);
+            }
+        }
+
+        // Auto-load token from localStorage if available
+        window.onload = function() {
+            const storedToken = localStorage.getItem('token');
+            if (storedToken) {
+                document.getElementById('token').value = storedToken;
+            }
+        };
+    </script>
+</body>
+</html>
