@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
+import { FileUploadField } from "./FileUploadField";
 
 interface Field {
   id: number;
@@ -30,9 +31,11 @@ interface FormPreviewProps {
   formTitle: string;
   formDescription: string;
   pages: Page[];
+  schemeId?: string;
+  isLiveForm?: boolean;
 }
 
-export function FormPreview({ formTitle, formDescription, pages }: FormPreviewProps) {
+export function FormPreview({ formTitle, formDescription, pages, schemeId, isLiveForm = false }: FormPreviewProps) {
   const renderField = (field: Field) => {
     if (!field.enabled) return null;
 
@@ -147,10 +150,27 @@ export function FormPreview({ formTitle, formDescription, pages }: FormPreviewPr
         );
 
       case "file":
+        if (isLiveForm && schemeId) {
+          return (
+            <FileUploadField
+              key={field.id}
+              label={field.label}
+              required={field.required}
+              placeholder={field.placeholder}
+              formId={schemeId}
+              fieldName={`field_${field.id}`}
+              multiple={true}
+              maxFiles={10}
+            />
+          );
+        }
         return (
           <div key={field.id} className="space-y-2">
             {label}
             <Input type="file" disabled />
+            <p className="text-xs text-muted-foreground">
+              File upload will be functional in the live form
+            </p>
           </div>
         );
 
