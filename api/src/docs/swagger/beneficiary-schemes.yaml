@@ -1,0 +1,214 @@
+paths:
+  /api/beneficiary/schemes:
+    get:
+      tags:
+        - Schemes
+      summary: Get available schemes
+      description: |
+        Retrieve list of active schemes available for beneficiaries to apply.
+        Shows schemes with their eligibility criteria, benefits, and application status.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: category
+          schema:
+            type: string
+          description: Filter by scheme category (e.g., Education, Medical, Housing)
+          example: 'Education'
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Search schemes by name or description
+          example: 'student'
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: ['active', 'inactive', 'upcoming']
+            default: 'active'
+          description: Filter by scheme status
+      responses:
+        '200':
+          description: Schemes retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: 'Schemes retrieved successfully'
+                  data:
+                    type: object
+                    properties:
+                      schemes:
+                        type: array
+                        items:
+                          allOf:
+                            - $ref: '#/components/schemas/Scheme'
+                            - type: object
+                              properties:
+                                canApply:
+                                  type: boolean
+                                  example: true
+                                  description: Whether user can apply for this scheme
+                                hasApplied:
+                                  type: boolean
+                                  example: false
+                                  description: Whether user has already applied
+                                daysRemaining:
+                                  type: number
+                                  example: 45
+                                  description: Days remaining to apply
+                                beneficiariesCount:
+                                  type: number
+                                  example: 150
+                                  description: Number of approved beneficiaries
+                                eligibilityCriteria:
+                                  type: array
+                                  items:
+                                    type: string
+                                  example: ['Annual family income below ₹1,00,000', 'Age between 18-60 years']
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/beneficiary/schemes/{id}:
+    get:
+      tags:
+        - Schemes
+      summary: Get scheme details
+      description: |
+        Retrieve detailed information about a specific scheme including:
+        - Complete eligibility criteria
+        - Benefit details
+        - Application form configuration
+        - Required documents
+        - Timeline information
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Scheme ID
+          example: '507f1f77bcf86cd799439011'
+      responses:
+        '200':
+          description: Scheme details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: 'Scheme details retrieved successfully'
+                  data:
+                    type: object
+                    properties:
+                      scheme:
+                        allOf:
+                          - $ref: '#/components/schemas/Scheme'
+                          - type: object
+                            properties:
+                              project:
+                                type: object
+                                properties:
+                                  _id:
+                                    type: string
+                                  name:
+                                    type: string
+                                  description:
+                                    type: string
+                              formConfiguration:
+                                type: object
+                                properties:
+                                  title:
+                                    type: string
+                                    example: 'Educational Assistance Application'
+                                  description:
+                                    type: string
+                                    example: 'Please fill all required fields'
+                                  pages:
+                                    type: array
+                                    items:
+                                      type: object
+                                      properties:
+                                        title:
+                                          type: string
+                                          example: 'Personal Information'
+                                        fields:
+                                          type: array
+                                          items:
+                                            type: object
+                                            properties:
+                                              id:
+                                                type: string
+                                                example: 'field_1'
+                                              label:
+                                                type: string
+                                                example: 'Full Name'
+                                              type:
+                                                type: string
+                                                enum: ['text', 'number', 'date', 'select', 'file', 'textarea']
+                                                example: 'text'
+                                              required:
+                                                type: boolean
+                                                example: true
+                                              validation:
+                                                type: object
+                                              options:
+                                                type: array
+                                                items:
+                                                  type: object
+                                  confirmationMessage:
+                                    type: string
+                                    example: 'Thank you for your application'
+                              canApply:
+                                type: boolean
+                                example: true
+                              hasApplied:
+                                type: boolean
+                                example: false
+                              daysRemaining:
+                                type: number
+                                example: 45
+                              beneficiariesCount:
+                                type: number
+                                example: 150
+                              eligibilityCriteria:
+                                type: array
+                                items:
+                                  type: string
+        '400':
+          description: Invalid scheme ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Scheme not found or not accepting applications
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'

@@ -1,0 +1,454 @@
+paths:
+  /api/beneficiary/applications:
+    post:
+      tags:
+        - Applications
+      summary: Submit new application
+      description: |
+        Submit a new application for a scheme. 
+        The form data should match the form configuration provided by the scheme details endpoint.
+        Documents can be uploaded separately and their references included in the documents array.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - schemeId
+                - formData
+              properties:
+                schemeId:
+                  type: string
+                  example: '507f1f77bcf86cd799439011'
+                  description: ID of the scheme to apply for
+                formData:
+                  type: object
+                  example:
+                    field_1: 'Mohammed Ali Khan'
+                    field_2: '1990-01-15'
+                    field_3: 'male'
+                    field_4: '9876543210'
+                    field_5: '1234 5678 9012'
+                    field_12: 50000
+                  description: Form data matching the scheme's form configuration
+                documents:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                        example: 'aadhaar'
+                      url:
+                        type: string
+                        example: 'https://storage.example.com/doc123.pdf'
+                      fileName:
+                        type: string
+                        example: 'aadhaar_card.pdf'
+                  description: Array of uploaded document references
+      responses:
+        '200':
+          description: Application submitted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: 'Application submitted successfully'
+                  data:
+                    type: object
+                    properties:
+                      application:
+                        type: object
+                        properties:
+                          _id:
+                            type: string
+                            example: '507f1f77bcf86cd799439015'
+                          applicationId:
+                            type: string
+                            example: 'APP20250000001'
+                          applicationNumber:
+                            type: string
+                            example: 'APP20250000001'
+                          scheme:
+                            type: object
+                            properties:
+                              _id:
+                                type: string
+                              name:
+                                type: string
+                              category:
+                                type: string
+                          status:
+                            type: string
+                            example: 'pending'
+                          requestedAmount:
+                            type: number
+                            example: 50000
+                          submittedAt:
+                            type: string
+                            format: date-time
+        '400':
+          description: Validation error or already applied
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: 'You have already applied for this scheme'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    get:
+      tags:
+        - Applications
+      summary: Get my applications
+      description: |
+        Retrieve all applications submitted by the authenticated beneficiary.
+        Supports filtering by status and pagination.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: ['all', 'pending', 'under_review', 'approved', 'rejected', 'completed', 'cancelled']
+            default: 'all'
+          description: Filter by application status
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Page number for pagination
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+          description: Number of items per page
+      responses:
+        '200':
+          description: Applications retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: 'Applications retrieved successfully'
+                  data:
+                    type: object
+                    properties:
+                      applications:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            _id:
+                              type: string
+                              example: '507f1f77bcf86cd799439015'
+                            applicationId:
+                              type: string
+                              example: 'APP20250000001'
+                            scheme:
+                              type: object
+                              properties:
+                                _id:
+                                  type: string
+                                name:
+                                  type: string
+                                  example: 'Educational Assistance'
+                                category:
+                                  type: string
+                                  example: 'Education'
+                                maxAmount:
+                                  type: number
+                                  example: 50000
+                            status:
+                              type: string
+                              example: 'pending'
+                            submittedAt:
+                              type: string
+                              format: date-time
+                            requestedAmount:
+                              type: number
+                              example: 50000
+                      pagination:
+                        type: object
+                        properties:
+                          current:
+                            type: integer
+                            example: 1
+                          pages:
+                            type: integer
+                            example: 5
+                          total:
+                            type: integer
+                            example: 47
+                          limit:
+                            type: integer
+                            example: 10
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/beneficiary/applications/{id}:
+    get:
+      tags:
+        - Applications
+      summary: Get application details
+      description: |
+        Retrieve detailed information about a specific application including:
+        - Complete form data
+        - Scheme details
+        - Status history
+        - Reviewer/approver information
+        - Documents
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Application ID
+          example: '507f1f77bcf86cd799439015'
+      responses:
+        '200':
+          description: Application details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: 'Application details retrieved successfully'
+                  data:
+                    type: object
+                    properties:
+                      application:
+                        allOf:
+                          - $ref: '#/components/schemas/Application'
+                          - type: object
+                            properties:
+                              formData:
+                                type: object
+                                description: Complete form submission data
+                              documents:
+                                type: array
+                                items:
+                                  type: object
+                              reviewedBy:
+                                type: object
+                                properties:
+                                  name:
+                                    type: string
+                                  role:
+                                    type: string
+                              approvedBy:
+                                type: object
+                                properties:
+                                  name:
+                                    type: string
+                                  role:
+                                    type: string
+                              reviewedAt:
+                                type: string
+                                format: date-time
+                              approvedAt:
+                                type: string
+                                format: date-time
+        '400':
+          description: Invalid application ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Application not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/beneficiary/applications/{id}/cancel:
+    put:
+      tags:
+        - Applications
+      summary: Cancel application
+      description: |
+        Cancel a submitted application. 
+        Only applications in 'pending' or 'under_review' status can be cancelled.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Application ID
+          example: '507f1f77bcf86cd799439015'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  maxLength: 500
+                  example: 'Found another suitable scheme'
+                  description: Optional cancellation reason
+      responses:
+        '200':
+          description: Application cancelled successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: 'Application cancelled successfully'
+                  data:
+                    type: object
+                    properties:
+                      application:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                          applicationId:
+                            type: string
+                          status:
+                            type: string
+                            example: 'cancelled'
+        '400':
+          description: Application cannot be cancelled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: 'Application cannot be cancelled at this stage'
+        '404':
+          description: Application not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/beneficiary/stats:
+    get:
+      tags:
+        - Applications
+      summary: Get application statistics
+      description: |
+        Retrieve statistics summary of beneficiary's applications including:
+        - Total applications
+        - Count by status
+        - Total approved amount
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: 'Statistics retrieved successfully'
+                  data:
+                    type: object
+                    properties:
+                      stats:
+                        type: object
+                        properties:
+                          total:
+                            type: integer
+                            example: 15
+                          pending:
+                            type: integer
+                            example: 3
+                          under_review:
+                            type: integer
+                            example: 2
+                          approved:
+                            type: integer
+                            example: 8
+                          rejected:
+                            type: integer
+                            example: 1
+                          completed:
+                            type: integer
+                            example: 1
+                          totalApprovedAmount:
+                            type: number
+                            example: 450000
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'

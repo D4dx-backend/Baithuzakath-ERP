@@ -1,0 +1,113 @@
+paths:
+  /api/beneficiary/track/{applicationId}:
+    get:
+      tags:
+        - Tracking
+      summary: Track application status
+      description: |
+        Track the status of an application using the application number (e.g., APP20250000001).
+        Returns current status, timeline, and approval/review information.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: applicationId
+          required: true
+          schema:
+            type: string
+          description: Application number (not MongoDB _id)
+          example: 'APP20250000001'
+      responses:
+        '200':
+          description: Application tracking retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: 'Application tracking retrieved successfully'
+                  data:
+                    type: object
+                    properties:
+                      application:
+                        type: object
+                        properties:
+                          _id:
+                            type: string
+                            example: '507f1f77bcf86cd799439015'
+                          applicationId:
+                            type: string
+                            example: 'APP20250000001'
+                          scheme:
+                            type: object
+                            properties:
+                              _id:
+                                type: string
+                              name:
+                                type: string
+                                example: 'Educational Assistance'
+                              category:
+                                type: string
+                                example: 'Education'
+                          status:
+                            type: string
+                            enum: ['pending', 'under_review', 'approved', 'rejected', 'completed', 'cancelled']
+                            example: 'under_review'
+                          submittedAt:
+                            type: string
+                            format: date-time
+                            example: '2025-11-01T10:30:00.000Z'
+                          reviewedAt:
+                            type: string
+                            format: date-time
+                            example: '2025-11-05T14:20:00.000Z'
+                            nullable: true
+                          approvedAt:
+                            type: string
+                            format: date-time
+                            example: '2025-11-10T09:15:00.000Z'
+                            nullable: true
+                          requestedAmount:
+                            type: number
+                            example: 50000
+                          approvedAmount:
+                            type: number
+                            example: 45000
+                            nullable: true
+        '403':
+          description: Access denied - not your application
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: 'Access denied'
+        '404':
+          description: Application not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: 'Application not found'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
