@@ -2,6 +2,7 @@ const authService = require('../services/authService');
 const { User, Location } = require('../models');
 const ResponseHelper = require('../utils/responseHelper');
 const staticOTPConfig = require('../config/staticOTP');
+const whatsappOTPService = require('../utils/whatsappOtpService');
 
 class BeneficiaryAuthController {
   /**
@@ -41,7 +42,35 @@ class BeneficiaryAuthController {
       // Generate OTP based on configuration
       const otp = staticOTPConfig.USE_STATIC_OTP 
         ? staticOTPConfig.STATIC_OTP 
-        : user.generateOTP('login');
+        : whatsappOTPService.generateOTP(6);
+      
+      // Send OTP based on configuration
+      let sendResult = { success: true, messageId: 'dev-test-message-id' };
+      
+      if (staticOTPConfig.USE_STATIC_OTP) {
+        // Static OTP mode for testing (no external service)
+        console.log(`🔑 STATIC OTP MODE: OTP for ${phone} is: ${otp}`);
+        sendResult = { success: true, messageId: 'static-otp-mode' };
+      } else if (staticOTPConfig.USE_WHATSAPP_OTP && staticOTPConfig.WHATSAPP_ENABLED) {
+        // WhatsApp OTP service
+        console.log(`📱 Sending OTP via WhatsApp to ${phone}...`);
+        sendResult = await whatsappOTPService.sendOTP(phone, otp, {
+          name: user.name || 'Beneficiary',
+          purpose: 'login',
+          priority: 1
+        });
+        
+        if (!sendResult.success) {
+          console.error('❌ WhatsApp OTP failed:', sendResult.error);
+          throw new Error(`Failed to send OTP via WhatsApp: ${sendResult.error}`);
+        }
+        
+        console.log(`✅ WhatsApp OTP sent - MessageID: ${sendResult.messageId}`);
+      } else {
+        // Development mode - no service enabled
+        console.log(`⚠️  No OTP service enabled. OTP: ${otp}`);
+        sendResult = { success: true, messageId: 'no-service-mode' };
+      }
       
       // Set OTP in user model
       user.otp = {
@@ -54,20 +83,28 @@ class BeneficiaryAuthController {
       };
       await user.save();
 
-      // Always use static OTP mode for testing (no SMS service)
-      console.log(`🔑 STATIC OTP MODE: OTP for ${phone} is: ${otp}`);
-      const smsResult = { success: true, messageId: 'static-otp-mode' };
-
       const response = {
-        message: 'OTP sent successfully',
+        message: staticOTPConfig.USE_WHATSAPP_OTP 
+          ? 'OTP sent successfully to your WhatsApp number' 
+          : 'OTP sent successfully',
         phone: phone,
-        expiresIn: staticOTPConfig.OTP_EXPIRY_MINUTES
+        expiresIn: staticOTPConfig.OTP_EXPIRY_MINUTES,
+        messageId: sendResult.messageId,
+        deliveryMethod: staticOTPConfig.USE_STATIC_OTP 
+          ? 'static' 
+          : staticOTPConfig.USE_WHATSAPP_OTP 
+            ? 'whatsapp' 
+            : 'development'
       };
 
-      // Include OTP in response if static mode is enabled
+      // Include OTP in response if static mode is enabled (for development)
       if (staticOTPConfig.USE_STATIC_OTP) {
         response.staticOTP = otp;
-        response.note = 'Static OTP enabled for all logins';
+        response.note = 'Static OTP enabled for testing';
+      } else if (!staticOTPConfig.USE_WHATSAPP_OTP && !staticOTPConfig.SMS_ENABLED) {
+        // Development mode - include OTP in response
+        response.developmentOTP = otp;
+        response.note = 'Development mode - OTP included in response';
       }
 
       return ResponseHelper.success(res, response, 'OTP sent successfully');

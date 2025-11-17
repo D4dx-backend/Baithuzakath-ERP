@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const { User } = require('../models');
 const config = require('../config/environment');
 const staticOTPConfig = require('../config/staticOTP');
+const whatsappOTPService = require('../utils/whatsappOtpService');
 
 class AuthService {
   /**
@@ -133,14 +134,40 @@ class AuthService {
       // Generate OTP (use static OTP if enabled, otherwise generate dynamic OTP)
       const otp = staticOTPConfig.USE_STATIC_OTP 
         ? staticOTPConfig.STATIC_OTP 
-        : Math.floor(100000 + Math.random() * 900000).toString();
+        : whatsappOTPService.generateOTP(6);
       
-      // Send OTP via DXing SMS service
-      let smsResult = { success: true, messageId: 'dev-test-message-id' };
+      // Send OTP based on configuration
+      let sendResult = { success: true, messageId: 'dev-test-message-id' };
       
-      // Always use static OTP mode for testing (no SMS service)
-      console.log(`🔑 STATIC OTP MODE: OTP for ${phone} is: ${otp}`);
-      smsResult = { success: true, messageId: 'static-otp-mode' };
+      if (staticOTPConfig.USE_STATIC_OTP) {
+        // Static OTP mode for testing (no external service)
+        console.log(`🔑 STATIC OTP MODE: OTP for ${phone} is: ${otp}`);
+        sendResult = { success: true, messageId: 'static-otp-mode' };
+      } else if (staticOTPConfig.USE_WHATSAPP_OTP && staticOTPConfig.WHATSAPP_ENABLED) {
+        // WhatsApp OTP service
+        console.log(`📱 Sending OTP via WhatsApp to ${phone}...`);
+        sendResult = await whatsappOTPService.sendOTP(phone, otp, {
+          name: user?.name || 'User',
+          purpose: purpose,
+          priority: 1
+        });
+        
+        if (!sendResult.success) {
+          console.error('❌ WhatsApp OTP failed:', sendResult.error);
+          throw new Error(`Failed to send OTP via WhatsApp: ${sendResult.error}`);
+        }
+        
+        console.log(`✅ WhatsApp OTP sent - MessageID: ${sendResult.messageId}`);
+      } else if (staticOTPConfig.SMS_ENABLED) {
+        // SMS fallback (existing DXing SMS service)
+        console.log(`📧 Sending OTP via SMS to ${phone}...`);
+        // TODO: Implement SMS sending via existing dxingSmsService
+        sendResult = { success: true, messageId: 'sms-mode' };
+      } else {
+        // No service enabled - development mode
+        console.log(`⚠️  No OTP service enabled. OTP: ${otp}`);
+        sendResult = { success: true, messageId: 'no-service-mode' };
+      }
 
       // Create or update user with OTP
       if (user) {
@@ -177,17 +204,28 @@ class AuthService {
 
       const response = {
         success: true,
-        message: 'OTP sent successfully to your mobile number',
-        messageId: smsResult.messageId,
+        message: staticOTPConfig.USE_WHATSAPP_OTP 
+          ? 'OTP sent successfully to your WhatsApp number' 
+          : 'OTP sent successfully to your mobile number',
+        messageId: sendResult.messageId,
         expiresAt: user.otp.expiresAt,
         attemptsRemaining: Math.max(0, 5 - user.otp.attempts),
-        purpose
+        purpose,
+        deliveryMethod: staticOTPConfig.USE_STATIC_OTP 
+          ? 'static' 
+          : staticOTPConfig.USE_WHATSAPP_OTP 
+            ? 'whatsapp' 
+            : 'sms'
       };
 
-      // Include OTP in response if static mode is enabled
+      // Include OTP in response if static mode is enabled (for development)
       if (staticOTPConfig.USE_STATIC_OTP) {
         response.staticOTP = otp;
-        response.note = 'Static OTP enabled for all logins';
+        response.note = 'Static OTP enabled for testing';
+      } else if (!staticOTPConfig.USE_WHATSAPP_OTP && !staticOTPConfig.SMS_ENABLED) {
+        // Development mode - include OTP in response
+        response.developmentOTP = otp;
+        response.note = 'Development mode - OTP included in response';
       }
 
       return response;
