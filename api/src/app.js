@@ -8,6 +8,8 @@ const morgan = require('morgan');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpecs = require('./config/swagger');
 const { activityLogger } = require('./middleware/activityLogger');
 
 const connectDB = require('./config/database');
@@ -71,6 +73,13 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Swagger API Documentation
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'Baithuzzakath API Documentation',
+  explorer: true
+}));
+
 // API Routes
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
@@ -94,6 +103,7 @@ const rbacRoutes = require('./routes/rbacRoutes');
 const activityLogRoutes = require('./routes/activityLogs');
 const masterDataRoutes = require('./routes/masterDataRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
+const regionalAdminRoutes = require('./routes/regionalAdminRoutes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -103,6 +113,7 @@ app.use('/api/schemes', schemeRoutes);
 app.use('/api/locations', locationRoutes);
 app.use('/api/beneficiary', beneficiaryApiRoutes); // Beneficiary-specific API routes (must come before /api/beneficiaries)
 app.use('/api/beneficiaries', beneficiaryRoutes); // Admin routes for beneficiary management
+app.use('/api/regional-admin', regionalAdminRoutes); // Regional admin routes (unit, area, district admins)
 app.use('/api/applications', applicationRoutes);
 app.use('/api/budget', budgetRoutes);
 app.use('/api/donors', donorRoutes);

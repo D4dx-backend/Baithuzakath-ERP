@@ -1,0 +1,230 @@
+paths:
+  /api/beneficiary/auth/send-otp:
+    post:
+      tags:
+        - Authentication
+      summary: Send OTP for login/registration
+      description: |
+        Sends a 6-digit OTP to the beneficiary's mobile number via WhatsApp. 
+        If the user doesn't exist, a new beneficiary account is created automatically.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phone
+              properties:
+                phone:
+                  type: string
+                  pattern: '^[6-9]\d{9}$'
+                  example: '9876543210'
+                  description: 10-digit Indian mobile number
+      responses:
+        '200':
+          description: OTP sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: 'OTP sent successfully'
+                  data:
+                    type: object
+                    properties:
+                      phone:
+                        type: string
+                        example: '9876543210'
+                      expiresIn:
+                        type: number
+                        example: 10
+                        description: OTP validity in minutes
+                      messageId:
+                        type: string
+                        example: 'msg_12345'
+                      deliveryMethod:
+                        type: string
+                        enum: ['whatsapp', 'static', 'development']
+                        example: 'whatsapp'
+                      staticOTP:
+                        type: string
+                        example: '123456'
+                        description: Only present in development/testing mode
+        '400':
+          description: Invalid phone number
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/beneficiary/auth/verify-otp:
+    post:
+      tags:
+        - Authentication
+      summary: Verify OTP and login
+      description: |
+        Verifies the OTP sent to the beneficiary's mobile number and returns a JWT token for authentication.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phone
+                - otp
+              properties:
+                phone:
+                  type: string
+                  pattern: '^[6-9]\d{9}$'
+                  example: '9876543210'
+                otp:
+                  type: string
+                  minLength: 6
+                  maxLength: 6
+                  example: '123456'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: 'Login successful'
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        $ref: '#/components/schemas/User'
+                      token:
+                        type: string
+                        example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+                        description: JWT token for subsequent authenticated requests
+        '400':
+          description: Invalid or expired OTP
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/beneficiary/auth/resend-otp:
+    post:
+      tags:
+        - Authentication
+      summary: Resend OTP
+      description: |
+        Resends OTP to the beneficiary's mobile number. 
+        Has a cooldown period of 60 seconds between requests.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phone
+              properties:
+                phone:
+                  type: string
+                  pattern: '^[6-9]\d{9}$'
+                  example: '9876543210'
+      responses:
+        '200':
+          description: OTP resent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: 'OTP resent successfully'
+                  data:
+                    type: object
+                    properties:
+                      expiresIn:
+                        type: number
+                        example: 10
+                      staticOTP:
+                        type: string
+                        example: '123456'
+                        description: Only in development mode
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: 'Please wait 45 seconds before requesting a new OTP'
+
+  /api/beneficiary/auth/locations:
+    get:
+      tags:
+        - Authentication
+      summary: Get locations for registration
+      description: |
+        Retrieve hierarchical location data (State > District > Area > Unit) for beneficiary registration.
+        Use this to populate location dropdowns in the mobile app.
+      parameters:
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum: ['state', 'district', 'area', 'unit']
+          description: Filter by location type
+        - in: query
+          name: parent
+          schema:
+            type: string
+          description: Filter by parent location ID (for hierarchical selection)
+      responses:
+        '200':
+          description: Locations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      locations:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Location'
