@@ -4,9 +4,39 @@ const options = {
   definition: {
     openapi: '3.0.0',
     info: {
-      title: 'Baithuzzakath Kerala - Beneficiary Mobile API',
+      title: 'Baithuzzakath Kerala - Complete API Documentation',
       version: '1.0.0',
-      description: 'API Documentation for Baithuzzakath Kerala Beneficiary Mobile Application',
+      description: `
+# Baithuzzakath Kerala ERP System API
+
+Complete API documentation for Baithuzzakath Kerala ERP system serving all user roles.
+
+## Authentication Endpoints by Role
+
+### 1. Super Admin & State Admin
+- **Base URL:** \`/api/auth\`
+- **Roles:** \`super_admin\`, \`state_admin\`
+- **OTP Purpose:** \`login\`
+
+### 2. Regional Admins (District, Area, Unit)
+- **Base URL:** \`/api/regional-admin/auth\`
+- **Roles:** \`district_admin\`, \`area_admin\`, \`unit_admin\`
+- **OTP Purpose:** \`admin-login\`
+
+### 3. Beneficiaries
+- **Base URL:** \`/api/beneficiary/auth\`
+- **Roles:** \`beneficiary\`
+- **OTP Purpose:** \`beneficiary-login\`
+
+## Static OTP (Development Mode)
+- OTP: **123456**
+- Valid for: **10 minutes**
+
+## Authentication Flow
+1. Send OTP to phone number
+2. Verify OTP and receive JWT token
+3. Use token in Authorization header: \`Bearer <token>\`
+      `,
       contact: {
         name: 'Baithuzzakath Kerala',
         email: 'support@baithuzzakath.org'
@@ -22,14 +52,22 @@ const options = {
         description: 'Development server'
       },
       {
+        url: 'https://baithuzakath-api-uie39.ondigitalocean.app',
+        description: 'Digital Ocean Production server'
+      },
+      {
         url: 'https://api.baithuzzakath.org',
         description: 'Production server'
       }
     ],
     tags: [
       {
+        name: 'Admin Authentication',
+        description: 'Authentication for Super Admin and State Admin (via /api/auth endpoints)'
+      },
+      {
         name: 'Authentication',
-        description: 'Beneficiary authentication endpoints (OTP-based login)'
+        description: 'Beneficiary authentication endpoints (OTP-based login via /api/beneficiary/auth)'
       },
       {
         name: 'Profile',
@@ -49,7 +87,7 @@ const options = {
       },
       {
         name: 'Regional Admin - Auth',
-        description: 'Regional admin authentication (Unit, Area, District admins)'
+        description: 'Regional admin authentication for Unit, Area, and District Admins (via /api/regional-admin/auth)'
       },
       {
         name: 'Regional Admin - Applications',
@@ -325,6 +363,126 @@ const options = {
       }
     },
     paths: {
+      '/api/auth/send-otp': {
+        post: {
+          tags: ['Admin Authentication'],
+          summary: 'Send OTP for Super Admin and State Admin login',
+          description: 'Sends OTP to Super Admin or State Admin for authentication. Use this endpoint for top-level administrators only.',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['phone'],
+                  properties: {
+                    phone: {
+                      type: 'string',
+                      pattern: '^[6-9]\\d{9}$',
+                      example: '9999999999',
+                      description: '10-digit Indian mobile number'
+                    },
+                    purpose: {
+                      type: 'string',
+                      enum: ['login', 'registration', 'phone_verification'],
+                      default: 'login',
+                      description: 'Purpose of OTP'
+                    }
+                  }
+                }
+              }
+            }
+          },
+          responses: {
+            '200': {
+              description: 'OTP sent successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      success: { type: 'boolean', example: true },
+                      message: { type: 'string', example: 'OTP sent successfully' },
+                      data: {
+                        type: 'object',
+                        properties: {
+                          phone: { type: 'string', example: '9999999999' },
+                          expiresIn: { type: 'number', example: 10 },
+                          staticOTP: { type: 'string', example: '123456' }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      '/api/auth/verify-otp': {
+        post: {
+          tags: ['Admin Authentication'],
+          summary: 'Verify OTP and login as Super Admin or State Admin',
+          description: 'Verifies OTP and returns JWT token for Super Admin or State Admin authentication.',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['phone', 'otp'],
+                  properties: {
+                    phone: { type: 'string', example: '9999999999' },
+                    otp: { type: 'string', minLength: 6, maxLength: 6, example: '123456' },
+                    purpose: {
+                      type: 'string',
+                      enum: ['login', 'registration', 'phone_verification'],
+                      default: 'login'
+                    }
+                  }
+                }
+              }
+            }
+          },
+          responses: {
+            '200': {
+              description: 'Login successful',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      success: { type: 'boolean', example: true },
+                      message: { type: 'string', example: 'Login successful' },
+                      data: {
+                        type: 'object',
+                        properties: {
+                          user: {
+                            type: 'object',
+                            properties: {
+                              id: { type: 'string' },
+                              name: { type: 'string', example: 'Super Administrator' },
+                              phone: { type: 'string', example: '9999999999' },
+                              role: { type: 'string', enum: ['super_admin', 'state_admin'], example: 'super_admin' }
+                            }
+                          },
+                          tokens: {
+                            type: 'object',
+                            properties: {
+                              accessToken: { type: 'string' },
+                              refreshToken: { type: 'string' }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
       '/api/beneficiary/auth/send-otp': {
         post: {
           tags: ['Authentication'],

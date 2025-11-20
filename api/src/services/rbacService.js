@@ -1118,23 +1118,26 @@ class RBACService {
           'projects.read.all', 'projects.read.assigned',
           'schemes.read.all', 'schemes.read.assigned',
           'reports.read.regional', 'reports.export',
+          'dashboard.read.regional',
           'finances.read.regional',
           'donors.create', 'donors.read', 'donors.read.regional', 'donors.update.regional', 'donors.verify',
           'donations.create', 'donations.read.regional', 'donations.update.regional',
-          'communications.send'
+          'communications.send',
+          'documents.create', 'documents.read.regional', 'documents.update',
+          'interviews.schedule', 'interviews.read', 'interviews.update', 'interviews.cancel'
         ]
       },
       {
         name: 'area_admin',
         displayName: 'Area Administrator',
-        description: 'Area-level administrative access',
+        description: 'Area-level coordinator with limited permissions to view and update applications within their jurisdiction',
         level: 3,
         category: 'admin',
         scopeConfig: {
-          allowedScopeLevels: ['area', 'unit'],
+          allowedScopeLevels: ['area'],
           defaultScopeLevel: 'area',
-          allowMultipleScopes: true,
-          maxScopes: 10
+          allowMultipleScopes: false,
+          maxScopes: 1
         },
         constraints: {
           maxUsers: 100,
@@ -1143,17 +1146,18 @@ class RBACService {
           isModifiable: true
         },
         permissions: [
-          'users.create', 'users.read.regional', 'users.update.regional',
-          'roles.read', 'roles.assign',
-          'permissions.read',
-          'beneficiaries.create', 'beneficiaries.read.regional', 'beneficiaries.update.regional',
-          'applications.read.regional', 'applications.update.regional', 'applications.approve',
-          'projects.read.assigned',
+          // Applications - View and update stage status only
+          'applications.read.regional',
+          'applications.update.regional',
+          
+          // Dashboard - View basic stats
+          'dashboard.read.regional',
+          
+          // Schemes - Read only to know what schemes are available
           'schemes.read.assigned',
-          'reports.read.regional',
-          'donors.create', 'donors.read', 'donors.read.regional', 'donors.update.regional',
-          'donations.create', 'donations.read.regional', 'donations.update.regional',
-          'communications.send'
+          
+          // Beneficiaries - Read only to view applicant details
+          'beneficiaries.read.regional'
         ]
       },
       {
@@ -1269,6 +1273,7 @@ class RBACService {
     // Create roles with permissions
     for (const roleData of systemRoles) {
       const existingRole = await Role.findOne({ name: roleData.name });
+      
       if (!existingRole) {
         // Get permission IDs
         const permissionIds = [];
@@ -1293,6 +1298,37 @@ class RBACService {
         });
         
         console.log(`✅ Created role: ${roleData.name} with ${permissionIds.length} permissions`);
+      } else {
+        // Update existing role if it's modifiable or if it's a system role that needs permission updates
+        const shouldUpdate = existingRole.type === 'system' && (existingRole.constraints.isModifiable !== false);
+        
+        if (shouldUpdate || existingRole.name === 'area_admin' || existingRole.name === 'district_admin') {
+          const permissionIds = [];
+          
+          if (roleData.name === 'super_admin') {
+            // Super admin gets all permissions
+            const allPermissions = await Permission.find({ isActive: true });
+            permissionIds.push(...allPermissions.map(p => p._id));
+          } else {
+            // Get specific permissions for this role
+            for (const permissionName of roleData.permissions) {
+              const permission = await Permission.findOne({ name: permissionName });
+              if (permission) {
+                permissionIds.push(permission._id);
+              }
+            }
+          }
+          
+          // Update permissions if they've changed
+          const currentPermissionIds = existingRole.permissions.map(p => p.toString()).sort();
+          const newPermissionIds = permissionIds.map(p => p.toString()).sort();
+          
+          if (JSON.stringify(currentPermissionIds) !== JSON.stringify(newPermissionIds)) {
+            existingRole.permissions = permissionIds;
+            await existingRole.save();
+            console.log(`🔄 Updated role: ${roleData.name} with ${permissionIds.length} permissions`);
+          }
+        }
       }
     }
   }
@@ -1407,12 +1443,30 @@ class RBACService {
    */
   async getUserPermissions(userId) {
     try {
+      const User = require('../models/User');
+      const Role = require('../models/Role');
+      
+      // First, try to get permissions from UserRole (advanced RBAC)
       const userRoles = await UserRole.getUserActiveRoles(userId);
       const allPermissions = new Set();
 
-      for (const userRole of userRoles) {
-        const permissions = await userRole.getEffectivePermissions();
-        permissions.forEach(permission => allPermissions.add(permission));
+      if (userRoles && userRoles.length > 0) {
+        // User has UserRole entries - use advanced RBAC
+        for (const userRole of userRoles) {
+          const permissions = await userRole.getEffectivePermissions();
+          permissions.forEach(permission => allPermissions.add(permission));
+        }
+      } else {
+        // Fallback: User doesn't have UserRole entries, use direct role field
+        const user = await User.findById(userId);
+        if (user && user.role) {
+          const role = await Role.findOne({ name: user.role }).populate('permissions');
+          if (role && role.permissions) {
+            role.permissions.forEach(permission => {
+              allPermissions.add(permission._id.toString());
+            });
+          }
+        }
       }
 
       return Array.from(allPermissions);
