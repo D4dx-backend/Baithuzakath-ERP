@@ -56,7 +56,7 @@ class BeneficiaryAuthController {
         console.log(`📱 Sending OTP via WhatsApp to ${phone}...`);
         sendResult = await whatsappOTPService.sendOTP(phone, otp, {
           name: user.name || 'Beneficiary',
-          purpose: 'login',
+          purpose: 'beneficiary-login',
           priority: 1
         });
         
@@ -78,7 +78,7 @@ class BeneficiaryAuthController {
         expiresAt: new Date(Date.now() + staticOTPConfig.OTP_EXPIRY_MINUTES * 60 * 1000),
         attempts: (user.otp?.attempts || 0) + 1,
         lastSentAt: new Date(),
-        purpose: 'login',
+        purpose: 'beneficiary-login',
         verified: false
       };
       await user.save();
@@ -135,7 +135,7 @@ class BeneficiaryAuthController {
       }
 
       // Verify OTP
-      const otpVerification = user.verifyOTP(otp, 'login');
+      const otpVerification = user.verifyOTP(otp, 'beneficiary-login');
       if (!otpVerification.success) {
         return ResponseHelper.error(res, otpVerification.message, 400);
       }
@@ -304,7 +304,7 @@ class BeneficiaryAuthController {
       // Generate OTP based on configuration
       const otp = staticOTPConfig.USE_STATIC_OTP 
         ? staticOTPConfig.STATIC_OTP 
-        : user.generateOTP('login');
+        : user.generateOTP('beneficiary-login');
       
       // Set OTP in user model
       user.otp = {
@@ -312,7 +312,7 @@ class BeneficiaryAuthController {
         expiresAt: new Date(Date.now() + staticOTPConfig.OTP_EXPIRY_MINUTES * 60 * 1000),
         attempts: (user.otp?.attempts || 0) + 1,
         lastSentAt: new Date(),
-        purpose: 'login',
+        purpose: 'beneficiary-login',
         verified: false
       };
       await user.save();

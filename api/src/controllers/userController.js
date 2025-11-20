@@ -1,4 +1,4 @@
-const { User, Location, Project, Scheme } = require('../models');
+const { User, Location, Project, Scheme, Role, UserRole } = require('../models');
 const authService = require('../services/authService');
 const notificationService = require('../services/notificationService');
 const ResponseHelper = require('../utils/responseHelper');
@@ -225,6 +225,37 @@ class UserController {
       });
 
       await user.save();
+
+      // Create UserRole entry to link user with system role
+      try {
+        const systemRole = await Role.findOne({ name: userData.role });
+        if (systemRole) {
+          const existingUserRole = await UserRole.findOne({
+            user: user._id,
+            role: systemRole._id,
+            isActive: true
+          });
+
+          if (!existingUserRole) {
+            const userRole = new UserRole({
+              user: user._id,
+              role: systemRole._id,
+              assignedBy: currentUser._id,
+              assignmentReason: 'User creation',
+              isPrimary: true,
+              approvalStatus: 'approved',
+              isActive: true
+            });
+            await userRole.save();
+            console.log(`✅ UserRole created for ${user.name} with role ${userData.role}`);
+          }
+        } else {
+          console.warn(`⚠️  System role '${userData.role}' not found in database`);
+        }
+      } catch (roleError) {
+        console.error('❌ Error creating UserRole:', roleError);
+        // Continue even if UserRole creation fails - user still created
+      }
 
       // Skip welcome SMS notification for testing
       console.log(`📱 Welcome message for ${user.name} (${user.phone}): Account created by ${currentUser.name}. Role: ${user.role}`);

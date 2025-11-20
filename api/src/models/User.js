@@ -146,7 +146,7 @@ const userSchema = new mongoose.Schema({
     lastSentAt: Date,
     purpose: {
       type: String,
-      enum: ['login', 'registration', 'password_reset', 'phone_verification'],
+      enum: ['login', 'registration', 'password_reset', 'phone_verification', 'beneficiary-login', 'admin-login'],
       default: 'login'
     },
     verified: { type: Boolean, default: false }

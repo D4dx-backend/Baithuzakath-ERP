@@ -217,22 +217,37 @@ class RegionalAdminController {
 
       // Role-based filtering
       if (user.role === 'district_admin') {
-        if (!user.profile?.location?.district) {
+        // Support both new (adminScope.district) and old (adminScope.regions) formats
+        const districtId = user.adminScope?.district || 
+                          (user.adminScope?.regions && user.adminScope.regions[0]) ||
+                          user.profile?.location?.district;
+        
+        if (!districtId) {
           return ResponseHelper.error(res, 'District location not set for admin', 400);
         }
-        filter.district = user.profile.location.district;
+        filter.district = districtId;
         console.log('🔍 District admin filter:', filter);
       } else if (user.role === 'area_admin') {
-        if (!user.profile?.location?.area) {
+        // Support both new (adminScope.area) and old (adminScope.regions) formats
+        const areaId = user.adminScope?.area || 
+                      (user.adminScope?.regions && user.adminScope.regions[0]) ||
+                      user.profile?.location?.area;
+        
+        if (!areaId) {
           return ResponseHelper.error(res, 'Area location not set for admin', 400);
         }
-        filter.area = user.profile.location.area;
+        filter.area = areaId;
         console.log('🔍 Area admin filter:', filter);
       } else if (user.role === 'unit_admin') {
-        if (!user.profile?.location?.unit) {
+        // Support both new (adminScope.unit) and old (adminScope.regions) formats
+        const unitId = user.adminScope?.unit || 
+                      (user.adminScope?.regions && user.adminScope.regions[0]) ||
+                      user.profile?.location?.unit;
+        
+        if (!unitId) {
           return ResponseHelper.error(res, 'Unit location not set for admin', 400);
         }
-        filter.unit = user.profile.location.unit;
+        filter.unit = unitId;
         console.log('🔍 Unit admin filter:', filter);
       }
 
@@ -328,11 +343,21 @@ class RegionalAdminController {
         return ResponseHelper.error(res, 'Application not found', 404);
       }
 
-      // Check if admin has access to this application
+      // Check if admin has access to this application (support both old and new location formats)
+      const districtId = user.adminScope?.district || 
+                        (user.adminScope?.regions && user.adminScope.regions[0]) ||
+                        user.profile?.location?.district;
+      const areaId = user.adminScope?.area || 
+                    (user.adminScope?.regions && user.adminScope.regions[0]) ||
+                    user.profile?.location?.area;
+      const unitId = user.adminScope?.unit || 
+                    (user.adminScope?.regions && user.adminScope.regions[0]) ||
+                    user.profile?.location?.unit;
+
       const hasAccess = 
-        (user.role === 'district_admin' && application.district?._id.toString() === user.profile?.location?.district?.toString()) ||
-        (user.role === 'area_admin' && application.area?._id.toString() === user.profile?.location?.area?.toString()) ||
-        (user.role === 'unit_admin' && application.unit?._id.toString() === user.profile?.location?.unit?.toString());
+        (user.role === 'district_admin' && application.district?._id.toString() === districtId?.toString()) ||
+        (user.role === 'area_admin' && application.area?._id.toString() === areaId?.toString()) ||
+        (user.role === 'unit_admin' && application.unit?._id.toString() === unitId?.toString());
 
       if (!hasAccess) {
         return ResponseHelper.error(res, 'Access denied to this application', 403);
@@ -375,8 +400,12 @@ class RegionalAdminController {
         return ResponseHelper.error(res, 'Application not found', 404);
       }
 
-      // Check if admin has access
-      if (application.area?._id.toString() !== user.profile?.location?.area?.toString()) {
+      // Check if admin has access (support both old and new location formats)
+      const areaId = user.adminScope?.area || 
+                    (user.adminScope?.regions && user.adminScope.regions[0]) ||
+                    user.profile?.location?.area;
+      
+      if (application.area?._id.toString() !== areaId?.toString()) {
         return ResponseHelper.error(res, 'Access denied to this application', 403);
       }
 
@@ -446,14 +475,23 @@ class RegionalAdminController {
     try {
       const user = req.user;
 
-      // Build filter based on admin role
+      // Build filter based on admin role (support both old and new location formats)
       const filter = {};
       if (user.role === 'district_admin') {
-        filter.district = user.profile?.location?.district;
+        const districtId = user.adminScope?.district || 
+                          (user.adminScope?.regions && user.adminScope.regions[0]) ||
+                          user.profile?.location?.district;
+        filter.district = districtId;
       } else if (user.role === 'area_admin') {
-        filter.area = user.profile?.location?.area;
+        const areaId = user.adminScope?.area || 
+                      (user.adminScope?.regions && user.adminScope.regions[0]) ||
+                      user.profile?.location?.area;
+        filter.area = areaId;
       } else if (user.role === 'unit_admin') {
-        filter.unit = user.profile?.location?.unit;
+        const unitId = user.adminScope?.unit || 
+                      (user.adminScope?.regions && user.adminScope.regions[0]) ||
+                      user.profile?.location?.unit;
+        filter.unit = unitId;
       }
 
       // Get application statistics

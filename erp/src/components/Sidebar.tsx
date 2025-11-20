@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useRBAC } from "@/hooks/useRBAC";
+import { useAuth } from "@/hooks/useAuth";
 
 const menuCategories = [
   {
@@ -283,12 +284,6 @@ const menuCategories = [
   },
 ];
 
-const allNavItems = menuCategories.flatMap(cat => 
-  cat.items.flatMap(item => 
-    item.submenu ? item.submenu : [item]
-  )
-);
-
 interface SidebarProps {
   isOpen?: boolean;
   onClose?: () => void;
@@ -296,8 +291,71 @@ interface SidebarProps {
 
 export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const { hasAnyPermission } = useRBAC();
+  const { user } = useAuth();
   const location = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
+  
+  // Check if user is area_admin, district_admin, or unit_admin
+  const isLimitedAdmin = user && ['area_admin', 'district_admin', 'unit_admin'].includes(user.role);
+  
+  // Filter menu items for limited admins
+  const getFilteredMenuCategories = () => {
+    if (!isLimitedAdmin) {
+      return menuCategories;
+    }
+    
+    // For limited admins, show only Dashboard and limited Applications menu
+    return [
+      {
+        label: null,
+        items: [
+          { 
+            to: "/dashboard", 
+            icon: LayoutDashboard, 
+            label: "Dashboard",
+            permissions: []
+          },
+        ]
+      },
+      {
+        label: "Projects Management",
+        items: [
+          { 
+            label: "Applications",
+            icon: FileCheck,
+            permissions: ["applications.read.all", "applications.read.regional", "applications.read.own"],
+            submenu: [
+              {
+                to: "/applications/all",
+                label: "All Applications",
+                permissions: ["applications.read.all", "applications.read.regional", "applications.read.own"]
+              },
+              {
+                to: "/applications/pending",
+                label: "Pending",
+                permissions: ["applications.read.all", "applications.read.regional", "applications.read.own"]
+              },
+              {
+                to: "/applications/interview-scheduled",
+                label: "Interview Scheduled",
+                permissions: ["applications.read.all", "applications.read.regional", "applications.read.own"]
+              }
+            ]
+          }
+        ]
+      }
+    ];
+  };
+  
+  const filteredMenuCategories = getFilteredMenuCategories();
+  
+  // Flatten all menu items for search
+  const allNavItems = filteredMenuCategories.flatMap(cat => 
+    cat.items.flatMap((item: any) => 
+      item.submenu ? item.submenu : [item]
+    )
+  ) as Array<{ to: string; label: string; icon: any; permissions: string[] }>;
+  
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({
     "Projects Management": true,
     "Financial Management": true,
@@ -366,7 +424,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   };
 
   // Filter categories to only show items user has access to
-  const filteredCategories = menuCategories.map(category => ({
+  const filteredCategories = filteredMenuCategories.map(category => ({
     ...category,
     items: category.items.filter(hasAccessToItem)
   })).filter(category => category.items.length > 0);
