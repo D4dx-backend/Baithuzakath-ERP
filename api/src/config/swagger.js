@@ -96,6 +96,14 @@ Complete API documentation for Baithuzzakath Kerala ERP system serving all user 
       {
         name: 'Regional Admin - Dashboard',
         description: 'Dashboard and statistics for regional admins'
+      },
+      {
+        name: 'Mobile API',
+        description: 'Mobile-optimized APIs for districts, areas, and units with filtering capabilities'
+      },
+      {
+        name: 'Locations',
+        description: 'Location management endpoints for cascading selection (District > Area > Unit) used in profile updates and regional filtering'
       }
     ],
     components: {
@@ -1306,7 +1314,7 @@ Complete API documentation for Baithuzzakath Kerala ERP system serving all user 
         get: {
           tags: ['Regional Admin - Applications'],
           summary: 'Get applications for regional admin',
-          description: 'Returns applications filtered by admin\'s location. Unit admin sees unit applications, area admin sees area applications, district admin sees district applications. All admins have READ-ONLY access.',
+          description: 'Returns applications filtered by admin\'s location. Unit admin sees unit applications, area admin sees area applications, district admin sees district applications. All admins have READ-ONLY access. Applications include populated district, area, and unit location details.',
           security: [{ bearerAuth: [] }],
           parameters: [
             { in: 'query', name: 'page', schema: { type: 'integer', default: 1 } },
@@ -1537,6 +1545,249 @@ Complete API documentation for Baithuzzakath Kerala ERP system serving all user 
                                 count: { type: 'integer', example: 45 },
                                 totalApproved: { type: 'number', example: 2250000 }
                               }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      '/api/mobile/districts': {
+        get: {
+          tags: ['Mobile API'],
+          summary: 'Get all districts (Mobile API)',
+          description: 'Get a full list of districts optimized for mobile applications. Supports search, filtering, and pagination.',
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { in: 'query', name: 'search', schema: { type: 'string' }, description: 'Search by district name or code' },
+            { in: 'query', name: 'isActive', schema: { type: 'boolean', default: true }, description: 'Filter by active status' },
+            { in: 'query', name: 'page', schema: { type: 'integer', default: 1, minimum: 1 } },
+            { in: 'query', name: 'limit', schema: { type: 'integer', default: 1000, minimum: 1, maximum: 10000 }, description: 'Number of items per page (default: 1000 for full list)' },
+            { in: 'query', name: 'sort', schema: { type: 'string', enum: ['name', 'code', 'createdAt'], default: 'name' } },
+            { in: 'query', name: 'order', schema: { type: 'string', enum: ['asc', 'desc'], default: 'asc' } }
+          ],
+          responses: {
+            '200': {
+              description: 'Districts retrieved successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      success: { type: 'boolean', example: true },
+                      message: { type: 'string', example: 'Districts retrieved successfully' },
+                      data: {
+                        type: 'object',
+                        properties: {
+                          districts: {
+                            type: 'array',
+                            items: {
+                              type: 'object',
+                              properties: {
+                                _id: { type: 'string', example: '507f1f77bcf86cd799439011' },
+                                name: { type: 'string', example: 'Malappuram' },
+                                code: { type: 'string', example: 'MALAPPURAM' },
+                                type: { type: 'string', example: 'district' },
+                                isActive: { type: 'boolean', example: true },
+                                coordinates: {
+                                  type: 'object',
+                                  properties: {
+                                    latitude: { type: 'number' },
+                                    longitude: { type: 'number' }
+                                  }
+                                },
+                                contactPerson: {
+                                  type: 'object',
+                                  properties: {
+                                    name: { type: 'string' },
+                                    phone: { type: 'string' },
+                                    email: { type: 'string' }
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          pagination: {
+                            type: 'object',
+                            properties: {
+                              page: { type: 'integer', example: 1 },
+                              limit: { type: 'integer', example: 1000 },
+                              total: { type: 'integer', example: 14 },
+                              pages: { type: 'integer', example: 1 }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      '/api/mobile/areas': {
+        get: {
+          tags: ['Mobile API'],
+          summary: 'Get all areas (Mobile API)',
+          description: 'Get a full list of areas optimized for mobile applications. Can filter by district. Supports search, filtering, and pagination.',
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { in: 'query', name: 'district', schema: { type: 'string' }, description: 'Filter by district ID' },
+            { in: 'query', name: 'search', schema: { type: 'string' }, description: 'Search by area name or code' },
+            { in: 'query', name: 'isActive', schema: { type: 'boolean', default: true }, description: 'Filter by active status' },
+            { in: 'query', name: 'page', schema: { type: 'integer', default: 1, minimum: 1 } },
+            { in: 'query', name: 'limit', schema: { type: 'integer', default: 1000, minimum: 1, maximum: 10000 }, description: 'Number of items per page (default: 1000 for full list)' },
+            { in: 'query', name: 'sort', schema: { type: 'string', enum: ['name', 'code', 'createdAt'], default: 'name' } },
+            { in: 'query', name: 'order', schema: { type: 'string', enum: ['asc', 'desc'], default: 'asc' } }
+          ],
+          responses: {
+            '200': {
+              description: 'Areas retrieved successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      success: { type: 'boolean', example: true },
+                      message: { type: 'string', example: 'Areas retrieved successfully' },
+                      data: {
+                        type: 'object',
+                        properties: {
+                          areas: {
+                            type: 'array',
+                            items: {
+                              type: 'object',
+                              properties: {
+                                _id: { type: 'string', example: '507f1f77bcf86cd799439012' },
+                                name: { type: 'string', example: 'Tirur' },
+                                code: { type: 'string', example: 'TRR' },
+                                type: { type: 'string', example: 'area' },
+                                parent: {
+                                  type: 'object',
+                                  properties: {
+                                    _id: { type: 'string' },
+                                    name: { type: 'string', example: 'Malappuram' },
+                                    code: { type: 'string', example: 'MALAPPURAM' },
+                                    type: { type: 'string', example: 'district' }
+                                  }
+                                },
+                                isActive: { type: 'boolean', example: true },
+                                coordinates: {
+                                  type: 'object',
+                                  properties: {
+                                    latitude: { type: 'number' },
+                                    longitude: { type: 'number' }
+                                  }
+                                },
+                                contactPerson: {
+                                  type: 'object',
+                                  properties: {
+                                    name: { type: 'string' },
+                                    phone: { type: 'string' },
+                                    email: { type: 'string' }
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          pagination: {
+                            type: 'object',
+                            properties: {
+                              page: { type: 'integer', example: 1 },
+                              limit: { type: 'integer', example: 1000 },
+                              total: { type: 'integer', example: 50 },
+                              pages: { type: 'integer', example: 1 }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      '/api/mobile/units': {
+        get: {
+          tags: ['Mobile API'],
+          summary: 'Get all units (Mobile API)',
+          description: 'Get a full list of units optimized for mobile applications. Can filter by district or area. Supports search, filtering, and pagination.',
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { in: 'query', name: 'district', schema: { type: 'string' }, description: 'Filter by district ID (returns all units in that district)' },
+            { in: 'query', name: 'area', schema: { type: 'string' }, description: 'Filter by area ID (takes priority over district)' },
+            { in: 'query', name: 'search', schema: { type: 'string' }, description: 'Search by unit name or code' },
+            { in: 'query', name: 'isActive', schema: { type: 'boolean', default: true }, description: 'Filter by active status' },
+            { in: 'query', name: 'page', schema: { type: 'integer', default: 1, minimum: 1 } },
+            { in: 'query', name: 'limit', schema: { type: 'integer', default: 1000, minimum: 1, maximum: 10000 }, description: 'Number of items per page (default: 1000 for full list)' },
+            { in: 'query', name: 'sort', schema: { type: 'string', enum: ['name', 'code', 'createdAt'], default: 'name' } },
+            { in: 'query', name: 'order', schema: { type: 'string', enum: ['asc', 'desc'], default: 'asc' } }
+          ],
+          responses: {
+            '200': {
+              description: 'Units retrieved successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      success: { type: 'boolean', example: true },
+                      message: { type: 'string', example: 'Units retrieved successfully' },
+                      data: {
+                        type: 'object',
+                        properties: {
+                          units: {
+                            type: 'array',
+                            items: {
+                              type: 'object',
+                              properties: {
+                                _id: { type: 'string', example: '507f1f77bcf86cd799439013' },
+                                name: { type: 'string', example: 'Tirur West' },
+                                code: { type: 'string', example: 'TRR_W' },
+                                type: { type: 'string', example: 'unit' },
+                                parent: {
+                                  type: 'object',
+                                  properties: {
+                                    _id: { type: 'string' },
+                                    name: { type: 'string', example: 'Tirur' },
+                                    code: { type: 'string', example: 'TRR' },
+                                    type: { type: 'string', example: 'area' }
+                                  }
+                                },
+                                isActive: { type: 'boolean', example: true },
+                                coordinates: {
+                                  type: 'object',
+                                  properties: {
+                                    latitude: { type: 'number' },
+                                    longitude: { type: 'number' }
+                                  }
+                                },
+                                contactPerson: {
+                                  type: 'object',
+                                  properties: {
+                                    name: { type: 'string' },
+                                    phone: { type: 'string' },
+                                    email: { type: 'string' }
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          pagination: {
+                            type: 'object',
+                            properties: {
+                              page: { type: 'integer', example: 1 },
+                              limit: { type: 'integer', example: 1000 },
+                              total: { type: 'integer', example: 200 },
+                              pages: { type: 'integer', example: 1 }
                             }
                           }
                         }

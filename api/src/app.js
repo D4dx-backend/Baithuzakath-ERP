@@ -104,6 +104,7 @@ const activityLogRoutes = require('./routes/activityLogs');
 const masterDataRoutes = require('./routes/masterDataRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const regionalAdminRoutes = require('./routes/regionalAdminRoutes');
+const mobileRoutes = require('./routes/mobileRoutes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -127,6 +128,7 @@ app.use('/api/rbac', rbacRoutes);
 app.use('/api/activity-logs', activityLogRoutes);
 app.use('/api/master-data', masterDataRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/mobile', mobileRoutes);
 app.use('/api', formConfigurationRoutes);
 
 // 404 handler for API routes - must come before static file serving

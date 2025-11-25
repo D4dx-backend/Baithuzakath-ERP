@@ -271,6 +271,9 @@ class RegionalAdminController {
         .populate('beneficiary', 'name phone profile')
         .populate('reviewedBy', 'name role')
         .populate('approvedBy', 'name role')
+        .populate('district', 'name code type')
+        .populate('area', 'name code type')
+        .populate('unit', 'name code type')
         .sort(sortOptions)
         .skip(skip)
         .limit(parseInt(limit));
