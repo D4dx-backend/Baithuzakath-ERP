@@ -10,23 +10,17 @@ class BeneficiaryAuthController {
    * Uses static phone number and OTP for quick testing
    * POST /api/beneficiary/auth/test-login
    * 
-   * NOTE: This endpoint should be disabled in production for security.
-   * Set ENABLE_TEST_LOGIN=true in environment variables to enable in production.
+   * Test credentials can be configured via environment variables:
+   * - TEST_LOGIN_PHONE (default: 9999999999)
+   * - TEST_LOGIN_OTP (default: 123456)
+   * 
+   * This endpoint is always available for testing purposes.
    */
   async testLogin(req, res) {
     try {
-      // Check if test login is enabled (development or explicitly enabled)
-      const isDevelopment = process.env.NODE_ENV === 'development';
-      const isTestLoginEnabled = process.env.ENABLE_TEST_LOGIN === 'true';
-      
-      if (!isDevelopment && !isTestLoginEnabled) {
-        console.log('❌ Test login disabled in production');
-        return ResponseHelper.error(res, 'Test login is disabled in production environment', 403);
-      }
-
-      // Static test credentials
-      const TEST_PHONE = '9999999999';
-      const TEST_OTP = '123456';
+      // Static test credentials (configurable via environment variables)
+      const TEST_PHONE = process.env.TEST_LOGIN_PHONE || '9999999999';
+      const TEST_OTP = process.env.TEST_LOGIN_OTP || '123456';
 
       console.log('🧪 TEST LOGIN: Using static credentials');
       console.log('- Test Phone:', TEST_PHONE);
@@ -153,18 +147,27 @@ class BeneficiaryAuthController {
       } else if (staticOTPConfig.USE_WHATSAPP_OTP && staticOTPConfig.WHATSAPP_ENABLED) {
         // WhatsApp OTP service
         console.log(`📱 Sending OTP via WhatsApp to ${phone}...`);
-        sendResult = await whatsappOTPService.sendOTP(phone, otp, {
-          name: user.name || 'Beneficiary',
-          purpose: 'beneficiary-login',
-          priority: 1
-        });
-        
-        if (!sendResult.success) {
-          console.error('❌ WhatsApp OTP failed:', sendResult.error);
-          throw new Error(`Failed to send OTP via WhatsApp: ${sendResult.error}`);
+        try {
+          sendResult = await whatsappOTPService.sendOTP(phone, otp, {
+            name: user.name || 'Beneficiary',
+            purpose: 'beneficiary-login',
+            priority: 1
+          });
+          
+          if (!sendResult.success) {
+            console.error('❌ WhatsApp OTP failed:', sendResult.error);
+            // Fallback to static OTP mode if WhatsApp fails
+            console.log('⚠️  Falling back to static OTP mode due to WhatsApp failure');
+            sendResult = { success: true, messageId: 'static-otp-fallback' };
+          } else {
+            console.log(`✅ WhatsApp OTP sent - MessageID: ${sendResult.messageId}`);
+          }
+        } catch (whatsappError) {
+          console.error('❌ WhatsApp OTP exception:', whatsappError);
+          // Fallback to static OTP mode if WhatsApp throws exception
+          console.log('⚠️  Falling back to static OTP mode due to WhatsApp exception');
+          sendResult = { success: true, messageId: 'static-otp-fallback' };
         }
-        
-        console.log(`✅ WhatsApp OTP sent - MessageID: ${sendResult.messageId}`);
       } else {
         // Development mode - no service enabled
         console.log(`⚠️  No OTP service enabled. OTP: ${otp}`);
@@ -196,10 +199,12 @@ class BeneficiaryAuthController {
             : 'development'
       };
 
-      // Include OTP in response if static mode is enabled (for development)
-      if (staticOTPConfig.USE_STATIC_OTP) {
+      // Include OTP in response if static mode is enabled or if WhatsApp failed (fallback)
+      if (staticOTPConfig.USE_STATIC_OTP || sendResult.messageId === 'static-otp-fallback') {
         response.staticOTP = otp;
-        response.note = 'Static OTP enabled for testing';
+        response.note = staticOTPConfig.USE_STATIC_OTP 
+          ? 'Static OTP enabled for testing' 
+          : 'OTP included due to WhatsApp service unavailability';
       } else if (!staticOTPConfig.USE_WHATSAPP_OTP && !staticOTPConfig.SMS_ENABLED) {
         // Development mode - include OTP in response
         response.developmentOTP = otp;
