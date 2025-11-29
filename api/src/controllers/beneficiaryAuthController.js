@@ -9,9 +9,21 @@ class BeneficiaryAuthController {
    * Test login for beneficiary (testing purposes only)
    * Uses static phone number and OTP for quick testing
    * POST /api/beneficiary/auth/test-login
+   * 
+   * NOTE: This endpoint should be disabled in production for security.
+   * Set ENABLE_TEST_LOGIN=true in environment variables to enable in production.
    */
   async testLogin(req, res) {
     try {
+      // Check if test login is enabled (development or explicitly enabled)
+      const isDevelopment = process.env.NODE_ENV === 'development';
+      const isTestLoginEnabled = process.env.ENABLE_TEST_LOGIN === 'true';
+      
+      if (!isDevelopment && !isTestLoginEnabled) {
+        console.log('❌ Test login disabled in production');
+        return ResponseHelper.error(res, 'Test login is disabled in production environment', 403);
+      }
+
       // Static test credentials
       const TEST_PHONE = '9999999999';
       const TEST_OTP = '123456';
