@@ -24,6 +24,9 @@ class BeneficiaryAuthController {
         return ResponseHelper.error(res, 'Invalid phone number format', 400);
       }
 
+      // Check for test beneficiary account
+      const isTestAccount = phone === '9999999999';
+
       // Check if user exists, if not create a beneficiary account
       let user = await User.findOne({ phone, isActive: true });
       
@@ -32,22 +35,28 @@ class BeneficiaryAuthController {
         user = new User({
           phone,
           role: 'beneficiary',
-          name: `Beneficiary ${phone.slice(-4)}`, // Temporary name
-          isVerified: false,
+          name: isTestAccount ? 'Test Beneficiary' : `Beneficiary ${phone.slice(-4)}`, // Temporary name
+          isVerified: isTestAccount ? true : false, // Test account is pre-verified
           isActive: true
         });
         await user.save();
       }
 
-      // Generate OTP based on configuration
-      const otp = staticOTPConfig.USE_STATIC_OTP 
-        ? staticOTPConfig.STATIC_OTP 
-        : whatsappOTPService.generateOTP(6);
+      // Generate OTP based on configuration or test account
+      const otp = isTestAccount 
+        ? '123456' // Fixed OTP for test account
+        : staticOTPConfig.USE_STATIC_OTP 
+          ? staticOTPConfig.STATIC_OTP 
+          : whatsappOTPService.generateOTP(6);
       
       // Send OTP based on configuration
       let sendResult = { success: true, messageId: 'dev-test-message-id' };
       
-      if (staticOTPConfig.USE_STATIC_OTP) {
+      if (isTestAccount) {
+        // Test account mode - no external service
+        console.log(`🧪 TEST ACCOUNT MODE: OTP for ${phone} is: ${otp}`);
+        sendResult = { success: true, messageId: 'test-account-mode' };
+      } else if (staticOTPConfig.USE_STATIC_OTP) {
         // Static OTP mode for testing (no external service)
         console.log(`🔑 STATIC OTP MODE: OTP for ${phone} is: ${otp}`);
         sendResult = { success: true, messageId: 'static-otp-mode' };
@@ -84,21 +93,28 @@ class BeneficiaryAuthController {
       await user.save();
 
       const response = {
-        message: staticOTPConfig.USE_WHATSAPP_OTP 
-          ? 'OTP sent successfully to your WhatsApp number' 
-          : 'OTP sent successfully',
+        message: isTestAccount
+          ? 'Test account - OTP is always 123456'
+          : staticOTPConfig.USE_WHATSAPP_OTP 
+            ? 'OTP sent successfully to your WhatsApp number' 
+            : 'OTP sent successfully',
         phone: phone,
         expiresIn: staticOTPConfig.OTP_EXPIRY_MINUTES,
         messageId: sendResult.messageId,
-        deliveryMethod: staticOTPConfig.USE_STATIC_OTP 
-          ? 'static' 
-          : staticOTPConfig.USE_WHATSAPP_OTP 
-            ? 'whatsapp' 
-            : 'development'
+        deliveryMethod: isTestAccount
+          ? 'test'
+          : staticOTPConfig.USE_STATIC_OTP 
+            ? 'static' 
+            : staticOTPConfig.USE_WHATSAPP_OTP 
+              ? 'whatsapp' 
+              : 'development'
       };
 
-      // Include OTP in response if static mode is enabled (for development)
-      if (staticOTPConfig.USE_STATIC_OTP) {
+      // Include OTP in response for test account or development modes
+      if (isTestAccount) {
+        response.staticOTP = otp;
+        response.note = 'Test account for Play Store testing - OTP is always 123456';
+      } else if (staticOTPConfig.USE_STATIC_OTP) {
         response.staticOTP = otp;
         response.note = 'Static OTP enabled for testing';
       } else if (!staticOTPConfig.USE_WHATSAPP_OTP && !staticOTPConfig.SMS_ENABLED) {
@@ -128,16 +144,34 @@ class BeneficiaryAuthController {
         return ResponseHelper.error(res, 'Phone number and OTP are required', 400);
       }
 
+      // Check for test beneficiary account
+      const isTestAccount = phone === '9999999999';
+
       // Find user
       const user = await User.findOne({ phone, isActive: true });
       if (!user) {
         return ResponseHelper.error(res, 'User not found', 404);
       }
 
-      // Verify OTP
-      const otpVerification = user.verifyOTP(otp, 'beneficiary-login');
-      if (!otpVerification.success) {
-        return ResponseHelper.error(res, otpVerification.message, 400);
+      // Verify OTP - special handling for test account
+      let otpVerification;
+      if (isTestAccount) {
+        // Test account: only accept OTP 123456
+        if (otp === '123456') {
+          otpVerification = { success: true, message: 'Test account OTP verified' };
+          // Mark OTP as verified for test account
+          if (user.otp) {
+            user.otp.verified = true;
+          }
+        } else {
+          return ResponseHelper.error(res, 'Invalid OTP. Test account OTP is always 123456', 400);
+        }
+      } else {
+        // Regular account: use standard OTP verification
+        otpVerification = user.verifyOTP(otp, 'beneficiary-login');
+        if (!otpVerification.success) {
+          return ResponseHelper.error(res, otpVerification.message, 400);
+        }
       }
 
       // Generate JWT token
@@ -285,6 +319,9 @@ class BeneficiaryAuthController {
         return ResponseHelper.error(res, 'Phone number is required', 400);
       }
 
+      // Check for test beneficiary account
+      const isTestAccount = phone === '9999999999';
+
       const user = await User.findOne({ phone, isActive: true });
       if (!user) {
         return ResponseHelper.error(res, 'User not found', 404);
@@ -301,10 +338,12 @@ class BeneficiaryAuthController {
         }
       }
 
-      // Generate OTP based on configuration
-      const otp = staticOTPConfig.USE_STATIC_OTP 
-        ? staticOTPConfig.STATIC_OTP 
-        : user.generateOTP('beneficiary-login');
+      // Generate OTP based on configuration or test account
+      const otp = isTestAccount
+        ? '123456' // Fixed OTP for test account
+        : staticOTPConfig.USE_STATIC_OTP 
+          ? staticOTPConfig.STATIC_OTP 
+          : user.generateOTP('beneficiary-login');
       
       // Set OTP in user model
       user.otp = {
@@ -318,16 +357,23 @@ class BeneficiaryAuthController {
       await user.save();
 
       // Always use static OTP mode for testing (no SMS service)
-      console.log(`🔑 STATIC OTP MODE: Resent OTP for ${phone} is: ${otp}`);
-      const smsResult = { success: true, messageId: 'static-otp-mode' };
+      if (isTestAccount) {
+        console.log(`🧪 TEST ACCOUNT MODE: Resent OTP for ${phone} is: ${otp}`);
+      } else {
+        console.log(`🔑 STATIC OTP MODE: Resent OTP for ${phone} is: ${otp}`);
+      }
+      const smsResult = { success: true, messageId: isTestAccount ? 'test-account-mode' : 'static-otp-mode' };
 
       const response = {
-        message: 'OTP resent successfully',
+        message: isTestAccount ? 'Test account - OTP is always 123456' : 'OTP resent successfully',
         expiresIn: staticOTPConfig.OTP_EXPIRY_MINUTES
       };
 
-      // Include OTP in response if static mode is enabled
-      if (staticOTPConfig.USE_STATIC_OTP) {
+      // Include OTP in response for test account or static mode
+      if (isTestAccount) {
+        response.staticOTP = otp;
+        response.note = 'Test account for Play Store testing - OTP is always 123456';
+      } else if (staticOTPConfig.USE_STATIC_OTP) {
         response.staticOTP = otp;
         response.note = 'Static OTP enabled for all logins';
       }

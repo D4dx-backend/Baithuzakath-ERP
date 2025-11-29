@@ -31,16 +31,23 @@ export default function BeneficiaryLogin() {
     try {
       const response = await beneficiaryApi.sendOTP(phoneNumber);
       
+      // Check if this is the test account
+      const isTestAccount = phoneNumber === '9999999999';
+      
       // Store static OTP if available
       if (response.staticOTP || response.developmentOTP) {
         const staticOTP = response.staticOTP || response.developmentOTP;
         setDevelopmentOTP(staticOTP);
-        setOtp(staticOTP); // Auto-fill for convenience
+        if (isTestAccount) {
+          setOtp(staticOTP); // Auto-fill for test account
+        }
       }
       
       toast({
         title: "OTP Sent",
-        description: `Verification code sent to +91 ${phoneNumber}`,
+        description: isTestAccount 
+          ? "Test account - Use OTP: 123456" 
+          : `Verification code sent to +91 ${phoneNumber}`,
       });
       setStep("otp");
     } catch (error) {
@@ -99,16 +106,23 @@ export default function BeneficiaryLogin() {
     try {
       const response = await beneficiaryApi.resendOTP(phoneNumber);
       
+      // Check if this is the test account
+      const isTestAccount = phoneNumber === '9999999999';
+      
       // Store static OTP if available
       if (response.staticOTP || response.developmentOTP) {
         const staticOTP = response.staticOTP || response.developmentOTP;
         setDevelopmentOTP(staticOTP);
-        setOtp(staticOTP); // Auto-fill for convenience
+        if (isTestAccount) {
+          setOtp(staticOTP); // Auto-fill for test account
+        }
       }
       
       toast({
         title: "OTP Resent",
-        description: `New verification code sent to +91 ${phoneNumber}`,
+        description: isTestAccount 
+          ? "Test account - Use OTP: 123456" 
+          : `New verification code sent to +91 ${phoneNumber}`,
       });
     } catch (error) {
       toast({
@@ -191,16 +205,20 @@ export default function BeneficiaryLogin() {
                 
                 {/* Static OTP Display */}
                 {developmentOTP && (
-                  <div className="bg-green-50 border border-green-200 rounded-md p-3 mb-3">
+                  <div className={`${phoneNumber === '9999999999' ? 'bg-blue-50 border-blue-200' : 'bg-green-50 border-green-200'} border rounded-md p-3 mb-3`}>
                     <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                      <span className="text-sm font-medium text-green-800">Static OTP Mode</span>
+                      <div className={`w-2 h-2 ${phoneNumber === '9999999999' ? 'bg-blue-400' : 'bg-green-400'} rounded-full`}></div>
+                      <span className={`text-sm font-medium ${phoneNumber === '9999999999' ? 'text-blue-800' : 'text-green-800'}`}>
+                        {phoneNumber === '9999999999' ? 'Test Account Mode' : 'Static OTP Mode'}
+                      </span>
                     </div>
-                    <p className="text-sm text-green-700 mt-1">
+                    <p className={`text-sm ${phoneNumber === '9999999999' ? 'text-blue-700' : 'text-green-700'} mt-1`}>
                       Your OTP is: <span className="font-mono font-bold text-lg">{developmentOTP}</span>
                     </p>
-                    <p className="text-xs text-green-600 mt-1">
-                      This OTP is always 123456 for all logins
+                    <p className={`text-xs ${phoneNumber === '9999999999' ? 'text-blue-600' : 'text-green-600'} mt-1`}>
+                      {phoneNumber === '9999999999' 
+                        ? 'Test account for Play Store testing - OTP is always 123456' 
+                        : 'This OTP is always 123456 for all logins'}
                     </p>
                     <Button
                       variant="outline"
