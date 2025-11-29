@@ -13,6 +13,9 @@ const { body, param, query } = require('express-validator');
 // ============================================================================
 
 // Authentication routes (no auth required)
+// Test login route (for testing purposes only - uses static credentials)
+router.post('/auth/test-login', beneficiaryAuthController.testLogin);
+
 router.post('/auth/send-otp', [
   body('phone')
     .notEmpty()

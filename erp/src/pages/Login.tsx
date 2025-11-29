@@ -96,6 +96,70 @@ export default function Login() {
     setLoading(true);
     try {
       if (role === "beneficiary") {
+        // Check if using test credentials - use test login endpoint
+        if (phoneNumber === "9999999999" && otp === "123456") {
+          const beneficiaryApi = await import("@/services/beneficiaryApi");
+          const response = await beneficiaryApi.beneficiaryApi.testLogin();
+          
+          console.log('✅ Test login successful');
+          console.log('- User:', response.user);
+          console.log('- Token exists:', !!response.token);
+          
+          // Wait for localStorage to persist
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
+          // Verify token was saved
+          const savedToken = localStorage.getItem('beneficiary_token');
+          console.log('- Token saved?', !!savedToken);
+          console.log('- User role:', localStorage.getItem('user_role'));
+          
+          if (!savedToken) {
+            toast({
+              title: "Login Error",
+              description: "Token not saved. Please try again.",
+              variant: "destructive",
+            });
+            setLoading(false);
+            return;
+          }
+          
+          toast({
+            title: "Test Login Successful",
+            description: `Welcome, ${response.user.name}!`,
+          });
+          
+          // Determine navigation path
+          const targetPath = !response.user.isVerified 
+            ? "/beneficiary/profile-completion" 
+            : "/beneficiary/dashboard";
+          
+          console.log('📍 Target path:', targetPath);
+          console.log('📍 User verified:', response.user.isVerified);
+          
+          // Navigate after a short delay to ensure everything is ready
+          setTimeout(() => {
+            try {
+              console.log('📍 Attempting navigation to:', targetPath);
+              navigate(targetPath, { replace: true });
+              
+              // Fallback: Use window.location if navigate doesn't work
+              setTimeout(() => {
+                if (window.location.pathname !== targetPath) {
+                  console.log('⚠️ Navigation failed, using window.location fallback');
+                  window.location.href = targetPath;
+                }
+              }, 500);
+            } catch (navError) {
+              console.error('❌ Navigation error:', navError);
+              // Fallback to window.location
+              window.location.href = targetPath;
+            }
+          }, 300);
+          
+          setLoading(false);
+          return;
+        }
+        
         // Use beneficiary API for verification
         const beneficiaryApi = await import("@/services/beneficiaryApi");
         const response = await beneficiaryApi.beneficiaryApi.verifyOTP(phoneNumber, otp);

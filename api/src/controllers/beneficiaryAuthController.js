@@ -6,6 +6,93 @@ const whatsappOTPService = require('../utils/whatsappOtpService');
 
 class BeneficiaryAuthController {
   /**
+   * Test login for beneficiary (testing purposes only)
+   * Uses static phone number and OTP for quick testing
+   * POST /api/beneficiary/auth/test-login
+   */
+  async testLogin(req, res) {
+    try {
+      // Static test credentials
+      const TEST_PHONE = '9999999999';
+      const TEST_OTP = '123456';
+
+      console.log('🧪 TEST LOGIN: Using static credentials');
+      console.log('- Test Phone:', TEST_PHONE);
+      console.log('- Test OTP:', TEST_OTP);
+
+      // Find or create test beneficiary user (must have beneficiary role)
+      let user = await User.findOne({ 
+        phone: TEST_PHONE, 
+        role: 'beneficiary',
+        isActive: true 
+      });
+      
+      if (!user) {
+        // Check if a user with this phone exists but different role
+        const existingUser = await User.findOne({ phone: TEST_PHONE, isActive: true });
+        
+        if (existingUser) {
+          // Update existing user to beneficiary role for testing
+          console.log('⚠️ User exists with different role, updating to beneficiary for test login');
+          existingUser.role = 'beneficiary';
+          existingUser.name = existingUser.name || 'Test Beneficiary';
+          await existingUser.save();
+          user = existingUser;
+          console.log('✅ Updated existing user to beneficiary role');
+        } else {
+          // Create new test beneficiary user
+          user = new User({
+            phone: TEST_PHONE,
+            role: 'beneficiary',
+            name: 'Test Beneficiary',
+            isVerified: false,
+            isActive: true
+          });
+          await user.save();
+          console.log('✅ Created new test beneficiary user');
+        }
+      }
+
+      // Generate JWT token
+      console.log('🔑 Generating token for test beneficiary:');
+      console.log('- User ID:', user._id);
+      console.log('- User role:', user.role);
+      console.log('- User phone:', user.phone);
+      
+      const token = authService.generateToken(user);
+      console.log('- Token generated (first 50 chars):', token.substring(0, 50) + '...');
+
+      // Update last login
+      user.lastLogin = new Date();
+      await user.save();
+
+      // Return user data and token
+      const userData = {
+        id: user._id,
+        name: user.name,
+        phone: user.phone,
+        role: user.role,
+        isVerified: user.isVerified,
+        profile: user.profile
+      };
+
+      console.log('✅ Test login successful');
+      console.log('- Returning user data:', userData);
+
+      return ResponseHelper.success(res, {
+        user: userData,
+        token,
+        message: 'Test login successful',
+        note: 'This is a test login route using static credentials'
+      }, 'Test login successful');
+
+    } catch (error) {
+      console.error('❌ Test Login Error:', error);
+      return ResponseHelper.error(res, error.message, 500);
+    }
+  }
+
+  /**
    * Send OTP for beneficiary login/registration
    * POST /api/beneficiary/auth/send-otp
    */

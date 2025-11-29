@@ -186,6 +186,55 @@ class BeneficiaryApiService {
     return this.handleResponse<OTPResponse>(response);
   }
 
+  async testLogin(): Promise<LoginResponse> {
+    console.log('🧪 BeneficiaryApi - Test Login');
+    console.log('- API URL:', `${API_BASE_URL}/beneficiary/auth/test-login`);
+    
+    const response = await fetch(`${API_BASE_URL}/beneficiary/auth/test-login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    console.log('- Response status:', response.status);
+    console.log('- Response ok:', response.ok);
+    
+    const rawData = await response.json();
+    console.log('- Raw response:', rawData);
+    
+    if (!response.ok) {
+      throw new Error(rawData.message || `HTTP error! status: ${response.status}`);
+    }
+    
+    if (!rawData.success) {
+      throw new Error(rawData.message || 'API request failed');
+    }
+    
+    const data = rawData.data;
+    
+    console.log('🔑 BeneficiaryApi - testLogin response:', {
+      hasToken: !!data.token,
+      tokenLength: data.token?.length,
+      tokenPreview: data.token ? data.token.substring(0, 50) + '...' : 'null',
+      user: data.user
+    });
+    
+    // Store token and user data in localStorage
+    if (data.token) {
+      localStorage.setItem('beneficiary_token', data.token);
+      localStorage.setItem('beneficiary_user', JSON.stringify(data.user));
+      localStorage.setItem('user_role', 'beneficiary');
+      localStorage.setItem('user_phone', data.user.phone);
+      
+      console.log('✅ Token and user data saved to localStorage');
+      console.log('- Stored token (first 50 chars):', data.token.substring(0, 50) + '...');
+      console.log('- Verify stored token:', localStorage.getItem('beneficiary_token')?.substring(0, 50) + '...');
+    } else {
+      console.error('❌ No token in response!');
+    }
+    
+    return data;
+  }
+
   async getProfile(): Promise<{ user: any }> {
     const response = await fetch(`${API_BASE_URL}/beneficiary/auth/profile`, {
       headers: this.getAuthHeaders()
