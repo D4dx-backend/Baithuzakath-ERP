@@ -232,31 +232,13 @@ const menuCategories = [
         icon: Activity,
         permissions: ["activity_logs.read"],
         submenu: [
-          {
-            to: "/activity-logs",
-            label: "View Logs",
-            permissions: ["activity_logs.read"]
-          },
-          {
-            to: "/activity-logs/analytics",
-            label: "Analytics & Reports",
-            permissions: ["activity_logs.read"]
-          },
+         
           {
             to: "/activity-logs/user-activity",
             label: "User Activity",
             permissions: ["activity_logs.read"]
           },
-          {
-            to: "/activity-logs/security-events",
-            label: "Security Events",
-            permissions: ["activity_logs.read"]
-          },
-          {
-            to: "/activity-logs/system-events",
-            label: "System Events",
-            permissions: ["activity_logs.read"]
-          }
+         
         ]
       },
     ]
