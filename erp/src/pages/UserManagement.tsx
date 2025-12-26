@@ -84,17 +84,6 @@ export default function UserManagement() {
     );
   }
 
-  // Load locations once on mount
-  useEffect(() => {
-    loadLocations();
-    loadStats();
-  }, []);
-
-  // Load users when filters or page changes
-  useEffect(() => {
-    loadUsers();
-  }, [currentPage, selectedRole, selectedStatus, searchTerm]);
-
   const loadUsers = async () => {
     try {
       setLoading(true);
@@ -175,6 +164,16 @@ export default function UserManagement() {
     }
   };
 
+  // Load locations once on mount
+  useEffect(() => {
+    loadLocations();
+    loadStats();
+  }, []);
+
+  // Load users when filters or page changes
+  useEffect(() => {
+    loadUsers();
+  }, [currentPage, selectedRole, selectedStatus, searchTerm]);
 
 
   // Modal handlers

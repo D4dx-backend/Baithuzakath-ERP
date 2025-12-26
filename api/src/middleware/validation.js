@@ -209,7 +209,7 @@ const userSchemas = {
   // User query filters
   query: Joi.object({
     role: Joi.string().valid(
-      'state_admin', 'project_coordinator', 'scheme_coordinator', 
+      'super_admin', 'state_admin', 'project_coordinator', 'scheme_coordinator', 
       'district_admin', 'area_admin', 'unit_admin', 'beneficiary'
     ),
     isActive: Joi.boolean(),
