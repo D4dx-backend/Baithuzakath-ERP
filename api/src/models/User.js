@@ -12,11 +12,9 @@ const userSchema = new mongoose.Schema({
   },
   email: {
     type: String,
-    required: false, // Email is now optional for OTP-only authentication
-    unique: true,
-    sparse: true, // Allow multiple null values
-    lowercase: true,
-    match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please enter a valid email']
+    required: false,
+    sparse: true,
+    lowercase: true
   },
   phone: {
     type: String,
@@ -44,7 +42,9 @@ const userSchema = new mongoose.Schema({
     level: {
       type: String,
       enum: ['super', 'state', 'district', 'area', 'unit', 'project', 'scheme'],
-      required: function () { return this.role !== 'beneficiary'; }
+      required: function () { 
+        return this.role !== 'beneficiary' && this.role !== 'super_admin' && this.role !== 'state_admin'; 
+      }
     },
     // Separate location references for easier hierarchy display
     district: {

@@ -277,8 +277,12 @@ export function UserModal({ open, onOpenChange, user, mode, onSave }: UserModalP
         return;
       }
 
-      // Validate admin scope requirements
-      if (formData.role !== 'beneficiary' && formData.role !== 'project_coordinator' && formData.role !== 'scheme_coordinator') {
+      // Validate admin scope requirements (not needed for super_admin and state_admin)
+      if (formData.role !== 'beneficiary' && 
+          formData.role !== 'project_coordinator' && 
+          formData.role !== 'scheme_coordinator' && 
+          formData.role !== 'super_admin' && 
+          formData.role !== 'state_admin') {
         if (!formData.selectedRegion) {
           toast({
             title: "Validation Error",
@@ -318,8 +322,10 @@ export function UserModal({ open, onOpenChange, user, mode, onSave }: UserModalP
         isActive: formData.isActive,
       };
 
-      // Add admin scope for non-beneficiary roles
-      if (formData.role !== 'beneficiary') {
+      // Add admin scope for roles that need it (not super_admin, state_admin, or beneficiary)
+      if (formData.role !== 'beneficiary' && 
+          formData.role !== 'super_admin' && 
+          formData.role !== 'state_admin') {
         const adminScope: any = {
           level: formData.role.includes('admin') ? formData.role.replace('_admin', '') : formData.role,
           regions: formData.selectedRegion ? [formData.selectedRegion] : [],
@@ -780,7 +786,13 @@ export function UserModal({ open, onOpenChange, user, mode, onSave }: UserModalP
             )}
 
             {/* Regional Access for Other Admin Roles - Single Select with Search */}
-            {formData.role !== 'beneficiary' && formData.role !== 'project_coordinator' && formData.role !== 'scheme_coordinator' && formData.role !== 'area_admin' && formData.role !== 'unit_admin' && (
+            {formData.role !== 'beneficiary' && 
+             formData.role !== 'project_coordinator' && 
+             formData.role !== 'scheme_coordinator' && 
+             formData.role !== 'area_admin' && 
+             formData.role !== 'unit_admin' && 
+             formData.role !== 'super_admin' && 
+             formData.role !== 'state_admin' && (
               <div className="space-y-2">
                 <Label>Regional Access *</Label>
                 {loading ? (

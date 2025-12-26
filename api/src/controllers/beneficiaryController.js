@@ -63,7 +63,13 @@ const getBeneficiaries = async (req, res) => {
       .populate('unit', 'name code')
       .populate('createdBy', 'name')
       .populate('verifiedBy', 'name')
-      .populate('applications')
+      .populate({
+        path: 'applications',
+        populate: [
+          { path: 'scheme', select: 'name code' },
+          { path: 'project', select: 'name code' }
+        ]
+      })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit));

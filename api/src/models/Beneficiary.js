@@ -84,7 +84,8 @@ beneficiarySchema.index({ createdAt: -1 });
 
 // Virtual for full location path
 beneficiarySchema.virtual('locationPath').get(function() {
-  if (this.populated('state') && this.populated('district') && this.populated('area') && this.populated('unit')) {
+  if (this.populated('state') && this.populated('district') && this.populated('area') && this.populated('unit') &&
+      this.state && this.district && this.area && this.unit) {
     return `${this.state.name} > ${this.district.name} > ${this.area.name} > ${this.unit.name}`;
   }
   return '';
