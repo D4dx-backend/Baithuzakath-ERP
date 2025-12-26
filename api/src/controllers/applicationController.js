@@ -140,10 +140,19 @@ const getApplication = async (req, res) => {
       });
     }
 
+    // Fetch payments for this application
+    const Payment = require('../models/Payment');
+    const payments = await Payment.find({ application: application._id })
+      .sort({ 'installment.number': 1 })
+      .lean();
+
     res.json({
       success: true,
       message: 'Application retrieved successfully',
-      data: application,
+      data: {
+        application,
+        payments
+      },
       timestamp: new Date().toISOString()
     });
   } catch (error) {

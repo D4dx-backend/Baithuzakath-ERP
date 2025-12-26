@@ -147,7 +147,7 @@ router.get('/', projectController.getProjects);
  *         description: Authentication required
  */
 router.post('/', 
-  authorize('state_admin', 'district_admin', 'project_coordinator'),
+  authorize('super_admin', 'state_admin', 'district_admin', 'project_coordinator'),
   projectController.createProject
 );
 
@@ -234,7 +234,7 @@ router.get('/:id', projectController.getProjectById);
  *         description: Authentication required
  */
 router.put('/:id', 
-  authorize('state_admin', 'district_admin', 'project_coordinator'),
+  authorize('super_admin', 'state_admin', 'district_admin', 'project_coordinator'),
   projectController.updateProject
 );
 
@@ -290,7 +290,7 @@ router.put('/:id',
  *         description: Authentication required
  */
 router.put('/:id/progress', 
-  authorize('state_admin', 'district_admin', 'project_coordinator', 'area_admin', 'unit_admin'),
+  authorize('super_admin', 'state_admin', 'district_admin', 'project_coordinator', 'area_admin', 'unit_admin'),
   projectController.updateProgress
 );
 
@@ -542,7 +542,7 @@ router.put('/:id/status-configuration',
  *         description: Authentication required
  */
 router.delete('/:id', 
-  authorize('state_admin', 'district_admin'),
+  authorize('super_admin', 'state_admin', 'district_admin'),
   projectController.deleteProject
 );
 

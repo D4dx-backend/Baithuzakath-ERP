@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { IndianRupee, Calendar, Download, Eye, Wallet, Loader2, Edit, Grid, List, Clock, CheckCircle2, AlertCircle, X, Save } from "lucide-react";
+import { IndianRupee, Calendar, Download, Eye, Wallet, Loader2, Edit, Grid, List, Clock, CheckCircle2, AlertCircle, X, Save, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -43,7 +43,8 @@ export default function OverduePayments() {
   const [selectedSchedule, setSelectedSchedule] = useState<any | null>(null);
   const [editingSchedule, setEditingSchedule] = useState<any | null>(null);
   const [pagination, setPagination] = useState({ current: 1, pages: 1, total: 0, limit: 10 });
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('table');
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     if (canViewPayments) {
@@ -209,9 +210,18 @@ export default function OverduePayments() {
               <List className="h-4 w-4" />
             </Button>
           </div>
+          <Button
+            variant={showFilters ? "default" : "outline"}
+            size="sm"
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            <Filter className="mr-2 h-4 w-4" />
+            {showFilters ? "Hide Filters" : "Show Filters"}
+          </Button>
         </div>
       </div>
 
+      {showFilters && (
       <GenericFilters
         searchTerm={filterHook.filters.searchTerm}
         onSearchChange={filterHook.setSearchTerm}
@@ -252,6 +262,7 @@ export default function OverduePayments() {
         onQuickDateFilterChange={filterHook.setQuickDateFilter}
         onClearFilters={filterHook.clearAllFilters}
       />
+      )}
 
       {loading && (
         <div className="flex items-center justify-center py-12">

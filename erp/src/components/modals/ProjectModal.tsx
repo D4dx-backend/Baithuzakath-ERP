@@ -7,10 +7,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { type Project } from "@/lib/api";
+import { type Project, projects as projectsApi } from "@/lib/api";
+import { toast } from "@/hooks/use-toast";
 
 interface ProjectModalProps {
   open: boolean;
@@ -31,6 +32,7 @@ export function ProjectModal({ open, onOpenChange, project, mode }: ProjectModal
   });
   const [startDate, setStartDate] = useState<Date>();
   const [endDate, setEndDate] = useState<Date>();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Initialize form data when project changes
   useEffect(() => {
@@ -72,6 +74,78 @@ export function ProjectModal({ open, onOpenChange, project, mode }: ProjectModal
       ...prev,
       [field]: value
     }));
+  };
+
+  const handleSubmit = async () => {
+    try {
+      setIsSubmitting(true);
+
+      // Validate required fields
+      if (!formData.name || !formData.description || !formData.category || !formData.scope) {
+        toast({
+          title: "Validation Error",
+          description: "Please fill in all required fields",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!startDate || !endDate) {
+        toast({
+          title: "Validation Error",
+          description: "Please select start and end dates",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const projectData = {
+        name: formData.name,
+        description: formData.description,
+        category: formData.category,
+        priority: formData.priority,
+        scope: formData.scope,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        budget: {
+          total: parseFloat(formData.budget) || 0,
+          allocated: parseFloat(formData.budget) || 0,
+          spent: project?.budget?.spent || 0,
+        },
+      };
+
+      if (mode === "create") {
+        const response = await projectsApi.create(projectData);
+        if (response.success) {
+          toast({
+            title: "Success",
+            description: "Project created successfully",
+          });
+          onOpenChange(false);
+        } else {
+          throw new Error(response.error || "Failed to create project");
+        }
+      } else if (mode === "edit" && project) {
+        const response = await projectsApi.update(project.id, projectData);
+        if (response.success) {
+          toast({
+            title: "Success",
+            description: "Project updated successfully",
+          });
+          onOpenChange(false);
+        } else {
+          throw new Error(response.error || "Failed to update project");
+        }
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || `Failed to ${mode === "create" ? "create" : "update"} project`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -256,8 +330,17 @@ export function ProjectModal({ open, onOpenChange, project, mode }: ProjectModal
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button className="bg-gradient-primary">{mode === "create" ? "Create Project" : "Save Changes"}</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
+            Cancel
+          </Button>
+          <Button 
+            className="bg-gradient-primary" 
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+          >
+            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {mode === "create" ? "Create Project" : "Save Changes"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

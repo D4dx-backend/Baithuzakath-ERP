@@ -257,7 +257,7 @@ export default function UserManagement() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">User Management</h1>
+          <h1 className="text-xl font-bold">User Management</h1>
           <p className="text-muted-foreground mt-1">Manage system users and permissions</p>
         </div>
         <Button className="bg-gradient-primary shadow-glow" onClick={handleAddUser}>
@@ -275,7 +275,7 @@ export default function UserManagement() {
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.overview.totalUsers}</div>
+              <div className="text-xl font-bold">{stats.overview.totalUsers}</div>
             </CardContent>
           </Card>
           <Card>
@@ -284,7 +284,7 @@ export default function UserManagement() {
               <UserCheck className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">{stats.overview.activeUsers}</div>
+              <div className="text-xl font-bold text-green-600">{stats.overview.activeUsers}</div>
             </CardContent>
           </Card>
           <Card>
@@ -293,7 +293,7 @@ export default function UserManagement() {
               <Shield className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{stats.overview.verifiedUsers}</div>
+              <div className="text-xl font-bold text-blue-600">{stats.overview.verifiedUsers}</div>
             </CardContent>
           </Card>
           <Card>
@@ -302,7 +302,7 @@ export default function UserManagement() {
               <UserX className="h-4 w-4 text-red-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-600">
+              <div className="text-xl font-bold text-red-600">
                 {stats.overview.totalUsers - stats.overview.activeUsers}
               </div>
             </CardContent>

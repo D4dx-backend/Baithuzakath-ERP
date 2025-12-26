@@ -138,7 +138,7 @@ export default function Budget() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Budget Management</h1>
+          <h1 className="text-xl font-bold">Budget Management</h1>
           <p className="text-muted-foreground mt-1">
             Track and manage financial resources across projects and schemes
           </p>
@@ -212,7 +212,7 @@ export default function Budget() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Pending Payments</p>
-                <p className="text-2xl font-bold">{formatCurrency(totalPending)}</p>
+                <p className="text-xl font-bold">{formatCurrency(totalPending)}</p>
               </div>
               <div className="text-right">
                 <p className="text-xs text-muted-foreground">{overview?.pendingPayments || 0} payments</p>
@@ -227,7 +227,7 @@ export default function Budget() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Active Projects</p>
-                <p className="text-2xl font-bold">{overview?.projectCount || 0}</p>
+                <p className="text-xl font-bold">{overview?.projectCount || 0}</p>
               </div>
               <div className="text-right">
                 <p className="text-xs text-muted-foreground">{overview?.schemeCount || 0} schemes</p>
@@ -242,7 +242,7 @@ export default function Budget() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Approved Applications</p>
-                <p className="text-2xl font-bold">{overview?.approvedApplications || 0}</p>
+                <p className="text-xl font-bold">{overview?.approvedApplications || 0}</p>
               </div>
               <div className="text-right">
                 <p className="text-xs text-muted-foreground">{overview?.completedPayments || 0} completed</p>

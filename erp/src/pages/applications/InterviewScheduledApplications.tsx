@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { ShortlistModal } from "@/components/modals/ShortlistModal";
 import { ReportsModal } from "@/components/modals/ReportsModal";
-import { Download, Eye, FileText, Loader2, CalendarIcon, Grid, List, History, Clock } from "lucide-react";
+import { Download, Eye, FileText, Loader2, CalendarIcon, Grid, List, History, Clock, Filter } from "lucide-react";
 import { useRBAC } from "@/hooks/useRBAC";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,8 +50,9 @@ export default function InterviewScheduledApplications() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ current: 1, pages: 1, total: 0, limit: 10 });
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('table');
   const [showRescheduledOnly, setShowRescheduledOnly] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
 
   const canViewApplications = hasAnyPermission(['applications.read.all', 'applications.read.regional', 'applications.read.own']);
   const hasAdminAccess = user && ['super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'].includes(user.role);
@@ -228,7 +229,7 @@ export default function InterviewScheduledApplications() {
       
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Interview Scheduled Applications</h1>
+          <h1 className="text-2xl font-bold">Interview Scheduled Applications</h1>
           <p className="text-muted-foreground mt-1">Applications with scheduled interviews</p>
         </div>
         <div className="flex items-center gap-2">
@@ -243,9 +244,18 @@ export default function InterviewScheduledApplications() {
               <List className="h-4 w-4" />
             </Button>
           </div>
+          <Button
+            variant={showFilters ? "default" : "outline"}
+            size="sm"
+            onClick={() => setShowFilters((v) => !v)}
+          >
+            <Filter className="mr-2 h-4 w-4" />
+            {showFilters ? "Hide Filters" : "Show Filters"}
+          </Button>
         </div>
       </div>
 
+      {showFilters && (
       <div className="space-y-4">
         <GenericFilters
           searchTerm={filterHook.filters.searchTerm}
@@ -297,10 +307,10 @@ export default function InterviewScheduledApplications() {
           </label>
         </div>
       </div>
+      )}
 
       <Card>
-        <CardHeader><CardTitle>Interview Scheduled Applications ({pagination.total})</CardTitle></CardHeader>
-        <CardContent>
+        <CardContent className="p-6 pt-6">
           {loading ? (
             <div className="flex items-center justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /><span className="ml-2">Loading...</span></div>
           ) : (() => {
@@ -339,11 +349,13 @@ export default function InterviewScheduledApplications() {
                     </div>
                     <div className="flex flex-col gap-2 items-end">
                       <Badge variant="outline" className="bg-purple-500/10 text-purple-500 border-purple-500/20"><CalendarIcon className="mr-1 h-3 w-3" />INTERVIEW SCHEDULED</Badge>
-                      <div className="flex gap-2 flex-wrap justify-end">
-                        <Button variant="outline" size="sm" onClick={() => handleViewApplication(app)}><Eye className="mr-2 h-4 w-4" />Details</Button>
-                        <Button variant="secondary" size="sm" onClick={() => { setSelectedApp(app); setShowShortlistModal(true); }}><CalendarIcon className="mr-2 h-4 w-4" />Reschedule</Button>
-                        <Button variant="secondary" size="sm" onClick={() => handleViewHistory(app)}><History className="mr-2 h-4 w-4" />History</Button>
-                        <Button variant="secondary" size="sm" onClick={() => { setSelectedApp(app); setShowReportsModal(true); }}><FileText className="mr-2 h-4 w-4" />Reports</Button>
+                      <div className="flex flex-col gap-2 w-full">
+                        <Button variant="outline" size="sm" onClick={() => handleViewApplication(app)} className="w-full"><Eye className="mr-2 h-4 w-4" />Forward</Button>
+                        <div className="flex gap-1">
+                          <Button variant="secondary" size="sm" className="text-xs px-2 py-1 h-7 flex-1" onClick={() => { setSelectedApp(app); setShowShortlistModal(true); }}><CalendarIcon className="mr-1 h-3 w-3" />Reschedule</Button>
+                          <Button variant="secondary" size="sm" className="text-xs px-2 py-1 h-7 flex-1" onClick={() => handleViewHistory(app)}><History className="mr-1 h-3 w-3" />History</Button>
+                        </div>
+                        <Button variant="secondary" size="sm" className="text-xs px-2 py-1 h-7 w-full" onClick={() => { setSelectedApp(app); setShowReportsModal(true); }}><FileText className="mr-1 h-3 w-3" />Reports</Button>
                       </div>
                     </div>
                   </div>

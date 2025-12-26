@@ -260,7 +260,7 @@ export default function MasterDataManagement() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Master Data Management</h1>
+          <h1 className="text-xl font-bold">Master Data Management</h1>
           <p className="text-muted-foreground mt-1">Configure stages, templates, and system settings</p>
         </div>
         {canCreateMasterData && (

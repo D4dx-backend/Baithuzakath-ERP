@@ -227,7 +227,7 @@ const Beneficiaries: React.FC = () => {
 
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Beneficiaries</h1>
+          <h1 className="text-xl font-bold">Beneficiaries</h1>
           <p className="text-muted-foreground mt-1">Manage and track beneficiaries</p>
         </div>
         <div className="flex gap-2">

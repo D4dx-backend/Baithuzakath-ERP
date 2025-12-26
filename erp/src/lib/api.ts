@@ -981,6 +981,22 @@ export const applications = {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
+  getPendingCommitteeApprovals: (params?: any) => {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          searchParams.append(key, value.toString());
+        }
+      });
+    }
+    return extendedApiClient.request(`/applications/committee/pending${searchParams.toString() ? `?${searchParams.toString()}` : ''}`);
+  },
+  committeeDecision: (id: string, data: { decision: 'approved' | 'rejected'; comments?: string; distributionTimeline?: any[] }) => 
+    extendedApiClient.request(`/applications/${id}/committee-decision`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
 };
 
 export const budget = {

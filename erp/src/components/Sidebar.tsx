@@ -20,6 +20,7 @@ import {
   Shield,
   Wrench,
   Activity,
+  Scale,
 
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -97,6 +98,12 @@ const menuCategories = [
         icon: CalendarCheck, 
         label: "Upcoming Interviews",
         permissions: ["interviews.read", "applications.read.all", "applications.read.regional"]
+      },
+      { 
+        to: "/committee-approval", 
+        icon: Scale, 
+        label: "Committee Approval",
+        permissions: ["applications.approve", "committee.approve"]
       },
       { 
         to: "/beneficiaries", 
@@ -351,9 +358,16 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   
   // Flatten all menu items for search
   const allNavItems = filteredMenuCategories.flatMap(cat => 
-    cat.items.flatMap((item: any) => 
-      item.submenu ? item.submenu : [item]
-    )
+    cat.items.flatMap((item: any) => {
+      if (item.submenu) {
+        // For submenu items, inherit the parent icon
+        return item.submenu.map((subItem: any) => ({
+          ...subItem,
+          icon: item.icon // Use parent icon for submenu items
+        }));
+      }
+      return [item];
+    })
   ) as Array<{ to: string; label: string; icon: any; permissions: string[] }>;
   
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({

@@ -573,10 +573,10 @@ router.patch('/:id/complete',
   async (req, res) => {
     try {
       const { id } = req.params;
-      const { result, notes } = req.body;
+      const { result, notes, forwardToCommittee, interviewReport } = req.body;
 
       console.log('🔍 Completing interview with ID:', id);
-      console.log('📝 Request data:', { result, notes });
+      console.log('📝 Request data:', { result, notes, forwardToCommittee });
 
       let interview = null;
       let application = null;
@@ -687,7 +687,16 @@ router.patch('/:id/complete',
 
       // Also update the application status and interview info
       if (result === 'passed') {
-        application.status = 'approved'; // Move to approved status if interview passed
+        // If forwarding to committee, set status to pending_committee_approval
+        if (forwardToCommittee) {
+          application.status = 'pending_committee_approval';
+          if (interviewReport) {
+            application.interviewReport = interviewReport;
+          }
+          console.log('📋 Application forwarded to committee approval');
+        } else {
+          application.status = 'approved'; // Move to approved status if interview passed
+        }
       } else {
         application.status = 'rejected'; // Move to rejected status if interview failed
       }
@@ -769,8 +778,9 @@ router.patch('/:id/complete',
         // Don't fail the interview completion if report creation fails
       }
 
-      // If interview passed, create payment schedule/disbursement
-      if (result === 'passed' && application.requestedAmount) {
+      // If interview passed AND NOT forwarding to committee, create payment schedule/disbursement
+      // If forwarding to committee, payments will be created after committee approval
+      if (result === 'passed' && !forwardToCommittee && application.requestedAmount) {
         try {
           const Payment = require('../models/Payment');
           

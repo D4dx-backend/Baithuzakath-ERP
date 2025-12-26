@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Calendar, Clock, MapPin, Users, FileText, CheckCircle, XCircle, CalendarCheck, Loader2, AlertCircle, Link as LinkIcon, Edit, Download, Grid, List } from "lucide-react";
+import { Calendar, Clock, MapPin, Users, FileText, CheckCircle, XCircle, CalendarCheck, Loader2, AlertCircle, Link as LinkIcon, Edit, Download, Grid, List, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -59,6 +59,7 @@ export default function UpcomingInterviews() {
   const [selectedApplication, setSelectedApplication] = useState<any>(null);
   const [loadingApplication, setLoadingApplication] = useState(false);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [showFilters, setShowFilters] = useState(true);
 
   // Load interviews with filters
   useEffect(() => {
@@ -158,7 +159,7 @@ export default function UpcomingInterviews() {
     }
   };
 
-  const handleApprove = async (applicationId: string, remarks: string, distributionTimeline?: any[]) => {
+  const handleApprove = async (applicationId: string, remarks: string, distributionTimeline?: any[], forwardToCommittee?: boolean, interviewReport?: string) => {
     try {
       const interview = interviewList.find(i => i.applicationId === applicationId);
       if (!interview) {
@@ -169,12 +170,24 @@ export default function UpcomingInterviews() {
       const response = await interviews.complete(interview.applicationId, { 
         result: 'passed',
         notes: remarks,
-        distributionTimeline: distributionTimeline
+        distributionTimeline: !forwardToCommittee ? distributionTimeline : undefined,
+        forwardToCommittee: forwardToCommittee || false,
+        interviewReport: interviewReport || ''
       });
       
       if (response.success) {
         setShowViewModal(false);
-        toast({ title: "Interview Completed", description: `Interview has been marked as passed successfully.` });
+        if (forwardToCommittee) {
+          toast({ 
+            title: "Forwarded to Committee", 
+            description: `Application has been forwarded to committee for approval.` 
+          });
+        } else {
+          toast({ 
+            title: "Interview Completed", 
+            description: `Interview has been marked as passed successfully.` 
+          });
+        }
       } else {
         toast({ title: "Error", description: "Failed to complete interview", variant: "destructive" });
       }
@@ -317,7 +330,7 @@ export default function UpcomingInterviews() {
       
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Upcoming Interviews</h1>
+          <h1 className="text-xl font-bold">Upcoming Interviews</h1>
           <p className="text-muted-foreground mt-1">Schedule and manage applicant interviews</p>
         </div>
         <div className="flex items-center gap-2">
@@ -333,10 +346,19 @@ export default function UpcomingInterviews() {
               <List className="h-4 w-4" />
             </Button>
           </div>
+          <Button
+            variant={showFilters ? "default" : "outline"}
+            size="sm"
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            <Filter className="h-4 w-4 mr-2" />
+            {showFilters ? 'Hide Filters' : 'Show Filters'}
+          </Button>
         </div>
       </div>
 
-      <GenericFilters
+      {showFilters && (
+        <GenericFilters
         searchTerm={filterHook.filters.searchTerm}
         onSearchChange={filterHook.setSearchTerm}
         searchPlaceholder="Search by applicant name or ID..."
@@ -375,6 +397,7 @@ export default function UpcomingInterviews() {
         onQuickDateFilterChange={filterHook.setQuickDateFilter}
         onClearFilters={filterHook.clearAllFilters}
       />
+      )}
 
       {/* Interview Cards or Table */}
       {viewMode === 'cards' ? (
@@ -475,7 +498,7 @@ export default function UpcomingInterviews() {
               {interview.status === "scheduled" && (
                 <div className="flex gap-2 pt-2">
                   <Button size="sm" className="flex-1" onClick={() => handleViewForApproval(interview)}>
-                    <CheckCircle className="mr-2 h-4 w-4" />View & Approve
+                    <CheckCircle className="mr-2 h-4 w-4" />Forward
                   </Button>
                   <Button size="sm" variant="outline" className="flex-1" onClick={() => { setSelectedInterview(interview); setShowReportsModal(true); }}>
                     <FileText className="mr-2 h-4 w-4" />Add Notes

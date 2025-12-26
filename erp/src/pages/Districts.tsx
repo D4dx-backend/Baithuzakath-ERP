@@ -170,7 +170,7 @@ export default function Districts() {
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Districts</h1>
+          <h1 className="text-xl font-bold">Districts</h1>
           <p className="text-muted-foreground mt-1">Manage district master data</p>
         </div>
         <div className="flex gap-2">
@@ -282,7 +282,7 @@ export default function Districts() {
 
                     <div className="flex items-center gap-6">
                       <div className="text-center">
-                        <p className="text-2xl font-bold">{district.childrenCount || 0}</p>
+                        <p className="text-xl font-bold">{district.childrenCount || 0}</p>
                         <p className="text-xs text-muted-foreground">Areas</p>
                       </div>
                       {canUpdateLocations && (

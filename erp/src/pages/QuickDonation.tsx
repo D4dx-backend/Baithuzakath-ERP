@@ -21,7 +21,7 @@ export default function QuickDonation() {
       <div className="space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold">Quick Donation</h1>
+          <h1 className="text-xl font-bold">Quick Donation</h1>
           <p className="text-muted-foreground mt-1">
             Capture minimal donor information for quick donation processing
           </p>
@@ -35,7 +35,7 @@ export default function QuickDonation() {
               <IndianRupee className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">₹25,430</div>
+              <div className="text-xl font-bold">₹25,430</div>
               <p className="text-xs text-muted-foreground">
                 +12% from yesterday
               </p>
@@ -48,7 +48,7 @@ export default function QuickDonation() {
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">8</div>
+              <div className="text-xl font-bold">8</div>
               <p className="text-xs text-muted-foreground">
                 +3 from yesterday
               </p>
@@ -61,7 +61,7 @@ export default function QuickDonation() {
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">₹3,179</div>
+              <div className="text-xl font-bold">₹3,179</div>
               <p className="text-xs text-muted-foreground">
                 +5% from last week
               </p>
@@ -74,7 +74,7 @@ export default function QuickDonation() {
               <Heart className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">1,247</div>
+              <div className="text-xl font-bold">1,247</div>
               <p className="text-xs text-muted-foreground">
                 Active donors
               </p>

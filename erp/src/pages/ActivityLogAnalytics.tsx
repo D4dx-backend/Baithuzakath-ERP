@@ -134,7 +134,7 @@ const ActivityLogAnalytics: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Activity Analytics</h1>
+          <h1 className="text-xl font-bold text-gray-900">Activity Analytics</h1>
           <p className="text-gray-600">Analyze system activity patterns and trends</p>
         </div>
         
@@ -213,7 +213,7 @@ const ActivityLogAnalytics: React.FC = () => {
               <Activity className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.totalLogs.toLocaleString()}</div>
+              <div className="text-xl font-bold">{stats.totalLogs.toLocaleString()}</div>
               <p className="text-xs text-muted-foreground">
                 All recorded activities
               </p>
@@ -226,7 +226,7 @@ const ActivityLogAnalytics: React.FC = () => {
               <CheckCircle className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
+              <div className="text-xl font-bold">
                 {stats.statusStats.length > 0 
                   ? Math.round((stats.statusStats.find(s => s._id === 'success')?.count || 0) / stats.totalLogs * 100)
                   : 0}%
@@ -243,7 +243,7 @@ const ActivityLogAnalytics: React.FC = () => {
               <Users className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
+              <div className="text-xl font-bold">
                 {new Set(stats.recentActivity.map(a => a.userId?._id)).size}
               </div>
               <p className="text-xs text-muted-foreground">
@@ -258,7 +258,7 @@ const ActivityLogAnalytics: React.FC = () => {
               <AlertTriangle className="h-4 w-4 text-red-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
+              <div className="text-xl font-bold">
                 {stats.severityStats.find(s => s._id === 'critical')?.count || 0}
               </div>
               <p className="text-xs text-muted-foreground">
