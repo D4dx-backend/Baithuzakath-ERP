@@ -8,8 +8,8 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-// Configure multer storage
-const storage = multer.diskStorage({
+// Configure multer disk storage
+const diskStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, uploadDir);
   },
@@ -20,6 +20,9 @@ const storage = multer.diskStorage({
     cb(null, `${name}-${uniqueSuffix}${ext}`);
   }
 });
+
+// Configure multer memory storage (for S3/Spaces upload)
+const memoryStorage = multer.memoryStorage();
 
 // File filter function
 const fileFilter = (req, file, cb) => {
@@ -37,9 +40,18 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-// Configure multer
+// Configure multer with disk storage
 const upload = multer({
-  storage: storage,
+  storage: diskStorage,
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 10 * 1024 * 1024 // Default 10MB
+  }
+});
+
+// Configure multer with memory storage (for direct S3/Spaces upload)
+const uploadMemory = multer({
+  storage: memoryStorage,
   fileFilter: fileFilter,
   limits: {
     fileSize: parseInt(process.env.MAX_FILE_SIZE) || 10 * 1024 * 1024 // Default 10MB
@@ -136,9 +148,39 @@ const uploadFields = (fields) => {
   };
 };
 
+// Middleware for single file upload to memory (for S3/Spaces)
+const uploadSingleMemory = (fieldName = 'file') => {
+  return (req, res, next) => {
+    const uploadMiddleware = uploadMemory.single(fieldName);
+    
+    uploadMiddleware(req, res, (err) => {
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({
+            success: false,
+            message: `File size exceeds the limit of ${process.env.MAX_FILE_SIZE || '10MB'}`
+          });
+        }
+        return res.status(400).json({
+          success: false,
+          message: `Upload error: ${err.message}`
+        });
+      } else if (err) {
+        return res.status(400).json({
+          success: false,
+          message: err.message
+        });
+      }
+      next();
+    });
+  };
+};
+
 module.exports = {
   upload,
   uploadSingle,
   uploadMultiple,
-  uploadFields
+  uploadFields,
+  uploadMemory,
+  uploadSingleMemory
 };
