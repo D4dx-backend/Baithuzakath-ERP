@@ -418,28 +418,78 @@ router.patch('/:id/process',
 
       await payment.save();
 
+      // Check if this is the first installment payment
+      const isFirstInstallment = payment.installment && payment.installment.number === 1;
+
       // Mark application as completed when first payment is done
       if (payment.application) {
         const Application = require('../models/Application');
-        const application = await Application.findById(payment.application._id || payment.application);
+        const application = await Application.findById(payment.application._id || payment.application)
+          .populate('beneficiary')
+          .populate('scheme')
+          .populate('project');
         
-        if (application && application.status !== 'completed') {
-          application.status = 'completed';
-          application.updatedBy = req.user._id;
-          
-          // Add to status history
-          if (!application.statusHistory) {
-            application.statusHistory = [];
+        if (application) {
+          // Create Beneficiary record when first installment is paid
+          if (isFirstInstallment && application.beneficiary) {
+            const Beneficiary = require('../models/Beneficiary');
+            
+            // Check if beneficiary already exists as active beneficiary
+            let beneficiary = await Beneficiary.findOne({
+              phone: application.beneficiary.phone,
+              status: { $in: ['active', 'verified'] }
+            });
+
+            if (!beneficiary) {
+              // Create new beneficiary record from applicant data
+              beneficiary = new Beneficiary({
+                name: application.beneficiary.name,
+                phone: application.beneficiary.phone,
+                state: application.beneficiary.state,
+                district: application.beneficiary.district,
+                area: application.beneficiary.area,
+                unit: application.beneficiary.unit,
+                status: 'active',
+                isVerified: true,
+                verifiedBy: req.user._id,
+                verifiedAt: new Date(),
+                applications: [application._id],
+                createdBy: req.user._id
+              });
+              
+              await beneficiary.save();
+              console.log(`✅ Created beneficiary record for ${application.beneficiary.name} after first payment`);
+            } else {
+              // Add application to existing beneficiary if not already added
+              if (!beneficiary.applications.includes(application._id)) {
+                beneficiary.applications.push(application._id);
+                await beneficiary.save();
+                console.log(`✅ Added application to existing beneficiary ${application.beneficiary.name}`);
+              }
+            }
           }
-          application.statusHistory.push({
-            status: 'completed',
-            timestamp: new Date(),
-            updatedBy: req.user._id,
-            comment: 'Application marked as completed after first payment'
-          });
-          
-          await application.save();
-          console.log(`✅ Application ${application.applicationNumber} marked as completed after payment`);
+
+          // Mark application as completed
+          if (application.status !== 'completed') {
+            application.status = 'completed';
+            application.updatedBy = req.user._id;
+            
+            // Add to status history
+            if (!application.statusHistory) {
+              application.statusHistory = [];
+            }
+            application.statusHistory.push({
+              status: 'completed',
+              timestamp: new Date(),
+              updatedBy: req.user._id,
+              comment: isFirstInstallment 
+                ? 'Application completed and beneficiary record created after first installment payment'
+                : 'Application marked as completed after payment'
+            });
+            
+            await application.save();
+            console.log(`✅ Application ${application.applicationNumber} marked as completed after payment`);
+          }
         }
       }
 
@@ -750,28 +800,78 @@ router.put('/:id',
 
       await payment.save();
 
+      // Check if this is the first installment payment
+      const isFirstInstallment = payment.installment && payment.installment.number === 1;
+
       // Update application status to completed when payment is completed
       if (status === 'completed' && payment.application) {
         const Application = require('../models/Application');
-        const application = await Application.findById(payment.application._id || payment.application);
+        const application = await Application.findById(payment.application._id || payment.application)
+          .populate('beneficiary')
+          .populate('scheme')
+          .populate('project');
         
-        if (application && application.status !== 'completed') {
-          application.status = 'completed';
-          application.updatedBy = req.user._id;
-          
-          // Add to status history
-          if (!application.statusHistory) {
-            application.statusHistory = [];
+        if (application) {
+          // Create Beneficiary record when first installment is paid
+          if (isFirstInstallment && application.beneficiary) {
+            const Beneficiary = require('../models/Beneficiary');
+            
+            // Check if beneficiary already exists as active beneficiary
+            let beneficiary = await Beneficiary.findOne({
+              phone: application.beneficiary.phone,
+              status: { $in: ['active', 'verified'] }
+            });
+
+            if (!beneficiary) {
+              // Create new beneficiary record from applicant data
+              beneficiary = new Beneficiary({
+                name: application.beneficiary.name,
+                phone: application.beneficiary.phone,
+                state: application.beneficiary.state,
+                district: application.beneficiary.district,
+                area: application.beneficiary.area,
+                unit: application.beneficiary.unit,
+                status: 'active',
+                isVerified: true,
+                verifiedBy: req.user._id,
+                verifiedAt: new Date(),
+                applications: [application._id],
+                createdBy: req.user._id
+              });
+              
+              await beneficiary.save();
+              console.log(`✅ Created beneficiary record for ${application.beneficiary.name} after first payment`);
+            } else {
+              // Add application to existing beneficiary if not already added
+              if (!beneficiary.applications.includes(application._id)) {
+                beneficiary.applications.push(application._id);
+                await beneficiary.save();
+                console.log(`✅ Added application to existing beneficiary ${application.beneficiary.name}`);
+              }
+            }
           }
-          application.statusHistory.push({
-            status: 'completed',
-            timestamp: new Date(),
-            updatedBy: req.user._id,
-            comment: 'Application marked as completed after payment completion'
-          });
-          
-          await application.save();
-          console.log(`✅ Application ${application.applicationNumber} marked as completed after payment`);
+
+          // Mark application as completed
+          if (application.status !== 'completed') {
+            application.status = 'completed';
+            application.updatedBy = req.user._id;
+            
+            // Add to status history
+            if (!application.statusHistory) {
+              application.statusHistory = [];
+            }
+            application.statusHistory.push({
+              status: 'completed',
+              timestamp: new Date(),
+              updatedBy: req.user._id,
+              comment: isFirstInstallment 
+                ? 'Application completed and beneficiary record created after first installment payment'
+                : 'Application marked as completed after payment completion'
+            });
+            
+            await application.save();
+            console.log(`✅ Application ${application.applicationNumber} marked as completed after payment`);
+          }
         }
       }
 

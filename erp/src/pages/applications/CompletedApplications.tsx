@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { ReportsModal } from "@/components/modals/ReportsModal";
-import { Download, Eye, CheckCircle, FileText, Loader2, Grid, List } from "lucide-react";
+import { Download, Eye, CheckCircle, FileText, Loader2, Grid, List, Filter } from "lucide-react";
 import { useRBAC } from "@/hooks/useRBAC";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,7 +44,8 @@ export default function CompletedApplications() {
   const [showReportsModal, setShowReportsModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ current: 1, pages: 1, total: 0, limit: 10 });
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('table');
+  const [showFilters, setShowFilters] = useState(false);
 
   const canViewApplications = hasAnyPermission(['applications.read.all', 'applications.read.regional', 'applications.read.own']);
   const hasAdminAccess = user && ['super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'].includes(user.role);
@@ -120,7 +121,7 @@ export default function CompletedApplications() {
       
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Completed Applications</h1>
+          <h1 className="text-xl font-bold">Completed Applications</h1>
           <p className="text-muted-foreground mt-1">View completed applications</p>
         </div>
         <div className="flex items-center gap-2">
@@ -135,9 +136,18 @@ export default function CompletedApplications() {
               <List className="h-4 w-4" />
             </Button>
           </div>
+          <Button
+            variant={showFilters ? "default" : "outline"}
+            size="sm"
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            <Filter className="mr-2 h-4 w-4" />
+            {showFilters ? "Hide Filters" : "Show Filters"}
+          </Button>
         </div>
       </div>
 
+      {showFilters && (
       <GenericFilters
         searchTerm={filterHook.filters.searchTerm}
         onSearchChange={filterHook.setSearchTerm}
@@ -175,10 +185,10 @@ export default function CompletedApplications() {
         onQuickDateFilterChange={filterHook.setQuickDateFilter}
         onClearFilters={filterHook.clearAllFilters}
       />
+      )}
 
       <Card>
-        <CardHeader><CardTitle>Completed Applications ({pagination.total})</CardTitle></CardHeader>
-        <CardContent>
+        <CardContent className="p-6 pt-6">
           {loading ? (
             <div className="flex items-center justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /><span className="ml-2">Loading...</span></div>
           ) : applicationList.length === 0 ? (
@@ -205,9 +215,9 @@ export default function CompletedApplications() {
                     </div>
                     <div className="flex flex-col gap-2 items-end">
                       <Badge variant="outline" className="bg-success/10 text-success border-success/20"><CheckCircle className="mr-1 h-3 w-3" />COMPLETED</Badge>
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="sm" onClick={() => handleViewApplication(app)}><Eye className="mr-2 h-4 w-4" />View</Button>
-                        <Button variant="secondary" size="sm" onClick={() => { setSelectedApp(app); setShowReportsModal(true); }}><FileText className="mr-2 h-4 w-4" />Reports</Button>
+                      <div className="flex flex-col gap-2 w-full">
+                        <Button variant="outline" size="sm" onClick={() => handleViewApplication(app)} className="w-full"><Eye className="mr-2 h-4 w-4" />View</Button>
+                        <Button variant="secondary" size="sm" onClick={() => { setSelectedApp(app); setShowReportsModal(true); }} className="w-full"><FileText className="mr-2 h-4 w-4" />Reports</Button>
                       </div>
                     </div>
                   </div>

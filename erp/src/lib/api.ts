@@ -197,7 +197,7 @@ class ApiClient {
   }
 
   private getHeaders(): HeadersInit {
-    const headers: HeadersInit = {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
 
@@ -215,12 +215,23 @@ class ApiClient {
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseURL}${endpoint}`;
+    const headers = new Headers(this.getHeaders());
+    if (options.headers) {
+      const optionHeaders = new Headers(options.headers as HeadersInit);
+      optionHeaders.forEach((value, key) => {
+        headers.set(key, value);
+      });
+    }
+
+    // If sending FormData, let the browser set the correct multipart boundary.
+    // Keeping 'Content-Type: application/json' causes the backend to try JSON parsing and fail.
+    if (options.body instanceof FormData) {
+      headers.delete('Content-Type');
+    }
+
     const config: RequestInit = {
       ...options,
-      headers: {
-        ...this.getHeaders(),
-        ...options.headers,
-      },
+      headers,
     };
 
     try {
@@ -981,6 +992,22 @@ export const applications = {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
+  getPendingCommitteeApprovals: (params?: any) => {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          searchParams.append(key, value.toString());
+        }
+      });
+    }
+    return extendedApiClient.request(`/applications/committee/pending${searchParams.toString() ? `?${searchParams.toString()}` : ''}`);
+  },
+  committeeDecision: (id: string, data: { decision: 'approved' | 'rejected'; comments?: string; distributionTimeline?: any[] }) => 
+    extendedApiClient.request(`/applications/${id}/committee-decision`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
 };
 
 export const budget = {
@@ -1524,5 +1551,120 @@ export const projectsEnhanced = {
   updateStatusConfiguration: (projectId: string, data: any) => masterDataApiClient.updateProjectStatusConfiguration(projectId, data),
 };
 
+// Website Management API
+export const website = {
+  // Settings
+  getSettings: () => apiClient.request('/website/settings'),
+  getPublicSettings: () => apiClient.request('/website/public-settings'),
+  updateSettings: (data: any) => apiClient.request('/website/settings', {
+    method: 'PUT',
+    body: JSON.stringify(data)
+  }),
+  addCounter: (data: any) => apiClient.request('/website/settings/counter', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  }),
+  updateCounter: (id: string, data: any) => apiClient.request(`/website/settings/counter/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data)
+  }),
+  deleteCounter: (id: string) => apiClient.request(`/website/settings/counter/${id}`, {
+    method: 'DELETE'
+  }),
+
+  // News & Events
+  getAllNews: (params?: any) => {
+    const query = params ? `?${new URLSearchParams(params).toString()}` : '';
+    return apiClient.request(`/news-events${query}`);
+  },
+  getPublicNews: (params?: any) => {
+    const query = params ? `?${new URLSearchParams(params).toString()}` : '';
+    return apiClient.request(`/news-events/public${query}`);
+  },
+  getNewsById: (id: string) => apiClient.request(`/news-events/${id}`),
+  createNews: (formData: FormData) => apiClient.request('/news-events', {
+    method: 'POST',
+    body: formData,
+    headers: {} // Let browser set Content-Type for FormData
+  }),
+  updateNews: (id: string, formData: FormData) => apiClient.request(`/news-events/${id}`, {
+    method: 'PUT',
+    body: formData,
+    headers: {}
+  }),
+  deleteNews: (id: string) => apiClient.request(`/news-events/${id}`, {
+    method: 'DELETE'
+  }),
+
+  // Brochures
+  getAllBrochures: (params?: any) => {
+    const query = params ? `?${new URLSearchParams(params).toString()}` : '';
+    return apiClient.request(`/brochures${query}`);
+  },
+  getPublicBrochures: (params?: any) => {
+    const query = params ? `?${new URLSearchParams(params).toString()}` : '';
+    return apiClient.request(`/brochures/public${query}`);
+  },
+  getBrochureById: (id: string) => apiClient.request(`/brochures/${id}`),
+  createBrochure: (formData: FormData) => apiClient.request('/brochures', {
+    method: 'POST',
+    body: formData,
+    headers: {}
+  }),
+  updateBrochure: (id: string, formData: FormData) => apiClient.request(`/brochures/${id}`, {
+    method: 'PUT',
+    body: formData,
+    headers: {}
+  }),
+  deleteBrochure: (id: string) => apiClient.request(`/brochures/${id}`, {
+    method: 'DELETE'
+  }),
+  trackDownload: (id: string) => apiClient.request(`/brochures/${id}/download`, {
+    method: 'POST'
+  }),
+
+  // Partners
+  getAllPartners: (params?: any) => {
+    const query = params ? `?${new URLSearchParams(params).toString()}` : '';
+    return apiClient.request(`/partners${query}`);
+  },
+  getPublicPartners: () => apiClient.request('/partners/public'),
+  getPartnerById: (id: string) => apiClient.request(`/partners/${id}`),
+  createPartner: (formData: FormData) => apiClient.request('/partners', {
+    method: 'POST',
+    body: formData,
+    headers: {}
+  }),
+  updatePartner: (id: string, formData: FormData) => apiClient.request(`/partners/${id}`, {
+    method: 'PUT',
+    body: formData,
+    headers: {}
+  }),
+  deletePartner: (id: string) => apiClient.request(`/partners/${id}`, {
+    method: 'DELETE'
+  })
+};
+
+// Banners API
+export const banners = {
+  getAll: () => apiClient.request('/banners'),
+  getPublic: () => apiClient.request('/banners/public'),
+  getById: (id: string) => apiClient.request(`/banners/${id}`),
+  create: (formData: FormData) => apiClient.request('/banners', {
+    method: 'POST',
+    body: formData,
+    headers: {}
+  }),
+  update: (id: string, formData: FormData) => apiClient.request(`/banners/${id}`, {
+    method: 'PUT',
+    body: formData,
+    headers: {}
+  }),
+  delete: (id: string) => apiClient.request(`/banners/${id}`, {
+    method: 'DELETE'
+  })
+};
+
 // Export api as alias for apiClient for backward compatibility
 export const api = masterDataApiClient;
+export default masterDataApiClient;

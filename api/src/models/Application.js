@@ -32,8 +32,8 @@ const applicationSchema = new mongoose.Schema({
   status: {
     type: String,
     enum: [
-      'pending', 'interview_scheduled', 'interview_completed', 'approved', 
-      'rejected', 'on_hold', 'cancelled', 'disbursed', 'completed'
+      'pending', 'interview_scheduled', 'interview_completed', 'pending_committee_approval',
+      'approved', 'rejected', 'on_hold', 'cancelled', 'disbursed', 'completed'
     ],
     default: 'pending'
   },
@@ -85,6 +85,21 @@ const applicationSchema = new mongoose.Schema({
     type: Date
   },
   approvalComments: {
+    type: String
+  },
+  
+  // Committee Approval Information
+  interviewReport: {
+    type: String
+  },
+  committeeApprovedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  committeeApprovedAt: {
+    type: Date
+  },
+  committeeComments: {
     type: String
   },
   

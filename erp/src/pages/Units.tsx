@@ -249,7 +249,7 @@ export default function Units() {
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Units</h1>
+          <h1 className="text-xl font-bold">Units</h1>
           <p className="text-muted-foreground mt-1">Manage unit master data</p>
         </div>
         <div className="flex gap-2">
@@ -449,7 +449,7 @@ export default function Units() {
 
                     <div className="flex items-center gap-6">
                       <div className="text-center">
-                        <p className="text-2xl font-bold">{unit.population || 0}</p>
+                        <p className="text-xl font-bold">{unit.population || 0}</p>
                         <p className="text-xs text-muted-foreground">Population</p>
                       </div>
                       {canUpdateLocations && (

@@ -90,7 +90,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div>
-        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <h1 className="text-xl font-bold">Dashboard</h1>
         <p className="text-muted-foreground mt-1">Welcome back! Here's an overview of your NGO operations.</p>
       </div>
 
@@ -159,7 +159,7 @@ export default function Dashboard() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Total Budget</p>
-                  <p className="text-2xl font-bold">{formatCurrency(budgetOverview?.totalBudget || 0)}</p>
+                  <p className="text-xl font-bold">{formatCurrency(budgetOverview?.totalBudget || 0)}</p>
                 </div>
                 <div className="rounded-full bg-gradient-secondary p-3">
                   <TrendingUp className="h-6 w-6 text-secondary-foreground" />

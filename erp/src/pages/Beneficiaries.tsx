@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Eye, Edit, Trash2, CheckCircle, UserCheck, Download } from 'lucide-react';
+import { Plus, Eye, Edit, Trash2, CheckCircle, UserCheck, Download, Filter } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Card, CardContent } from '../components/ui/card';
@@ -16,7 +16,12 @@ import { useRBAC } from '@/hooks/useRBAC';
 interface Application {
   _id: string;
   applicationNumber: string;
-  scheme: {
+  scheme: string | {
+    _id: string;
+    name: string;
+    code: string;
+  };
+  project: string | {
     _id: string;
     name: string;
     code: string;
@@ -27,15 +32,15 @@ interface Beneficiary {
   _id: string;
   name: string;
   phone: string;
-  state: { _id: string; name: string; code: string };
-  district: { _id: string; name: string; code: string };
-  area: { _id: string; name: string; code: string };
-  unit: { _id: string; name: string; code: string };
+  state: { _id: string; name: string; code: string } | null;
+  district: { _id: string; name: string; code: string } | null;
+  area: { _id: string; name: string; code: string } | null;
+  unit: { _id: string; name: string; code: string } | null;
   status: 'active' | 'inactive' | 'pending';
   isVerified: boolean;
-  verifiedBy?: { name: string };
+  verifiedBy?: { name: string } | null;
   verifiedAt?: string;
-  createdBy: { name: string };
+  createdBy: { name: string } | null;
   createdAt: string;
   applications: Application[] | string[]; // Can be array of objects or IDs
   source?: 'direct' | 'interview';
@@ -69,6 +74,7 @@ const Beneficiaries: React.FC = () => {
     limit: 10
   });
   
+  const [showFilters, setShowFilters] = useState(false);
   const [showBeneficiaryModal, setShowBeneficiaryModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedBeneficiary, setSelectedBeneficiary] = useState<Beneficiary | null>(null);
@@ -227,10 +233,17 @@ const Beneficiaries: React.FC = () => {
 
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Beneficiaries</h1>
+          <h1 className="text-xl font-bold">Beneficiaries</h1>
           <p className="text-muted-foreground mt-1">Manage and track beneficiaries</p>
         </div>
         <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            <Filter className="mr-2 h-4 w-4" />
+            {showFilters ? 'Hide' : 'Show'} Filters
+          </Button>
           {canCreateBeneficiaries && (
             <Button onClick={handleCreateBeneficiary}>
               <Plus className="mr-2 h-4 w-4" />
@@ -244,7 +257,8 @@ const Beneficiaries: React.FC = () => {
         </div>
       </div>
 
-      <GenericFilters
+      {showFilters && (
+        <GenericFilters
         searchTerm={filterHook.filters.searchTerm}
         onSearchChange={filterHook.setSearchTerm}
         searchPlaceholder="Search by name or phone..."
@@ -293,6 +307,7 @@ const Beneficiaries: React.FC = () => {
         onQuickDateFilterChange={filterHook.setQuickDateFilter}
         onClearFilters={filterHook.clearAllFilters}
       />
+      )}
 
       <Card>
         <CardContent className="p-0">
@@ -328,10 +343,14 @@ const Beneficiaries: React.FC = () => {
                   {beneficiaries.map((beneficiary) => {
                     // Extract unique schemes and projects
                     const schemes = beneficiary.applications.length > 0 && typeof beneficiary.applications[0] === 'object'
-                      ? Array.from(new Set((beneficiary.applications as Application[]).map(app => app.scheme.code)))
+                      ? Array.from(new Set((beneficiary.applications as Application[])
+                          .map(app => typeof app.scheme === 'object' ? app.scheme.name : null)
+                          .filter(Boolean)))
                       : [];
                     const projects = beneficiary.applications.length > 0 && typeof beneficiary.applications[0] === 'object'
-                      ? Array.from(new Set((beneficiary.applications as Application[]).map(app => app.project.name)))
+                      ? Array.from(new Set((beneficiary.applications as Application[])
+                          .map(app => typeof app.project === 'object' ? app.project.name : null)
+                          .filter(Boolean)))
                       : [];
 
                     return (
@@ -344,8 +363,10 @@ const Beneficiaries: React.FC = () => {
                           )}
                         </td>
                         <td className="px-4 py-3 text-sm">
-                          <div>{beneficiary.district.name}</div>
-                          <div className="text-xs text-muted-foreground">{beneficiary.area.name}, {beneficiary.unit.name}</div>
+                          <div>{beneficiary.district?.name || 'N/A'}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {beneficiary.area?.name || 'N/A'}, {beneficiary.unit?.name || 'N/A'}
+                          </div>
                         </td>
                         <td className="px-4 py-3">
                           {schemes.length > 0 ? (

@@ -209,7 +209,7 @@ export default function Areas() {
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Areas</h1>
+          <h1 className="text-xl font-bold">Areas</h1>
           <p className="text-muted-foreground mt-1">Manage area master data</p>
         </div>
         <div className="flex gap-2">
@@ -372,7 +372,7 @@ export default function Areas() {
 
                     <div className="flex items-center gap-6">
                       <div className="text-center">
-                        <p className="text-2xl font-bold">{area.childrenCount || 0}</p>
+                        <p className="text-xl font-bold">{area.childrenCount || 0}</p>
                         <p className="text-xs text-muted-foreground">Units</p>
                       </div>
                       {canUpdateLocations && (

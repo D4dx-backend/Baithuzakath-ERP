@@ -20,6 +20,7 @@ import InterviewScheduledApplications from "./pages/applications/InterviewSchedu
 import ApprovedApplications from "./pages/applications/ApprovedApplications";
 import RejectedApplications from "./pages/applications/RejectedApplications";
 import CompletedApplications from "./pages/applications/CompletedApplications";
+import CommitteeApproval from "./pages/CommitteeApproval";
 import Donors from "./pages/Donors";
 import AllDonors from "./pages/donors/AllDonors";
 import AllPayments from "./pages/payments/AllPayments";
@@ -63,6 +64,11 @@ import UserActivity from "./pages/UserActivity";
 import SecurityEvents from "./pages/SecurityEvents";
 import SystemEvents from "./pages/SystemEvents";
 import TimelineDemo from "./pages/TimelineDemo";
+import WebsiteSettings from "./pages/WebsiteSettings";
+import NewsEvents from "./pages/NewsEvents";
+import Brochures from "./pages/Brochures";
+import Partners from "./pages/Partners";
+import Banners from "./pages/Banners";
 
 
 const queryClient = new QueryClient();
@@ -103,6 +109,7 @@ const App = () => (
             <Route path="/applications/rejected" element={<AuthGuard><Layout><RejectedApplications /></Layout></AuthGuard>} />
             <Route path="/applications/completed" element={<AuthGuard><Layout><CompletedApplications /></Layout></AuthGuard>} />
             <Route path="/upcoming-interviews" element={<AuthGuard><Layout><InterviewScheduledApplications /></Layout></AuthGuard>} />
+            <Route path="/committee-approval" element={<AuthGuard><Layout><CommitteeApproval /></Layout></AuthGuard>} />
             <Route path="/beneficiaries" element={<AuthGuard><Layout><Beneficiaries /></Layout></AuthGuard>} />
             <Route path="/payment-tracking" element={<AuthGuard><Layout><BeneficiaryPayments /></Layout></AuthGuard>} />
             <Route path="/payment-tracking/all" element={<AuthGuard><Layout><AllPayments /></Layout></AuthGuard>} />
@@ -134,6 +141,14 @@ const App = () => (
             <Route path="/activity-logs/security-events" element={<AuthGuard><Layout><SecurityEvents /></Layout></AuthGuard>} />
             <Route path="/activity-logs/system-events" element={<AuthGuard><Layout><SystemEvents /></Layout></AuthGuard>} />
             <Route path="/timeline-demo" element={<AuthGuard><Layout><TimelineDemo /></Layout></AuthGuard>} />
+            
+            {/* Website Management Routes */}
+            <Route path="/website-settings" element={<AuthGuard><Layout><WebsiteSettings /></Layout></AuthGuard>} />
+            <Route path="/banners" element={<AuthGuard><Layout><Banners /></Layout></AuthGuard>} />
+            <Route path="/news-events" element={<AuthGuard><Layout><NewsEvents /></Layout></AuthGuard>} />
+            <Route path="/brochures" element={<AuthGuard><Layout><Brochures /></Layout></AuthGuard>} />
+            <Route path="/partners" element={<AuthGuard><Layout><Partners /></Layout></AuthGuard>} />
+            
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
             </Routes>

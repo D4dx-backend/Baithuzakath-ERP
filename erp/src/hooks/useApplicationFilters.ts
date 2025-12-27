@@ -138,7 +138,9 @@ export function useApplicationFilters(defaultStatus?: string) {
     if (projectFilter !== "all") params.project = projectFilter;
     if (districtFilter !== "all") params.district = districtFilter;
     if (areaFilter !== "all") params.area = areaFilter;
+    if (unitFilter !== "all") params.unit = unitFilter;
     if (schemeFilter !== "all") params.scheme = schemeFilter;
+    if (genderFilter !== "all") params.gender = genderFilter;
     if (fromDate) params.fromDate = fromDate.toISOString();
     if (toDate) params.toDate = toDate.toISOString();
     if (quickDateFilter) params.quickDateFilter = quickDateFilter;

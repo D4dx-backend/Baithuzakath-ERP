@@ -165,7 +165,7 @@ export default function TimelineDemo() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Distribution Timeline Accordion</h1>
+            <h1 className="text-xl font-bold">Distribution Timeline Accordion</h1>
             <p className="text-muted-foreground mt-2">
               Interactive accordion component for managing and displaying money distribution timelines
             </p>

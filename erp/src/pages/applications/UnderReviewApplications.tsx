@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { ShortlistModal } from "@/components/modals/ShortlistModal";
 import { ReportsModal } from "@/components/modals/ReportsModal";
-import { Download, Eye, CheckCircle, XCircle, FileText, Loader2, Grid, List } from "lucide-react";
+import { Download, Eye, CheckCircle, XCircle, FileText, Loader2, Grid, List, Filter } from "lucide-react";
 import { useRBAC } from "@/hooks/useRBAC";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,7 +44,8 @@ export default function UnderReviewApplications() {
   const [showReportsModal, setShowReportsModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ current: 1, pages: 1, total: 0, limit: 10 });
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('table');
+  const [showFilters, setShowFilters] = useState(false);
 
   const canViewApplications = hasAnyPermission(['applications.read.all', 'applications.read.regional', 'applications.read.own']);
   const canApproveApplications = hasPermission('applications.approve');
@@ -157,7 +158,7 @@ export default function UnderReviewApplications() {
       
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Under Review Applications</h1>
+          <h1 className="text-xl font-bold">Under Review Applications</h1>
           <p className="text-muted-foreground mt-1">Applications currently under review</p>
         </div>
         <div className="flex items-center gap-2">
@@ -172,9 +173,18 @@ export default function UnderReviewApplications() {
               <List className="h-4 w-4" />
             </Button>
           </div>
+          <Button
+            variant={showFilters ? "default" : "outline"}
+            size="sm"
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            <Filter className="mr-2 h-4 w-4" />
+            {showFilters ? "Hide Filters" : "Show Filters"}
+          </Button>
         </div>
       </div>
 
+      {showFilters && (
       <GenericFilters
         searchTerm={filterHook.filters.searchTerm}
         onSearchChange={filterHook.setSearchTerm}
@@ -212,10 +222,10 @@ export default function UnderReviewApplications() {
         onQuickDateFilterChange={filterHook.setQuickDateFilter}
         onClearFilters={filterHook.clearAllFilters}
       />
+      )}
 
       <Card>
-        <CardHeader><CardTitle>Under Review Applications ({pagination.total})</CardTitle></CardHeader>
-        <CardContent>
+        <CardContent className="p-6 pt-6">
           {loading ? (
             <div className="flex items-center justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /><span className="ml-2">Loading...</span></div>
           ) : applicationList.length === 0 ? (
@@ -242,14 +252,15 @@ export default function UnderReviewApplications() {
                     </div>
                     <div className="flex flex-col gap-2 items-end">
                       <Badge variant="outline" className="bg-info/10 text-info border-info/20"><Eye className="mr-1 h-3 w-3" />UNDER REVIEW</Badge>
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="sm" onClick={() => handleViewApplication(app)}><Eye className="mr-2 h-4 w-4" />Details</Button>
+                      <div className="flex flex-col gap-2 w-full">
+                        <Button variant="outline" size="sm" onClick={() => handleViewApplication(app)} className="w-full"><Eye className="mr-2 h-4 w-4" />Details</Button>
                         {canReviewApplications && (
-                          <>
-                            <Button variant="outline" size="sm" onClick={() => handleApprove(app._id, '')} disabled={!canApproveApplications}><CheckCircle className="mr-2 h-4 w-4" />Approve</Button>
-                            <Button variant="outline" size="sm" onClick={() => handleReject(app._id, '')} disabled={!canApproveApplications}><XCircle className="mr-2 h-4 w-4" />Reject</Button>
-                          </>
+                          <div className="flex gap-2">
+                            <Button variant="outline" size="sm" onClick={() => handleApprove(app._id, '')} disabled={!canApproveApplications} className="flex-1"><CheckCircle className="mr-2 h-4 w-4" />Approve</Button>
+                            <Button variant="outline" size="sm" onClick={() => handleReject(app._id, '')} disabled={!canApproveApplications} className="flex-1"><XCircle className="mr-2 h-4 w-4" />Reject</Button>
+                          </div>
                         )}
+                        <Button variant="secondary" size="sm" onClick={() => { setSelectedApp(app); setShowReportsModal(true); }} className="w-full"><FileText className="mr-2 h-4 w-4" />Reports</Button>
                       </div>
                     </div>
                   </div>

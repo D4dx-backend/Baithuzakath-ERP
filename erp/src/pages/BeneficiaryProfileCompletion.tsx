@@ -257,7 +257,7 @@ export default function BeneficiaryProfileCompletion() {
           <div className="flex justify-center mb-4">
             <img src={logo} alt="Logo" className="h-16 w-16 rounded-full" />
           </div>
-          <CardTitle className="text-2xl font-bold">Your Profile</CardTitle>
+          <CardTitle className="text-xl font-bold">Your Profile</CardTitle>
           <CardDescription>
             Update your personal and location information
           </CardDescription>

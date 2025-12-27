@@ -385,7 +385,7 @@ export default function FormBuilder() {
             </Button>
           )}
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold">Form Builder</h1>
+            <h1 className="text-lg sm:text-xl font-bold">Form Builder</h1>
             {schemeId && schemeName && (
               <p className="text-muted-foreground text-sm mt-1">
                 {decodeURIComponent(schemeName)}

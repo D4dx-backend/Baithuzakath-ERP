@@ -96,11 +96,11 @@ export default function Index() {
               </Button>
               <Button 
                 size="lg" 
-                variant="outline" 
-                className="text-primary-foreground border-primary-foreground/30 hover:bg-primary-foreground/10"
+                className="bg-secondary text-secondary-foreground hover:bg-secondary/90 shadow-glow"
                 onClick={() => navigate('/login')}
               >
                 Apply Now
+                <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </div>
           </div>

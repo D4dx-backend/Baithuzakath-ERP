@@ -331,7 +331,7 @@ export default function Locations() {
       />
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Location Management</h1>
+          <h1 className="text-xl font-bold">Location Management</h1>
           <p className="text-muted-foreground mt-1">Manage districts, areas, and units across Kerala</p>
         </div>
         <DropdownMenu>
@@ -372,7 +372,7 @@ export default function Locations() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Total Districts</p>
-                    <p className="text-3xl font-bold">{stats.totalDistricts}</p>
+                    <p className="text-xl font-bold">{stats.totalDistricts}</p>
                   </div>
                   <div className="rounded-full bg-gradient-primary p-3">
                     <Map className="h-6 w-6 text-primary-foreground" />
@@ -385,7 +385,7 @@ export default function Locations() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Total Areas</p>
-                    <p className="text-3xl font-bold">{stats.totalAreas}</p>
+                    <p className="text-xl font-bold">{stats.totalAreas}</p>
                   </div>
                   <div className="rounded-full bg-gradient-secondary p-3">
                     <MapPin className="h-6 w-6 text-secondary-foreground" />
@@ -398,7 +398,7 @@ export default function Locations() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Total Units</p>
-                    <p className="text-3xl font-bold">{stats.totalUnits}</p>
+                    <p className="text-xl font-bold">{stats.totalUnits}</p>
                   </div>
                   <div className="rounded-full bg-gradient-primary p-3">
                     <Building2 className="h-6 w-6 text-primary-foreground" />
@@ -464,11 +464,11 @@ export default function Locations() {
 
                     <div className="flex items-center gap-6">
                       <div className="text-center">
-                        <p className="text-2xl font-bold">{areaList.filter(a => a.parent?.id === district.id).length}</p>
+                        <p className="text-xl font-bold">{areaList.filter(a => a.parent?.id === district.id).length}</p>
                         <p className="text-xs text-muted-foreground">Areas</p>
                       </div>
                       <div className="text-center">
-                        <p className="text-2xl font-bold">{district.childrenCount || 0}</p>
+                        <p className="text-xl font-bold">{district.childrenCount || 0}</p>
                         <p className="text-xs text-muted-foreground">Total Children</p>
                       </div>
                       <div className="flex gap-2">
@@ -551,11 +551,11 @@ export default function Locations() {
 
                     <div className="flex items-center gap-6">
                       <div className="text-center">
-                        <p className="text-2xl font-bold">{unitList.filter(u => u.parent?.id === area.id).length}</p>
+                        <p className="text-xl font-bold">{unitList.filter(u => u.parent?.id === area.id).length}</p>
                         <p className="text-xs text-muted-foreground">Units</p>
                       </div>
                       <div className="text-center">
-                        <p className="text-2xl font-bold">{area.childrenCount || 0}</p>
+                        <p className="text-xl font-bold">{area.childrenCount || 0}</p>
                         <p className="text-xs text-muted-foreground">Total Children</p>
                       </div>
                       <div className="flex gap-2">
@@ -643,7 +643,7 @@ export default function Locations() {
 
                     <div className="flex items-center gap-6">
                       <div className="text-center">
-                        <p className="text-2xl font-bold">{unit.population || 0}</p>
+                        <p className="text-xl font-bold">{unit.population || 0}</p>
                         <p className="text-xs text-muted-foreground">Population</p>
                       </div>
                       <div className="flex gap-2">

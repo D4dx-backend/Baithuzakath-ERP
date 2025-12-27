@@ -165,4 +165,44 @@ router.get('/stats',
   beneficiaryApplicationController.getApplicationStats
 );
 
+// ============================================================================
+// ADMIN ROUTES FOR BENEFICIARY MANAGEMENT
+// These are accessed via /api/beneficiaries (different from /api/beneficiary)
+// ============================================================================
+
+// Get all beneficiaries (admin route)
+router.get('/', 
+  authenticate,
+  [
+    query('page').optional().isInt({ min: 1 }),
+    query('limit').optional().isInt({ min: 1, max: 100 }),
+    query('search').optional().trim(),
+    query('status').optional().trim(),
+    query('includeApprovedInterviews').optional().isBoolean(),
+    validateRequest
+  ],
+  beneficiaryController.getBeneficiaries
+);
+
+// Get beneficiary by ID (admin route)
+router.get('/:id',
+  authenticate,
+  [
+    param('id').isMongoId().withMessage('Invalid beneficiary ID'),
+    validateRequest
+  ],
+  beneficiaryController.getBeneficiary
+);
+
+// Update beneficiary (admin route)
+router.put('/:id',
+  authenticate,
+  [
+    param('id').isMongoId().withMessage('Invalid beneficiary ID'),
+    body('status').optional().isIn(['active', 'inactive', 'verified', 'suspended']),
+    validateRequest
+  ],
+  beneficiaryController.updateBeneficiary
+);
+
 module.exports = router;

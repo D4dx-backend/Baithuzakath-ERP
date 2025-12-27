@@ -584,7 +584,7 @@ export default function Applications() {
       />
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Applications</h1>
+          <h1 className="text-xl font-bold">Applications</h1>
           <p className="text-muted-foreground mt-1">Manage and track scheme applications</p>
           {user && (
             <p className="text-sm text-muted-foreground mt-1">
@@ -613,7 +613,7 @@ export default function Applications() {
           <Card key={idx}>
             <CardContent className="p-6">
               <p className="text-sm text-muted-foreground">{stat.label}</p>
-              <p className="text-3xl font-bold mt-2">{stat.value}</p>
+              <p className="text-xl font-bold mt-2">{stat.value}</p>
               <div className={`h-1 ${stat.color} rounded-full mt-3`} />
             </CardContent>
           </Card>

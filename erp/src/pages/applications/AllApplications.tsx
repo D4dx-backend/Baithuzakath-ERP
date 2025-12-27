@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { ShortlistModal } from "@/components/modals/ShortlistModal";
 import { ReportsModal } from "@/components/modals/ReportsModal";
-import { Download, Eye, CheckCircle, XCircle, Clock, CalendarIcon, FileText, Loader2, UserCheck, Grid, List } from "lucide-react";
+import { Download, Eye, CheckCircle, XCircle, Clock, CalendarIcon, FileText, Loader2, UserCheck, Grid, List, Filter } from "lucide-react";
 import { useRBAC } from "@/hooks/useRBAC";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -75,7 +75,8 @@ export default function AllApplications() {
   const [modalMode, setModalMode] = useState<"view" | "approve" | "reject">("view");
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ current: 1, pages: 1, total: 0, limit: 10 });
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('table');
+  const [showFilters, setShowFilters] = useState(false);
 
   const canViewApplications = hasAnyPermission(['applications.read.all', 'applications.read.regional', 'applications.read.own']);
   const canApproveApplications = hasPermission('applications.approve');
@@ -244,7 +245,7 @@ export default function AllApplications() {
       
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">All Applications</h1>
+          <h1 className="text-xl font-bold">All Applications</h1>
           <p className="text-muted-foreground mt-1">View and manage all scheme applications</p>
         </div>
         <div className="flex items-center gap-2">
@@ -260,9 +261,18 @@ export default function AllApplications() {
               <List className="h-4 w-4" />
             </Button>
           </div>
+          <Button
+            variant={showFilters ? "default" : "outline"}
+            size="sm"
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            <Filter className="mr-2 h-4 w-4" />
+            {showFilters ? "Hide Filters" : "Show Filters"}
+          </Button>
         </div>
       </div>
 
+      {showFilters && (
       <GenericFilters
         searchTerm={filterHook.filters.searchTerm}
         onSearchChange={filterHook.setSearchTerm}
@@ -303,10 +313,10 @@ export default function AllApplications() {
         onQuickDateFilterChange={filterHook.setQuickDateFilter}
         onClearFilters={filterHook.clearAllFilters}
       />
+      )}
 
       <Card>
-        <CardHeader><CardTitle>Application List ({pagination.total})</CardTitle></CardHeader>
-        <CardContent>
+        <CardContent className="p-6 pt-6">
           {loading ? (
             <div className="flex items-center justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /><span className="ml-2">Loading applications...</span></div>
           ) : applicationList.length === 0 ? (

@@ -7,6 +7,7 @@ import { Separator } from '../ui/separator';
 import { Textarea } from '../ui/textarea';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
+import { Checkbox } from '../ui/checkbox';
 import { applications as applicationsApi, interviews } from '../../lib/api';
 import { useToast } from '@/hooks/use-toast';
 
@@ -183,11 +184,14 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
 }) => {
   const { toast } = useToast();
   const [application, setApplication] = useState<any>(null);
+  const [payments, setPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [formConfig, setFormConfig] = useState<any>(null);
   const [processingAction, setProcessingAction] = useState(false);
   const [showAction, setShowAction] = useState<"approve" | "reject" | null>(null);
   const [remarks, setRemarks] = useState("");
+  const [forwardToCommittee, setForwardToCommittee] = useState(false);
+  const [approvedAmount, setApprovedAmount] = useState(0);
   const [distributionTimeline, setDistributionTimeline] = useState([
     { id: 1, phase: "First Installment", percentage: 40, date: "" },
   ]);
@@ -197,6 +201,12 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
       fetchApplicationDetails();
     }
   }, [isOpen, applicationId]);
+
+  useEffect(() => {
+    if (application) {
+      setApprovedAmount(application.requestedAmount || 0);
+    }
+  }, [application]);
 
   const fetchApplicationDetails = async () => {
     if (!applicationId) return;
@@ -224,6 +234,12 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
         console.log('📊 Application stages:', applicationData.applicationStages);
         console.log('📜 Stage history:', applicationData.stageHistory);
         setApplication(applicationData);
+        
+        // Extract payments if included in response
+        if (response.data?.payments) {
+          console.log('💰 Payments loaded:', response.data.payments.length);
+          setPayments(response.data.payments);
+        }
         
         // Fetch form configuration to get field labels
         if (applicationData.scheme?._id) {
@@ -338,7 +354,7 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
       const timelineData = distributionTimeline.map(phase => ({
         description: phase.phase,
         percentage: phase.percentage,
-        amount: Math.round((application?.requestedAmount || 0) * (phase.percentage / 100)),
+        amount: Math.round(approvedAmount * (phase.percentage / 100)),
         expectedDate: phase.date
       }));
 
@@ -349,7 +365,9 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
         response = await interviews.complete(application.applicationNumber, {
           result: 'passed',
           notes: remarks,
-          distributionTimeline: timelineData
+          distributionTimeline: forwardToCommittee ? undefined : timelineData,
+          forwardToCommittee: forwardToCommittee || false,
+          interviewReport: remarks
         });
       } else {
         // For pending/under_review without interview requirement, use direct approval API
@@ -361,12 +379,20 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
       }
 
       if (response.success) {
-        toast({ 
-          title: "Success", 
-          description: "Application approved successfully" 
-        });
+        if (forwardToCommittee) {
+          toast({ 
+            title: "Forwarded to Committee", 
+            description: "Application has been forwarded to committee for approval" 
+          });
+        } else {
+          toast({ 
+            title: "Success", 
+            description: "Application approved successfully" 
+          });
+        }
         setShowAction(null);
         setRemarks("");
+        setForwardToCommittee(false);
         onClose();
         if (onActionComplete) onActionComplete();
       }
@@ -587,6 +613,33 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
     );
   };
 
+  const getPaymentStatusConfig = (payment: any) => {
+    const status = payment.status;
+    const dueDate = payment.timeline?.expectedCompletionDate ? new Date(payment.timeline.expectedCompletionDate) : null;
+    const today = new Date();
+    const diffDays = dueDate ? Math.floor((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+    
+    if (status === 'completed') {
+      return { color: 'bg-green-50 text-green-700 border-green-200', label: 'COMPLETED' };
+    }
+    if (status === 'processing') {
+      return { color: 'bg-blue-50 text-blue-700 border-blue-200', label: 'PROCESSING' };
+    }
+    if (status === 'failed') {
+      return { color: 'bg-red-50 text-red-700 border-red-200', label: 'FAILED' };
+    }
+    if (status === 'cancelled') {
+      return { color: 'bg-gray-50 text-gray-700 border-gray-200', label: 'CANCELLED' };
+    }
+    if (status === 'pending' && dueDate && diffDays < 0) {
+      return { color: 'bg-red-50 text-red-700 border-red-200', label: 'OVERDUE' };
+    }
+    if (status === 'pending' && dueDate && diffDays <= 7) {
+      return { color: 'bg-orange-50 text-orange-700 border-orange-200', label: 'DUE SOON' };
+    }
+    return { color: 'bg-yellow-50 text-yellow-700 border-yellow-200', label: 'UPCOMING' };
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -623,6 +676,30 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
                 <div className="p-6 space-y-6">
                   {showAction === "approve" && (
                     <>
+                      {/* Approved Amount Input */}
+                      <div className="space-y-2 mb-4">
+                        <Label className="font-semibold">Approved Amount <span className="text-destructive">*</span></Label>
+                        <div className="relative">
+                          <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            type="number"
+                            placeholder="Enter approved amount"
+                            value={approvedAmount}
+                            onChange={(e) => setApprovedAmount(Number(e.target.value))}
+                            className="pl-10"
+                            min={0}
+                            max={application?.requestedAmount}
+                            disabled={forwardToCommittee}
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {forwardToCommittee 
+                            ? "Approved amount will be determined by committee" 
+                            : `Enter the approved amount (max: ₹${application?.requestedAmount?.toLocaleString('en-IN')})`
+                          }
+                        </p>
+                      </div>
+
                       <div className="flex items-center justify-between mb-4">
                         <h3 className="font-semibold text-lg">Money Distribution Timeline</h3>
                         <Button
@@ -636,7 +713,7 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
                       <div className="space-y-3 mb-4">
                         {distributionTimeline.map((phase, index) => (
                           <div key={phase.id} className="flex gap-2 items-start">
-                            <div className="flex-1 grid grid-cols-3 gap-2">
+                            <div className="flex-1 grid grid-cols-4 gap-2">
                               <Input
                                 placeholder="Phase name"
                                 value={phase.phase}
@@ -648,6 +725,9 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
                                 value={phase.percentage || ''}
                                 onChange={(e) => updateDistributionPhase(phase.id, 'percentage', parseInt(e.target.value) || 0)}
                               />
+                              <div className="flex items-center px-3 border rounded-md bg-muted text-sm">
+                                ₹{Math.round(approvedAmount * ((phase.percentage || 0) / 100)).toLocaleString('en-IN')}
+                              </div>
                               <Input
                                 type="date"
                                 value={phase.date}
@@ -675,18 +755,67 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
                         <Plus className="mr-2 h-4 w-4" />
                         Add Phase
                       </Button>
+                      
+                      {/* Distribution Total Validation */}
+                      {(() => {
+                        const total = distributionTimeline.reduce((sum, phase) => sum + (phase.percentage || 0), 0);
+                        const isValid = total === 100;
+                        return (
+                          <div className={`text-sm font-medium p-3 rounded-lg border ${isValid ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+                            Total Distribution: {total}% {isValid ? '✓' : '(Must be 100%)'}
+                          </div>
+                        );
+                      })()}
                     </>
                   )}
                   
+                  {/* Forward to Committee Option - Only for interview_scheduled status */}
+                  {showAction === "approve" && application?.status === 'interview_scheduled' && (
+                    <div className="flex items-start space-x-3 rounded-lg border p-4 bg-blue-50/50">
+                      <Checkbox
+                        id="forwardToCommittee"
+                        checked={forwardToCommittee}
+                        onCheckedChange={(checked) => setForwardToCommittee(checked as boolean)}
+                      />
+                      <div className="grid gap-1.5 leading-none">
+                        <label
+                          htmlFor="forwardToCommittee"
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                        >
+                          Forward to Committee Approval
+                        </label>
+                        <p className="text-sm text-muted-foreground">
+                          Send this application to committee for final approval decision instead of approving directly
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="space-y-2">
-                    <Label htmlFor="remarks">{showAction === "approve" ? "Approval Comments" : "Rejection Reason"}</Label>
+                    <Label htmlFor="remarks">
+                      {showAction === "approve" 
+                        ? (forwardToCommittee ? "Interview Report for Committee" : "Approval Comments") 
+                        : "Rejection Reason"}
+                      <span className="text-destructive"> *</span>
+                    </Label>
                     <Textarea
                       id="remarks"
-                      placeholder={showAction === "approve" ? "Enter approval comments..." : "Enter reason for rejection..."}
+                      placeholder={
+                        showAction === "approve" 
+                          ? (forwardToCommittee 
+                              ? "Enter detailed interview report for committee review..." 
+                              : "Enter approval comments...") 
+                          : "Enter reason for rejection..."
+                      }
                       value={remarks}
                       onChange={(e) => setRemarks(e.target.value)}
-                      rows={4}
+                      rows={forwardToCommittee ? 6 : 4}
                     />
+                    {showAction === "approve" && forwardToCommittee && (
+                      <p className="text-xs text-muted-foreground">
+                        Provide a comprehensive report of the interview for committee members to review.
+                      </p>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -865,7 +994,7 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
               </Card>
 
               {/* Current Stage */}
-              {application.currentStage && (
+              {(application.currentStage || application.status) && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
@@ -875,7 +1004,170 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
                   </CardHeader>
                   <CardContent>
                     <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
-                      <p className="text-sm font-medium text-blue-900">{application.currentStage}</p>
+                      <p className="text-sm font-medium text-blue-900">
+                        {application.currentStage || 
+                         (application.status === 'pending' ? 'Pending Review' :
+                          application.status === 'under_review' ? 'Under Review' :
+                          application.status === 'approved' ? 'Approved' :
+                          application.status === 'rejected' ? 'Rejected' :
+                          application.status === 'field_verification' ? 'Field Verification' :
+                          application.status === 'interview_scheduled' ? 'Interview Scheduled' :
+                          application.status === 'pending_committee_approval' ? 'Pending Committee Approval' :
+                          application.status === 'committee_approved' ? 'Committee Approved' :
+                          application.status === 'completed' ? 'Completed' :
+                          application.status?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()))}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Payment Records */}
+              {payments && payments.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <IndianRupee className="h-5 w-5" />
+                      Payment Records
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {payments.map((payment: any, index: number) => {
+                        const statusConfig = getPaymentStatusConfig(payment);
+                        const dueDate = payment.timeline?.expectedCompletionDate ? 
+                          new Date(payment.timeline.expectedCompletionDate).toLocaleDateString() : 'Not set';
+                        const completedDate = payment.timeline?.completedAt ?
+                          new Date(payment.timeline.completedAt).toLocaleDateString() : null;
+                        
+                        // Check if previous installment is completed
+                        const installmentNumber = payment.installment?.number || index + 1;
+                        const isPreviousCompleted = installmentNumber === 1 || 
+                          (index > 0 && payments[index - 1]?.status === 'completed');
+                        
+                        // Check if payment date has arrived
+                        const paymentDueDate = payment.timeline?.expectedCompletionDate ? 
+                          new Date(payment.timeline.expectedCompletionDate) : null;
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        const isPaymentDateReached = !paymentDueDate || paymentDueDate <= today;
+                        
+                        // Can process payment only if previous is completed AND payment date has arrived
+                        const canProcessPayment = isPreviousCompleted && isPaymentDateReached;
+                        
+                        return (
+                          <div key={payment._id} className="border rounded-lg p-4 hover:shadow-sm transition-shadow">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1 space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-semibold">
+                                    Installment {payment.installment?.number || index + 1}/{payment.installment?.totalInstallments || payments.length}
+                                  </span>
+                                  <span className="text-sm text-muted-foreground">
+                                    {payment.installment?.description}
+                                  </span>
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-2 text-sm">
+                                  <div>
+                                    <span className="text-muted-foreground">Amount: </span>
+                                    <span className="font-medium">₹{payment.amount?.toLocaleString()}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground">Payment #: </span>
+                                    <span className="font-mono text-xs">{payment.paymentNumber}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground">Due Date: </span>
+                                    <span>{dueDate}</span>
+                                  </div>
+                                  {completedDate && (
+                                    <div>
+                                      <span className="text-muted-foreground">Completed: </span>
+                                      <span>{completedDate}</span>
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                {/* Show restriction messages */}
+                                {payment.status === 'pending' && !canProcessPayment && (
+                                  <div className="mt-2 text-xs text-muted-foreground">
+                                    {!isPreviousCompleted && (
+                                      <p className="text-orange-600">⚠️ Complete previous installment first</p>
+                                    )}
+                                    {isPreviousCompleted && !isPaymentDateReached && (
+                                      <p className="text-blue-600">📅 Payment available from {dueDate}</p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                              
+                              <div className="flex flex-col gap-2 items-end">
+                                <Badge variant="outline" className={statusConfig.color}>
+                                  {statusConfig.label}
+                                </Badge>
+                                
+                                {/* Quick Actions */}
+                                {payment.status === 'pending' && canProcessPayment && (
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline"
+                                    onClick={() => {
+                                      window.location.href = `/payments/all?paymentId=${payment._id}`;
+                                    }}
+                                  >
+                                    Process Payment
+                                  </Button>
+                                )}
+                                {payment.status === 'processing' && (
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline"
+                                    onClick={() => {
+                                      window.location.href = `/payments/all?paymentId=${payment._id}`;
+                                    }}
+                                  >
+                                    View Details
+                                  </Button>
+                                )}
+                                {payment.status === 'completed' && (
+                                  <Button 
+                                    size="sm" 
+                                    variant="ghost"
+                                    onClick={() => {
+                                      window.open(`/api/payments/${payment._id}/receipt`, '_blank');
+                                    }}
+                                  >
+                                    <Download className="h-4 w-4 mr-2" />
+                                    Receipt
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    
+                    {/* Summary */}
+                    <Separator className="my-4" />
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-muted-foreground">Total Installments:</span>
+                        <span className="font-semibold">{payments.length}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-muted-foreground">Total Amount:</span>
+                        <span className="font-semibold text-lg">
+                          ₹{payments.reduce((sum: number, p: any) => sum + (p.amount || 0), 0).toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-muted-foreground">Completed:</span>
+                        <span className="font-medium text-green-700">
+                          {payments.filter((p: any) => p.status === 'completed').length}/{payments.length}
+                        </span>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -1169,7 +1461,19 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
             <div className="flex gap-3">
               <Button 
                 className="bg-green-600 hover:bg-green-700"
-                onClick={() => setShowAction("approve")}
+                onClick={() => {
+                  setShowAction("approve");
+                  // Auto-load scheme defaults when approve is clicked
+                  if (application?.scheme?.distributionTimeline && application.scheme.distributionTimeline.length > 0) {
+                    const schemeDefaults = application.scheme.distributionTimeline.map((item: any, index: number) => ({
+                      id: index + 1,
+                      phase: item.description || `Phase ${index + 1}`,
+                      percentage: item.percentage || 0,
+                      date: calculateDate(item.daysFromApproval || 0)
+                    }));
+                    setDistributionTimeline(schemeDefaults);
+                  }
+                }}
               >
                 <CheckCircle className="mr-2 h-4 w-4" />
                 Approve Application
@@ -1189,7 +1493,12 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
               className={showAction === "approve" ? "bg-green-600 hover:bg-green-700" : ""}
               variant={showAction === "reject" ? "destructive" : "default"}
               onClick={showAction === "approve" ? handleApproveApplication : handleRejectApplication}
-              disabled={processingAction || !remarks.trim()}
+              disabled={
+                processingAction || 
+                !remarks.trim() || 
+                (showAction === "approve" && !forwardToCommittee && 
+                  distributionTimeline.reduce((sum, phase) => sum + (phase.percentage || 0), 0) !== 100)
+              }
             >
               {processingAction ? (
                 <>
@@ -1199,7 +1508,9 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
               ) : (
                 <>
                   {showAction === "approve" ? <CheckCircle className="mr-2 h-4 w-4" /> : <XCircle className="mr-2 h-4 w-4" />}
-                  Confirm {showAction === "approve" ? "Approval" : "Rejection"}
+                  {showAction === "approve" 
+                    ? (forwardToCommittee ? "Forward to Committee" : "Confirm Approval")
+                    : "Confirm Rejection"}
                 </>
               )}
             </Button>

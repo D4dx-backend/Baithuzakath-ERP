@@ -6,6 +6,7 @@ import { CheckCircle, XCircle, User, MapPin, Calendar, IndianRupee, FileText, Ph
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useState, useEffect } from "react";
 
 // Previous applications will be passed as prop or fetched from API
@@ -15,7 +16,7 @@ interface ApplicationViewModalProps {
   onOpenChange: (open: boolean) => void;
   application: any;
   mode?: "view" | "approve" | "reject" | "edit";
-  onApprove?: (id: string, remarks: string, distributionTimeline?: any[]) => void;
+  onApprove?: (id: string, remarks: string, distributionTimeline?: any[], forwardToCommittee?: boolean, interviewReport?: string) => void;
   onReject?: (id: string, remarks: string) => void;
   previousApplications?: any[];
 }
@@ -30,6 +31,9 @@ export function ApplicationViewModal({
   previousApplications = []
 }: ApplicationViewModalProps) {
   const [remarks, setRemarks] = useState("");
+  const [forwardToCommittee, setForwardToCommittee] = useState(false);
+  const [interviewReport, setInterviewReport] = useState("");
+  const [approvedAmount, setApprovedAmount] = useState(0);
   const [showAction, setShowAction] = useState<"approve" | "reject" | null>(
     mode === "approve" ? "approve" : mode === "reject" ? "reject" : null
   );
@@ -44,6 +48,13 @@ export function ApplicationViewModal({
     futureDate.setDate(today.getDate() + daysFromApproval);
     return futureDate.toISOString().split('T')[0];
   };
+
+  // Initialize approved amount when application changes
+  useEffect(() => {
+    if (application) {
+      setApprovedAmount(application.requestedAmount);
+    }
+  }, [application]);
 
   // Load distribution timeline from application or scheme defaults
   useEffect(() => {
@@ -167,15 +178,17 @@ Status: ${application?.status || 'N/A'}
   const handleApprove = () => {
     if (onApprove) {
       // Convert distribution timeline to the format expected by the backend
-      const timelineData = distributionTimeline.map(phase => ({
+      const timelineData = !forwardToCommittee ? distributionTimeline.map(phase => ({
         description: phase.phase,
         percentage: phase.percentage,
-        amount: Math.round((application?.requestedAmount || 0) * (phase.percentage / 100)),
+        amount: Math.round(approvedAmount * (phase.percentage / 100)),
         expectedDate: phase.date
-      }));
+      })) : undefined;
       
-      onApprove(application?._id || '', remarks, timelineData);
+      onApprove(application?._id || '', remarks, timelineData, forwardToCommittee, interviewReport);
       setRemarks("");
+      setForwardToCommittee(false);
+      setInterviewReport("");
       setShowAction(null);
       onOpenChange(false);
     }
@@ -384,6 +397,31 @@ Status: ${application?.status || 'N/A'}
           {showAction === "approve" && (
             <>
               <Separator />
+              
+              {/* Approved Amount Input */}
+              <div className="space-y-2">
+                <Label className="font-semibold">Approved Amount <span className="text-destructive">*</span></Label>
+                <div className="relative">
+                  <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="number"
+                    placeholder="Enter approved amount"
+                    value={approvedAmount}
+                    onChange={(e) => setApprovedAmount(Number(e.target.value))}
+                    className="pl-10"
+                    min={0}
+                    max={application?.requestedAmount}
+                    disabled={forwardToCommittee}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {forwardToCommittee 
+                    ? "Approved amount will be determined by committee" 
+                    : `Enter the approved amount (max: ₹${application?.requestedAmount?.toLocaleString('en-IN')})`
+                  }
+                </p>
+              </div>
+
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <Label className="text-base font-semibold">Money Distribution Timeline</Label>
@@ -450,7 +488,7 @@ Status: ${application?.status || 'N/A'}
                   ))}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Total: {distributionTimeline.reduce((sum, p) => sum + p.percentage, 0)}% of ₹{application?.requestedAmount?.toLocaleString('en-IN') || '0'}
+                  Total: {distributionTimeline.reduce((sum, p) => sum + p.percentage, 0)}% of ₹{approvedAmount?.toLocaleString('en-IN') || '0'} = ₹{Math.round(approvedAmount * distributionTimeline.reduce((sum, p) => sum + p.percentage, 0) / 100).toLocaleString('en-IN')}
                 </p>
               </div>
             </>
@@ -460,20 +498,63 @@ Status: ${application?.status || 'N/A'}
           {showAction && (
             <>
               <Separator />
+              
+              {/* Forward to Committee Option - Only show for approval */}
+              {showAction === "approve" && (
+                <div className="flex items-start space-x-3 rounded-lg border p-4 bg-blue-50/50">
+                  <Checkbox
+                    id="forwardToCommittee"
+                    checked={forwardToCommittee}
+                    onCheckedChange={(checked) => setForwardToCommittee(checked as boolean)}
+                  />
+                  <div className="grid gap-1.5 leading-none">
+                    <label
+                      htmlFor="forwardToCommittee"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                    >
+                      Forward to Committee Approval
+                    </label>
+                    <p className="text-sm text-muted-foreground">
+                      Send this application to committee for final approval decision instead of approving directly
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Interview Report - Show when forwarding to committee */}
+              {showAction === "approve" && forwardToCommittee && (
+                <div className="space-y-3">
+                  <Label className="text-base font-semibold">
+                    Interview Report
+                    <span className="text-destructive ml-1">*</span>
+                  </Label>
+                  <Textarea 
+                    placeholder="Enter detailed interview report for committee review..."
+                    value={interviewReport}
+                    onChange={(e) => setInterviewReport(e.target.value)}
+                    rows={5}
+                    className="resize-none"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Provide a comprehensive report of the interview for committee members to review.
+                  </p>
+                </div>
+              )}
+              
               <div className="space-y-3">
                 <Label className="text-base font-semibold">
-                  {showAction === "approve" ? "Approval Remarks / Comments" : "Rejection Remarks / Comments"}
+                  {showAction === "approve" ? (forwardToCommittee ? "Interview Notes" : "Approval Remarks / Comments") : "Rejection Remarks / Comments"}
                   <span className="text-destructive ml-1">*</span>
                 </Label>
                 <Textarea 
-                  placeholder={`Enter ${showAction === "approve" ? "approval" : "rejection"} remarks...`}
+                  placeholder={`Enter ${showAction === "approve" ? (forwardToCommittee ? "interview notes" : "approval") : "rejection"} remarks...`}
                   value={remarks}
                   onChange={(e) => setRemarks(e.target.value)}
                   rows={4}
                   className="resize-none"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Please provide detailed comments for this {showAction}.
+                  Please provide detailed comments for this {showAction === "approve" && forwardToCommittee ? "interview" : showAction}.
                 </p>
               </div>
             </>
@@ -602,10 +683,18 @@ Status: ${application?.status || 'N/A'}
                 className={showAction === "approve" ? "bg-success hover:bg-success/90" : ""}
                 variant={showAction === "reject" ? "destructive" : "default"}
                 onClick={showAction === "approve" ? handleApprove : handleReject}
-                disabled={!remarks.trim()}
+                disabled={showAction === "approve" 
+                  ? (!remarks.trim() || (forwardToCommittee && !interviewReport.trim())) 
+                  : !remarks.trim()
+                }
               >
                 {showAction === "approve" ? <CheckCircle className="mr-2 h-4 w-4" /> : <XCircle className="mr-2 h-4 w-4" />}
-                {mode === "edit" ? "Update Decision" : `Confirm ${showAction === "approve" ? "Approval" : "Rejection"}`}
+                {mode === "edit" 
+                  ? "Update Decision" 
+                  : forwardToCommittee 
+                    ? "Forward to Committee" 
+                    : `Confirm ${showAction === "approve" ? "Approval" : "Rejection"}`
+                }
               </Button>
             </>
           ) : (

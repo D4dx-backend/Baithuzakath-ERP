@@ -45,7 +45,15 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
-// Body parsing middleware
+// Body parsing middleware - skip for multipart/form-data
+app.use((req, res, next) => {
+  const contentType = req.headers['content-type'];
+  if (contentType && contentType.includes('multipart/form-data')) {
+    return next(); // Skip body parsing for multipart
+  }
+  next();
+});
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(compression());
@@ -106,6 +114,13 @@ const uploadRoutes = require('./routes/uploadRoutes');
 const regionalAdminRoutes = require('./routes/regionalAdminRoutes');
 const mobileRoutes = require('./routes/mobileRoutes');
 
+// Website Management Routes
+const websiteRoutes = require('./routes/websiteRoutes');
+const newsEventRoutes = require('./routes/newsEventRoutes');
+const brochureRoutes = require('./routes/brochureRoutes');
+const partnerRoutes = require('./routes/partnerRoutes');
+const bannerRoutes = require('./routes/bannerRoutes');
+
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/sms', smsRoutes);
@@ -130,6 +145,13 @@ app.use('/api/master-data', masterDataRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/mobile', mobileRoutes);
 app.use('/api', formConfigurationRoutes);
+
+// Website Management Routes
+app.use('/api/website', websiteRoutes);
+app.use('/api/news-events', newsEventRoutes);
+app.use('/api/brochures', brochureRoutes);
+app.use('/api/partners', partnerRoutes);
+app.use('/api/banners', bannerRoutes);
 
 // 404 handler for API routes - must come before static file serving
 app.use('/api/*', (req, res) => {

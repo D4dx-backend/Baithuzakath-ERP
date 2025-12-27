@@ -152,14 +152,17 @@ const userSchemas = {
     ).required(),
     isActive: Joi.boolean().default(true),
     adminScope: Joi.object({
-      level: Joi.string().valid('state', 'district', 'area', 'unit', 'project', 'scheme'),
+      level: Joi.string().valid('super', 'state', 'district', 'area', 'unit', 'project', 'scheme'),
       regions: Joi.array().items(commonSchemas.objectId),
+      district: commonSchemas.objectId,
+      area: commonSchemas.objectId,
+      unit: commonSchemas.objectId,
       projects: Joi.array().items(commonSchemas.objectId),
       schemes: Joi.array().items(commonSchemas.objectId)
     }).when('role', {
-      is: Joi.string().valid('state_admin', 'project_coordinator', 'scheme_coordinator', 'district_admin', 'area_admin', 'unit_admin'),
+      is: Joi.string().valid('district_admin', 'area_admin', 'unit_admin', 'project_coordinator', 'scheme_coordinator'),
       then: Joi.required(),
-      otherwise: Joi.forbidden()
+      otherwise: Joi.optional()
     }),
     profile: Joi.object({
       dateOfBirth: commonSchemas.date,
@@ -206,7 +209,7 @@ const userSchemas = {
   // User query filters
   query: Joi.object({
     role: Joi.string().valid(
-      'state_admin', 'project_coordinator', 'scheme_coordinator', 
+      'super_admin', 'state_admin', 'project_coordinator', 'scheme_coordinator', 
       'district_admin', 'area_admin', 'unit_admin', 'beneficiary'
     ),
     isActive: Joi.boolean(),

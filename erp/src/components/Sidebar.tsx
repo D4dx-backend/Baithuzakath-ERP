@@ -20,7 +20,11 @@ import {
   Shield,
   Wrench,
   Activity,
-
+  Scale,
+  Globe,
+  Newspaper,
+  BookOpen,
+  ImageIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -97,6 +101,12 @@ const menuCategories = [
         icon: CalendarCheck, 
         label: "Upcoming Interviews",
         permissions: ["interviews.read", "applications.read.all", "applications.read.regional"]
+      },
+      { 
+        to: "/committee-approval", 
+        icon: Scale, 
+        label: "Committee Approval",
+        permissions: ["applications.approve", "committee.approve"]
       },
       { 
         to: "/beneficiaries", 
@@ -177,6 +187,41 @@ const menuCategories = [
     ]
   },
   {
+    label: "Website Management",
+    items: [
+      {
+        to: "/website-settings",
+        icon: Settings,
+        label: "Website Settings",
+        permissions: ["website.read", "settings.read"]
+      },
+      {
+        to: "/banners",
+        icon: ImageIcon,
+        label: "Banners",
+        permissions: ["website.read", "banners.read"]
+      },
+      {
+        to: "/news-events",
+        icon: Newspaper,
+        label: "News & Events",
+        permissions: ["website.read", "news.read"]
+      },
+      {
+        to: "/brochures",
+        icon: BookOpen,
+        label: "Brochures",
+        permissions: ["website.read", "brochures.read"]
+      },
+      {
+        to: "/partners",
+        icon: Users,
+        label: "Partners",
+        permissions: ["website.read", "partners.read"]
+      }
+    ]
+  },
+  {
     label: "System Administration",
     items: [
       { 
@@ -225,31 +270,13 @@ const menuCategories = [
         icon: Activity,
         permissions: ["activity_logs.read"],
         submenu: [
-          {
-            to: "/activity-logs",
-            label: "View Logs",
-            permissions: ["activity_logs.read"]
-          },
-          {
-            to: "/activity-logs/analytics",
-            label: "Analytics & Reports",
-            permissions: ["activity_logs.read"]
-          },
+         
           {
             to: "/activity-logs/user-activity",
             label: "User Activity",
             permissions: ["activity_logs.read"]
           },
-          {
-            to: "/activity-logs/security-events",
-            label: "Security Events",
-            permissions: ["activity_logs.read"]
-          },
-          {
-            to: "/activity-logs/system-events",
-            label: "System Events",
-            permissions: ["activity_logs.read"]
-          }
+         
         ]
       },
     ]
@@ -273,12 +300,6 @@ const menuCategories = [
         icon: MessageSquare, 
         label: "Communications",
         permissions: ["communications.send"]
-      },
-      { 
-        to: "/settings", 
-        icon: Settings, 
-        label: "Settings",
-        permissions: ["settings.read", "settings.update"]
       },
     ]
   },
@@ -351,9 +372,16 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   
   // Flatten all menu items for search
   const allNavItems = filteredMenuCategories.flatMap(cat => 
-    cat.items.flatMap((item: any) => 
-      item.submenu ? item.submenu : [item]
-    )
+    cat.items.flatMap((item: any) => {
+      if (item.submenu) {
+        // For submenu items, inherit the parent icon
+        return item.submenu.map((subItem: any) => ({
+          ...subItem,
+          icon: item.icon // Use parent icon for submenu items
+        }));
+      }
+      return [item];
+    })
   ) as Array<{ to: string; label: string; icon: any; permissions: string[] }>;
   
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({
@@ -462,7 +490,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           </div>
         </div>
 
-        <nav className="space-y-1 p-4">
+        <nav className="space-y-2 p-4">
           {filteredItems ? (
             // Search results
             filteredItems.length > 0 ? (
@@ -492,13 +520,13 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           ) : (
             // Categorized menu
             filteredCategories.map((category, idx) => (
-              <div key={idx} className="mb-4">
+              <div key={idx} className="mb-6 last:mb-0">
                 {category.label ? (
                   <Collapsible
-                    open={openCategories[category.label]}
+                    open={openCategories[category.label] ?? true}
                     onOpenChange={() => toggleCategory(category.label!)}
                   >
-                    <CollapsibleTrigger className="flex items-center justify-between w-full px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors">
+                    <CollapsibleTrigger className="flex items-center justify-between w-full px-2 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors">
                       {category.label}
                       <ChevronDown
                         className={cn(
@@ -507,13 +535,13 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                         )}
                       />
                     </CollapsibleTrigger>
-                    <CollapsibleContent className="space-y-1 mt-1">
+                    <CollapsibleContent className="space-y-2 mt-2">
                       {category.items.map((item) => (
                         item.submenu ? (
                           // Item with submenu
                           <Collapsible
                             key={item.label}
-                            open={openCategories[item.label]}
+                            open={openCategories[item.label] ?? false}
                             onOpenChange={() => toggleCategory(item.label)}
                           >
                             <CollapsibleTrigger className="flex items-center justify-between w-full px-3 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors">
@@ -528,7 +556,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                                 )}
                               />
                             </CollapsibleTrigger>
-                            <CollapsibleContent className="space-y-1 mt-1 ml-8">
+                            <CollapsibleContent className="space-y-2 mt-2 ml-8">
                               {item.submenu.filter(hasAccessToItem).map((subItem) => (
                                 <NavLink
                                   key={subItem.to}
@@ -536,7 +564,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                                   onClick={onClose}
                                   className={() =>
                                     cn(
-                                      "flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                                      "flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                                       isSubmenuItemActive(subItem.to)
                                         ? "bg-gradient-primary text-primary-foreground shadow-elegant"
                                         : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -572,7 +600,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                   </Collapsible>
                 ) : (
                   // Uncategorized items
-                  <div className="space-y-1">
+                  <div className="space-y-2">
                     {category.items.map((item) => (
                       <NavLink
                         key={item.to}

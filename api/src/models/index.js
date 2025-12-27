@@ -17,6 +17,13 @@ const Donation = require('./Donation');
 const ActivityLog = require('./ActivityLog');
 const MasterData = require('./MasterData');
 
+// Website Management Models
+const WebsiteSettings = require('./WebsiteSettings');
+const NewsEvent = require('./NewsEvent');
+const Brochure = require('./Brochure');
+const Partner = require('./Partner');
+const Banner = require('./Banner');
+
 // RBAC Models
 const Role = require('./Role');
 const Permission = require('./Permission');
@@ -40,6 +47,12 @@ module.exports = {
   Donation,
   ActivityLog,
   MasterData,
+
+  WebsiteSettings,
+  NewsEvent,
+  Brochure,
+  Partner,
+  Banner,
 
   Role,
   Permission,

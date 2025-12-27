@@ -13,7 +13,7 @@ class PDFReceiptController {
    */
   async generateReceipt(req, res) {
     try {
-      const { paymentId } = req.params;
+      const paymentId = req.params.id;
 
       // Fetch payment with all populated references
       const payment = await Payment.findById(paymentId)
@@ -74,7 +74,7 @@ class PDFReceiptController {
    */
   async generateReceiptFile(req, res) {
     try {
-      const { paymentId } = req.params;
+      const paymentId = req.params.id;
 
       const payment = await Payment.findById(paymentId)
         .populate('application', 'applicationNumber')
