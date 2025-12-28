@@ -3,6 +3,7 @@ const Beneficiary = require('../models/Beneficiary');
 const Scheme = require('../models/Scheme');
 const Project = require('../models/Project');
 const MasterData = require('../models/MasterData');
+const notificationService = require('../services/notificationService');
 const { validationResult } = require('express-validator');
 
 // Get all applications with pagination and search
@@ -353,10 +354,17 @@ const reviewApplication = async (req, res) => {
     await application.save();
 
     const reviewedApplication = await Application.findById(application._id)
-      .populate('beneficiary', 'name phone')
+      .populate('beneficiary', 'name phone area')
       .populate('scheme', 'name code distributionTimeline applicationSettings')
       .populate('project', 'name code')
       .populate('reviewedBy', 'name');
+
+    // Notify area coordinator when marked for review
+    if (status === 'under_review') {
+      notificationService
+        .notifyAreaReviewRequired(reviewedApplication, { createdBy: req.user.id })
+        .catch(err => console.error('❌ Area review notification failed:', err));
+    }
 
     res.json(reviewedApplication);
   } catch (error) {
@@ -411,6 +419,11 @@ const approveApplication = async (req, res) => {
       .populate('scheme', 'name code distributionTimeline applicationSettings')
       .populate('project', 'name code')
       .populate('approvedBy', 'name');
+
+    // Notify beneficiary (WhatsApp) on approval
+    notificationService
+      .notifyApplicationDecisionToBeneficiary(approvedApplication, 'approved', { createdBy: req.user.id })
+      .catch(err => console.error('❌ Beneficiary approval notification failed:', err));
 
     res.json(approvedApplication);
   } catch (error) {

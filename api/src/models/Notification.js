@@ -395,7 +395,8 @@ notificationSchema.statics.getByUser = function(userId, type = null, unreadOnly 
   }
   
   if (unreadOnly) {
-    query['recipients.status'] = { $ne: 'read' };
+    // Ensure we match the same recipient element for this user
+    query.recipients = { $elemMatch: { user: userId, status: { $ne: 'read' } } };
   }
   
   return this.find(query)

@@ -1,5 +1,7 @@
 const express = require('express');
 const router = express.Router();
+
+const notificationService = require('../services/notificationService');
 const Application = require('../models/Application');
 const Interview = require('../models/Interview');
 const { authenticate } = require('../middleware/auth');
@@ -341,8 +343,10 @@ router.post('/schedule/:applicationId',
       await application.populate('scheme', 'name');
       await application.populate('project', 'name');
 
-      // TODO: Send notification to beneficiary about interview schedule
-      // await notificationService.sendInterviewScheduled(application);
+      // Notify beneficiary + unit admin
+      notificationService
+        .notifyInterviewScheduled(application, interview, { createdBy: req.user._id })
+        .catch(err => console.error('❌ Interview scheduled notification failed:', err));
 
       res.json({
         success: true,
@@ -497,6 +501,16 @@ router.put('/:applicationId',
       console.log('✅ New interview created:', newInterview.interviewNumber);
 
       await newInterview.populate('scheduledBy', 'name');
+
+      // Populate application for notifications
+      await application.populate('beneficiary', 'name phone');
+      await application.populate('scheme', 'name');
+      await application.populate('project', 'name');
+
+      // Notify beneficiary + unit/area admin about reschedule
+      notificationService
+        .notifyInterviewRescheduled(application, newInterview, { createdBy: req.user._id })
+        .catch(err => console.error('❌ Interview rescheduled notification failed:', err));
 
       res.json({
         success: true,

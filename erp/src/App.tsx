@@ -34,7 +34,6 @@ import CompletedPayments from "./pages/payments/CompletedPayments";
 import AnonymousDonation from "./pages/donors/AnonymousDonation";
 import DonationHistory from "./pages/donors/DonationHistory";
 import Donations from "./pages/donors/Donations";
-import FormBuilder from "./pages/FormBuilder";
 import Budget from "./pages/Budget";
 import Locations from "./pages/Locations";
 import Districts from "./pages/Districts";
@@ -57,7 +56,6 @@ import BeneficiarySchemes from "./pages/BeneficiarySchemes";
 import BeneficiaryApplication from "./pages/BeneficiaryApplication";
 import BeneficiaryAuthGuard from "./components/BeneficiaryAuthGuard";
 import ApplicationTracking from "./pages/ApplicationTracking";
-import DebugPermissions from "./pages/DebugPermissions";
 import ActivityLogs from "./pages/ActivityLogs";
 import ActivityLogAnalytics from "./pages/ActivityLogAnalytics";
 import UserActivity from "./pages/UserActivity";
@@ -123,7 +121,6 @@ const App = () => (
             <Route path="/donors/all" element={<AuthGuard><Layout><AllDonors /></Layout></AuthGuard>} />
             <Route path="/donors/donations" element={<AuthGuard><Layout><Donations /></Layout></AuthGuard>} />
             <Route path="/donors/history" element={<AuthGuard><Layout><DonationHistory /></Layout></AuthGuard>} />
-            <Route path="/form-builder" element={<AuthGuard><Layout><FormBuilder /></Layout></AuthGuard>} />
             <Route path="/budget" element={<AuthGuard><Layout><Budget /></Layout></AuthGuard>} />
             <Route path="/locations" element={<AuthGuard><Layout><Locations /></Layout></AuthGuard>} />
             <Route path="/locations/districts" element={<AuthGuard><Layout><Districts /></Layout></AuthGuard>} />
@@ -134,7 +131,6 @@ const App = () => (
 
             <Route path="/communications" element={<AuthGuard><Layout><Communications /></Layout></AuthGuard>} />
             <Route path="/settings" element={<AuthGuard><Layout><Settings /></Layout></AuthGuard>} />
-            <Route path="/debug-permissions" element={<AuthGuard><Layout><DebugPermissions /></Layout></AuthGuard>} />
             <Route path="/activity-logs" element={<AuthGuard><Layout><ActivityLogs /></Layout></AuthGuard>} />
             <Route path="/activity-logs/analytics" element={<AuthGuard><Layout><ActivityLogAnalytics /></Layout></AuthGuard>} />
             <Route path="/activity-logs/user-activity" element={<AuthGuard><Layout><UserActivity /></Layout></AuthGuard>} />

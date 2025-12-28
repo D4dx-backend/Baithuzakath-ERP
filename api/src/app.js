@@ -92,6 +92,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, {
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const smsRoutes = require('./routes/smsRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 const projectRoutes = require('./routes/projectRoutes');
 const schemeRoutes = require('./routes/schemeRoutes');
 const locationRoutes = require('./routes/locationRoutes');
@@ -124,6 +125,7 @@ const bannerRoutes = require('./routes/bannerRoutes');
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/sms', smsRoutes);
+app.use('/api/notifications', notificationRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/schemes', schemeRoutes);
 app.use('/api/locations', locationRoutes);

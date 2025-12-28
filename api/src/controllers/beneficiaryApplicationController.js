@@ -1,6 +1,7 @@
 const { Application, Scheme, User, FormConfiguration, Beneficiary, Location } = require('../models');
 const ResponseHelper = require('../utils/responseHelper');
 const mongoose = require('mongoose');
+const notificationService = require('../services/notificationService');
 
 class BeneficiaryApplicationController {
   /**
@@ -475,6 +476,12 @@ class BeneficiaryApplicationController {
         { path: 'scheme', select: 'name category benefits' },
         { path: 'beneficiary', select: 'name phone' }
       ]);
+
+            // Notify area coordinator + unit administrator (system/in-app)
+            // Fire-and-forget: failure should not block application submission
+            notificationService
+              .notifyApplicationSubmitted(application, { createdBy: userId })
+              .catch(err => console.error('❌ Application submitted notification failed:', err));
 
       return ResponseHelper.success(res, {
         application: {

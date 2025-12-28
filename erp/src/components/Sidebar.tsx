@@ -18,7 +18,6 @@ import {
   Search,
   CalendarCheck,
   Shield,
-  Wrench,
   Activity,
   Scale,
   Globe,
@@ -258,12 +257,6 @@ const menuCategories = [
         label: "Role Management",
         permissions: ["roles.read"]
       },
-      { 
-        to: "/form-builder", 
-        icon: Wrench, 
-        label: "Form Builder",
-        permissions: ["forms.read", "forms.create", "forms.manage"]
-      },
 
       { 
         label: "Activity Logs",
@@ -278,17 +271,6 @@ const menuCategories = [
           },
          
         ]
-      },
-    ]
-  },
-  {
-    label: "System Tools",
-    items: [
-      { 
-        to: "/debug-permissions", 
-        icon: Search, 
-        label: "Debug Permissions",
-        permissions: ["system.debug", "permissions.read"]
       },
     ]
   },
