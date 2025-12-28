@@ -4,6 +4,7 @@ const Scheme = require('../models/Scheme');
 const Project = require('../models/Project');
 const MasterData = require('../models/MasterData');
 const notificationService = require('../services/notificationService');
+const recurringPaymentService = require('../services/recurringPaymentService');
 const { validationResult } = require('express-validator');
 
 // Get all applications with pagination and search
@@ -174,7 +175,7 @@ const createApplication = async (req, res) => {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { beneficiary, scheme, project, requestedAmount, documents } = req.body;
+    const { beneficiary, scheme, project, requestedAmount, documents, isRecurring, recurringConfig } = req.body;
 
     // Verify beneficiary exists and is active
     const beneficiaryDoc = await Beneficiary.findById(beneficiary);
@@ -237,10 +238,35 @@ const createApplication = async (req, res) => {
       district: beneficiaryDoc.district,
       area: beneficiaryDoc.area,
       unit: beneficiaryDoc.unit,
-      createdBy: req.user.id
+      createdBy: req.user.id,
+      // Add recurring configuration
+      isRecurring: isRecurring || false,
+      recurringConfig: isRecurring ? {
+        enabled: true,
+        period: recurringConfig.period,
+        numberOfPayments: recurringConfig.numberOfPayments,
+        amountPerPayment: recurringConfig.amountPerPayment,
+        startDate: recurringConfig.startDate,
+        customAmounts: recurringConfig.customAmounts || [],
+        status: 'active'
+      } : undefined
     });
 
     await application.save();
+
+    // If recurring, generate payment schedule after application is created
+    if (isRecurring && recurringConfig) {
+      try {
+        await recurringPaymentService.generatePaymentSchedule(
+          application,
+          recurringConfig,
+          req.user.id
+        );
+      } catch (recurringError) {
+        console.error('Error generating recurring schedule:', recurringError);
+        // Don't fail the application creation, just log the error
+      }
+    }
 
     // Add application to beneficiary's applications array
     beneficiaryDoc.applications.push(application._id);

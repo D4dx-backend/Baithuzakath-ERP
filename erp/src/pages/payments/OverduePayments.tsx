@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { IndianRupee, Calendar, Download, Eye, Wallet, Loader2, Edit, Grid, List, Clock, CheckCircle2, AlertCircle, X, Save, Filter } from "lucide-react";
+import { IndianRupee, Calendar, Download, Eye, Wallet, Loader2, Edit, Grid, List, Clock, CheckCircle2, AlertCircle, X, Save, Filter, Repeat } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -303,6 +303,12 @@ export default function OverduePayments() {
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">
                               <CardTitle className="text-xl">{schedule.beneficiaryName}</CardTitle>
+                              {schedule.isRecurring && (
+                                <Badge variant="outline" className="text-xs bg-purple-50 text-purple-600 border-purple-200">
+                                  <Repeat className="h-3 w-3 mr-1" />
+                                  Recurring {schedule.recurringPaymentNumber}/{schedule.totalRecurringPayments}
+                                </Badge>
+                              )}
                             </div>
                             <p className="text-sm text-muted-foreground">{schedule.paymentNumber}</p>
                             <p className="text-xs text-muted-foreground">ID: {schedule.beneficiaryId}</p>
@@ -330,6 +336,15 @@ export default function OverduePayments() {
                               <span className="font-medium">Phase:</span>
                               <span className="text-muted-foreground">{schedule.phase}</span>
                             </div>
+                            {schedule.isRecurring && schedule.recurringPeriod && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <Repeat className="h-4 w-4 text-muted-foreground" />
+                                <span className="font-medium">Period:</span>
+                                <span className="text-muted-foreground capitalize">
+                                  {schedule.recurringPeriod.replace('_', ' ')}
+                                </span>
+                              </div>
+                            )}
                           </div>
                           <div className="space-y-2">
                             <div className="flex items-center gap-2 text-sm">
@@ -381,7 +396,15 @@ export default function OverduePayments() {
                       <TableRow key={schedule.id} className="border-destructive/10">
                         <TableCell>
                           <div>
-                            <div className="font-medium">{schedule.beneficiaryName}</div>
+                            <div className="font-medium flex items-center gap-2">
+                              {schedule.beneficiaryName}
+                              {schedule.isRecurring && (
+                                <Badge variant="outline" className="text-xs bg-purple-50 text-purple-600 border-purple-200">
+                                  <Repeat className="h-3 w-3 mr-1" />
+                                  {schedule.recurringPaymentNumber}/{schedule.totalRecurringPayments}
+                                </Badge>
+                              )}
+                            </div>
                             <div className="text-sm text-muted-foreground">ID: {schedule.beneficiaryId}</div>
                           </div>
                         </TableCell>

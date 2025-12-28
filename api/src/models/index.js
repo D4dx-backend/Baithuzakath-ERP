@@ -16,6 +16,7 @@ const Donor = require('./Donor');
 const Donation = require('./Donation');
 const ActivityLog = require('./ActivityLog');
 const MasterData = require('./MasterData');
+const RecurringPayment = require('./RecurringPayment');
 
 // Website Management Models
 const WebsiteSettings = require('./WebsiteSettings');
@@ -47,6 +48,7 @@ module.exports = {
   Donation,
   ActivityLog,
   MasterData,
+  RecurringPayment,
 
   WebsiteSettings,
   NewsEvent,

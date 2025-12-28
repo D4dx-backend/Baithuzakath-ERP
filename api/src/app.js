@@ -106,6 +106,7 @@ const donationRoutes = require('./routes/donationRoutes');
 const interviewRoutes = require('./routes/interviewRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const reportRoutes = require('./routes/reportRoutes');
+const recurringPaymentRoutes = require('./routes/recurringPaymentRoutes');
 
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const rbacRoutes = require('./routes/rbacRoutes');
@@ -139,6 +140,7 @@ app.use('/api/donations', donationRoutes);
 app.use('/api/interviews', interviewRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/recurring-payments', recurringPaymentRoutes);
 
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/rbac', rbacRoutes);

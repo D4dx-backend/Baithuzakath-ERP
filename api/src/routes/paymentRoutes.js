@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Payment = require('../models/Payment');
+const RecurringPayment = require('../models/RecurringPayment');
 const { authenticate, authorize } = require('../middleware/auth');
 const RBACMiddleware = require('../middleware/rbacMiddleware');
 const pdfReceiptController = require('../controllers/pdfReceiptController');
@@ -182,25 +183,126 @@ router.get('/',
         pipeline.push({ $match: searchMatch });
       }
 
+      // Optionally exclude payments from applications with recurring payments to avoid duplicates
+      // This can be commented out if you want to see both types
+      // Uncomment if duplicates appear
+      /*
+      pipeline.push({
+        $match: {
+          $or: [
+            { 'application.isRecurring': { $ne: true } },
+            { 'application.isRecurring': { $exists: false } },
+            { 'application': { $exists: false } }
+          ]
+        }
+      });
+      */
+
       // Add sort stage
       pipeline.push({ $sort: { createdAt: -1 } });
 
-      // Get total count
-      const countPipeline = [...pipeline, { $count: 'total' }];
-      const countResult = await Payment.aggregate(countPipeline);
-      const total = countResult.length > 0 ? countResult[0].total : 0;
+      // Execute aggregation without pagination (we'll paginate after merging with recurring payments)
+      const payments = await Payment.aggregate(pipeline);
+      console.log(`📊 Found ${payments.length} regular payments`);
 
-      // Add pagination
-      const skip = (parseInt(page) - 1) * parseInt(limit);
-      pipeline.push(
-        { $skip: skip },
-        { $limit: parseInt(limit) }
+      // Also fetch recurring payments with similar filters
+      const recurringPipeline = [];
+      const recurringMatchStage = {};
+      
+      // Map status filters (Payment model uses different status values than RecurringPayment)
+      if (status) {
+        // Map payment statuses to recurring payment statuses
+        const statusMap = {
+          'pending': ['scheduled', 'due'],
+          'processing': 'processing',
+          'completed': 'completed',
+          'failed': 'failed',
+          'cancelled': 'cancelled'
+        };
+        const mappedStatus = statusMap[status];
+        if (mappedStatus) {
+          recurringMatchStage.status = Array.isArray(mappedStatus) ? { $in: mappedStatus } : mappedStatus;
+        }
+      } else {
+        // If no status filter, exclude only cancelled and skipped
+        recurringMatchStage.status = { $nin: ['cancelled', 'skipped'] };
+      }
+      
+      if (project) recurringMatchStage.project = new require('mongoose').Types.ObjectId(project);
+      if (scheme) recurringMatchStage.scheme = new require('mongoose').Types.ObjectId(scheme);
+
+      console.log('🔍 Recurring payment match stage:', JSON.stringify(recurringMatchStage));
+      recurringPipeline.push({ $match: recurringMatchStage });
+
+      // Lookup stages for recurring payments
+      recurringPipeline.push(
+        {
+          $lookup: {
+            from: 'applications',
+            localField: 'application',
+            foreignField: '_id',
+            as: 'application'
+          }
+        },
+        {
+          $lookup: {
+            from: 'beneficiaries',
+            localField: 'beneficiary',
+            foreignField: '_id',
+            as: 'beneficiary'
+          }
+        },
+        {
+          $lookup: {
+            from: 'projects',
+            localField: 'project',
+            foreignField: '_id',
+            as: 'project'
+          }
+        },
+        {
+          $lookup: {
+            from: 'schemes',
+            localField: 'scheme',
+            foreignField: '_id',
+            as: 'scheme'
+          }
+        }
       );
 
-      // Execute aggregation
-      const payments = await Payment.aggregate(pipeline);
+      // Unwind arrays
+      recurringPipeline.push(
+        { $unwind: { path: '$application', preserveNullAndEmptyArrays: true } },
+        { $unwind: { path: '$beneficiary', preserveNullAndEmptyArrays: true } },
+        { $unwind: { path: '$project', preserveNullAndEmptyArrays: true } },
+        { $unwind: { path: '$scheme', preserveNullAndEmptyArrays: true } }
+      );
 
-      // Transform data for frontend
+      // Add search filter for recurring payments
+      if (search || gender) {
+        const searchMatch = {};
+        
+        if (search) {
+          const searchRegex = new RegExp(search, 'i');
+          searchMatch.$or = [
+            { 'beneficiary.name': searchRegex },
+            { 'application.applicationNumber': searchRegex },
+            { 'beneficiary.personalInfo.name': searchRegex }
+          ];
+        }
+
+        if (gender) {
+          searchMatch['beneficiary.personalInfo.gender'] = gender;
+        }
+
+        recurringPipeline.push({ $match: searchMatch });
+      }
+
+      // Execute recurring payments query
+      const recurringPayments = await RecurringPayment.aggregate(recurringPipeline);
+      console.log(`🔄 Found ${recurringPayments.length} recurring payments`);
+
+      // Transform regular payments
       const transformedPayments = payments.map(payment => ({
         id: payment._id,
         paymentNumber: payment.paymentNumber,
@@ -233,20 +335,102 @@ router.get('/',
         approvedAt: payment.timeline?.approvedAt,
         paymentDate: payment.timeline?.completedAt,
         chequeNumber: payment.cheque?.number,
-        distributionTimeline: payment.distributionTimeline || []
+        distributionTimeline: payment.distributionTimeline || [],
+        isRecurring: false
       }));
+
+      // Transform recurring payments
+      const transformedRecurringPayments = recurringPayments.map(payment => {
+        // Build phase description based on whether timeline phases exist
+        let phaseDescription = payment.description;
+        
+        if (!phaseDescription) {
+          if (payment.phaseNumber && payment.totalPhases) {
+            // Has distribution timeline phases within recurring cycles
+            if (payment.cycleNumber && payment.totalCycles) {
+              phaseDescription = `Cycle ${payment.cycleNumber}/${payment.totalCycles} - Phase ${payment.phaseNumber}/${payment.totalPhases}`;
+            } else {
+              phaseDescription = `Phase ${payment.phaseNumber}/${payment.totalPhases}`;
+            }
+          } else if (payment.cycleNumber && payment.totalCycles) {
+            // Only recurring cycles, no phases
+            phaseDescription = `Payment ${payment.cycleNumber}/${payment.totalCycles}`;
+          } else {
+            // Fallback
+            phaseDescription = `Payment ${payment.paymentNumber}/${payment.totalPayments}`;
+          }
+        }
+
+        return {
+          id: payment._id,
+          paymentNumber: `RP-${payment.application?.applicationNumber || payment._id}-${payment.paymentNumber}`,
+          beneficiaryId: payment.application?.applicationNumber || payment.beneficiary?._id,
+          beneficiaryName: payment.beneficiary?.name || payment.beneficiary?.personalInfo?.name,
+          beneficiaryGender: payment.beneficiary?.personalInfo?.gender || payment.beneficiary?.gender,
+          scheme: payment.scheme?.name,
+          schemeName: payment.scheme?.name,
+          schemeId: payment.scheme?._id,
+          project: payment.project?.name,
+          projectName: payment.project?.name,
+          projectId: payment.project?._id,
+          amount: payment.amount,
+          type: 'installment',
+          method: payment.paymentMethod || 'bank_transfer',
+          status: payment.status === 'due' || payment.status === 'overdue' ? 'pending' : 
+                  payment.status === 'scheduled' ? 'upcoming' : payment.status,
+          scheduledDate: payment.scheduledDate,
+          completedDate: payment.actualPaymentDate,
+          createdAt: payment.createdAt,
+          approvedBy: payment.processedBy?.name,
+          phase: phaseDescription,
+          percentage: payment.phaseNumber && payment.totalPhases ? 
+            Math.round((payment.phaseNumber / payment.totalPhases) * 100) : 
+            Math.round((payment.paymentNumber / payment.totalPayments) * 100),
+          dueDate: payment.dueDate || payment.scheduledDate,
+          approvedAmount: payment.amount,
+          source: 'recurring',
+          applicationId: payment.application?._id,
+          paymentDate: payment.actualPaymentDate,
+          isRecurring: true,
+          recurringPaymentNumber: payment.paymentNumber,
+          totalRecurringPayments: payment.totalPayments,
+          recurringPeriod: payment.application?.recurringConfig?.period,
+          cycleNumber: payment.cycleNumber,
+          totalCycles: payment.totalCycles,
+          phaseNumber: payment.phaseNumber,
+          totalPhases: payment.totalPhases,
+          hasDistributionTimeline: payment.totalPhases > 0
+        };
+      });
+
+      // Merge and sort all payments by due date
+      const allPayments = [...transformedPayments, ...transformedRecurringPayments]
+        .sort((a, b) => {
+          const dateA = new Date(a.dueDate || a.scheduledDate || a.createdAt);
+          const dateB = new Date(b.dueDate || b.scheduledDate || b.createdAt);
+          return dateB - dateA;
+        });
+
+      console.log(`✅ Merged total: ${allPayments.length} payments (${transformedPayments.length} regular + ${transformedRecurringPayments.length} recurring)`);
+
+      // Apply pagination to merged results
+      const totalMerged = allPayments.length;
+      const skip = (parseInt(page) - 1) * parseInt(limit);
+      const paginatedPayments = allPayments.slice(skip, skip + parseInt(limit));
+
+      console.log(`📄 Returning page ${page}: ${paginatedPayments.length} payments`);
 
       res.json({
         success: true,
         message: 'Payments retrieved successfully',
         data: {
-          payments: transformedPayments,
+          payments: paginatedPayments,
           pagination: {
             page: parseInt(page),
-            pages: Math.ceil(total / parseInt(limit)),
-            total,
+            pages: Math.ceil(totalMerged / parseInt(limit)),
+            total: totalMerged,
             limit: parseInt(limit),
-            hasNext: parseInt(page) * parseInt(limit) < total,
+            hasNext: parseInt(page) * parseInt(limit) < totalMerged,
             hasPrev: parseInt(page) > 1
           },
           filters: {

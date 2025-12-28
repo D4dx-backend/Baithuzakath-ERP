@@ -29,6 +29,10 @@ import DueSoonPayments from "./pages/payments/DueSoonPayments";
 import UpcomingPayments from "./pages/payments/UpcomingPayments";
 import ProcessingPayments from "./pages/payments/ProcessingPayments";
 import CompletedPayments from "./pages/payments/CompletedPayments";
+import RecurringPaymentsDashboard from "./pages/recurring-payments/RecurringPaymentsDashboard";
+import ScheduleOverview from "./pages/recurring-payments/ScheduleOverview";
+import PaymentScheduleView from "./pages/recurring-payments/PaymentScheduleView";
+import BudgetForecastPage from "./pages/recurring-payments/BudgetForecastPage";
 
 
 import AnonymousDonation from "./pages/donors/AnonymousDonation";
@@ -116,6 +120,14 @@ const App = () => (
             <Route path="/payment-tracking/upcoming" element={<AuthGuard><Layout><UpcomingPayments /></Layout></AuthGuard>} />
             <Route path="/payment-tracking/processing" element={<AuthGuard><Layout><ProcessingPayments /></Layout></AuthGuard>} />
             <Route path="/payment-tracking/completed" element={<AuthGuard><Layout><CompletedPayments /></Layout></AuthGuard>} />
+            
+            {/* Recurring Payments Routes */}
+            <Route path="/recurring-payments" element={<AuthGuard><Layout><RecurringPaymentsDashboard /></Layout></AuthGuard>} />
+            <Route path="/recurring-payments/dashboard" element={<AuthGuard><Layout><RecurringPaymentsDashboard /></Layout></AuthGuard>} />
+            <Route path="/recurring-payments/schedule" element={<AuthGuard><Layout><ScheduleOverview /></Layout></AuthGuard>} />
+            <Route path="/recurring-payments/schedule/:applicationId" element={<AuthGuard><Layout><PaymentScheduleView /></Layout></AuthGuard>} />
+            <Route path="/recurring-payments/forecast" element={<AuthGuard><Layout><BudgetForecastPage /></Layout></AuthGuard>} />
+            
             {/* Donor Routes */}
             <Route path="/donors" element={<AuthGuard><Layout><Donors /></Layout></AuthGuard>} />
             <Route path="/donors/all" element={<AuthGuard><Layout><AllDonors /></Layout></AuthGuard>} />

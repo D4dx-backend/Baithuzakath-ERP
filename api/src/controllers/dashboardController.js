@@ -1,4 +1,4 @@
-const { Project, Scheme, Application, Payment, User, Beneficiary } = require('../models');
+const { Project, Scheme, Application, Payment, User, Beneficiary, RecurringPayment } = require('../models');
 const ResponseHelper = require('../utils/responseHelper');
 
 class DashboardController {
@@ -106,10 +106,12 @@ class DashboardController {
       const [
         recentApplications,
         recentPayments,
+        recentRecurringPayments,
         recentBeneficiaries
       ] = await Promise.all([
         Application.countDocuments({ ...locationFilter, createdAt: { $gte: thirtyDaysAgo } }),
         Payment.countDocuments({ createdAt: { $gte: thirtyDaysAgo } }),
+        RecurringPayment.countDocuments({ createdAt: { $gte: thirtyDaysAgo } }),
         Beneficiary.countDocuments({ ...locationFilter, createdAt: { $gte: thirtyDaysAgo } })
       ]);
 
@@ -162,7 +164,7 @@ class DashboardController {
         schemeBasedStats: schemeStats, // Scheme-based application count by status
         recentActivity: {
           applications: recentApplications,
-          payments: recentPayments,
+          payments: recentPayments + recentRecurringPayments,
           beneficiaries: recentBeneficiaries
         },
         userScope: {
@@ -228,12 +230,21 @@ class DashboardController {
     try {
       const { limit = 10 } = req.query;
 
-      const payments = await Payment.find()
-        .populate('beneficiary', 'name')
-        .populate('scheme', 'name')
-        .populate('project', 'name')
-        .sort({ createdAt: -1 })
-        .limit(parseInt(limit));
+      // Fetch both regular and recurring payments
+      const [payments, recurringPayments] = await Promise.all([
+        Payment.find()
+          .populate('beneficiary', 'name')
+          .populate('scheme', 'name')
+          .populate('project', 'name')
+          .sort({ createdAt: -1 })
+          .limit(parseInt(limit)),
+        RecurringPayment.find()
+          .populate('beneficiary', 'name')
+          .populate('scheme', 'name')
+          .populate('project', 'name')
+          .sort({ createdAt: -1 })
+          .limit(parseInt(limit))
+      ]);
 
       const recentPayments = payments.map(payment => ({
         id: payment.paymentNumber,
@@ -243,10 +254,30 @@ class DashboardController {
         amount: payment.amount,
         status: payment.status,
         date: payment.createdAt,
-        method: payment.method
+        method: payment.method,
+        type: 'regular'
       }));
 
-      return ResponseHelper.success(res, { payments: recentPayments });
+      const recentRecurringPayments = recurringPayments.map(payment => ({
+        id: `RP-${payment.paymentNumber}`,
+        beneficiary: payment.beneficiary?.name || 'Unknown',
+        scheme: payment.scheme?.name || 'Unknown Scheme',
+        project: payment.project?.name || 'Unknown Project',
+        amount: payment.amount,
+        status: payment.status,
+        date: payment.createdAt,
+        method: payment.paymentMethod || 'bank_transfer',
+        type: 'recurring',
+        cycle: payment.cycleNumber && payment.totalCycles ? `${payment.cycleNumber}/${payment.totalCycles}` : null,
+        phase: payment.phaseNumber && payment.totalPhases ? `${payment.phaseNumber}/${payment.totalPhases}` : null
+      }));
+
+      // Merge and sort by date
+      const allPayments = [...recentPayments, ...recentRecurringPayments]
+        .sort((a, b) => new Date(b.date) - new Date(a.date))
+        .slice(0, parseInt(limit));
+
+      return ResponseHelper.success(res, { payments: allPayments });
     } catch (error) {
       console.error('❌ Get Recent Payments Error:', error);
       return ResponseHelper.error(res, 'Failed to fetch recent payments', 500);

@@ -587,10 +587,10 @@ router.patch('/:id/complete',
   async (req, res) => {
     try {
       const { id } = req.params;
-      const { result, notes, forwardToCommittee, interviewReport } = req.body;
+      const { result, notes, forwardToCommittee, interviewReport, isRecurring, recurringConfig } = req.body;
 
       console.log('🔍 Completing interview with ID:', id);
-      console.log('📝 Request data:', { result, notes, forwardToCommittee });
+      console.log('📝 Request data:', { result, notes, forwardToCommittee, isRecurring });
 
       let interview = null;
       let application = null;
@@ -707,9 +707,36 @@ router.patch('/:id/complete',
           if (interviewReport) {
             application.interviewReport = interviewReport;
           }
+          
+          // Note: When forwarding to committee, we don't set isRecurring or recurringConfig
+          // The committee will configure these during their approval process
+          if (isRecurring) {
+            console.log('🔄 Application marked for recurring payments - will be configured by committee');
+          }
+          
           console.log('📋 Application forwarded to committee approval');
         } else {
           application.status = 'approved'; // Move to approved status if interview passed
+          
+          // Handle recurring payments for direct approvals
+          if (isRecurring && recurringConfig) {
+            application.isRecurring = true;
+            application.recurringConfig = {
+              ...recurringConfig,
+              status: 'active'
+            };
+            
+            // Calculate total recurring amount
+            if (recurringConfig.hasDistributionTimeline && recurringConfig.distributionTimeline) {
+              const timelineTotal = recurringConfig.distributionTimeline.reduce((sum, phase) => sum + (phase.amount || 0), 0);
+              application.recurringConfig.totalRecurringAmount = timelineTotal * recurringConfig.numberOfPayments;
+              application.approvedAmount = timelineTotal;
+            } else {
+              application.recurringConfig.totalRecurringAmount = recurringConfig.amountPerPayment * recurringConfig.numberOfPayments;
+              application.approvedAmount = recurringConfig.amountPerPayment * recurringConfig.numberOfPayments;
+            }
+            console.log('🔄 Recurring payment configured:', application.recurringConfig);
+          }
         }
       } else {
         application.status = 'rejected'; // Move to rejected status if interview failed
@@ -742,6 +769,20 @@ router.patch('/:id/complete',
       try {
         const savedApp = await application.save();
         console.log('✅ Application updated successfully, new status:', savedApp.status);
+        
+        // Generate recurring payment schedule if approved with recurring payments
+        if (result === 'passed' && !forwardToCommittee && isRecurring && recurringConfig) {
+          try {
+            console.log('🔄 Generating recurring payment schedule for application:', savedApp._id);
+            const RecurringPaymentService = require('../services/recurringPaymentService');
+            const service = new RecurringPaymentService();
+            const generatedPayments = await service.generatePaymentSchedule(savedApp._id);
+            console.log(`✅ Generated ${generatedPayments.length} recurring payment records`);
+          } catch (recurringError) {
+            console.error('❌ Failed to generate recurring payment schedule:', recurringError);
+            // Don't fail the whole request, just log the error
+          }
+        }
       } catch (saveError) {
         console.error('❌ Error saving application:', saveError);
         console.error('❌ Error name:', saveError.name);
@@ -796,10 +837,15 @@ router.patch('/:id/complete',
       // If forwarding to committee, payments will be created after committee approval
       if (result === 'passed' && !forwardToCommittee && application.requestedAmount) {
         try {
-          const Payment = require('../models/Payment');
-          
-          // Create payments based on distribution timeline if available
-          if (application.distributionTimeline && application.distributionTimeline.length > 0) {
+          // If recurring payments are enabled, generate recurring schedule
+          if (isRecurring && recurringConfig) {
+            const recurringPaymentService = require('../services/recurringPaymentService');
+            const schedule = await recurringPaymentService.generatePaymentSchedule(application._id);
+            console.log(`✅ Generated ${schedule.length} recurring payment records`);
+          } 
+          // Otherwise create regular payments based on distribution timeline
+          else if (application.distributionTimeline && application.distributionTimeline.length > 0) {
+            const Payment = require('../models/Payment');
             console.log('💰 Creating payments from distribution timeline:', application.distributionTimeline.length, 'phases');
             
             for (let i = 0; i < application.distributionTimeline.length; i++) {
@@ -1059,6 +1105,20 @@ router.patch('/interview/:interviewId/complete',
       try {
         const savedApp = await application.save();
         console.log('✅ Application updated successfully, new status:', savedApp.status);
+        
+        // Generate recurring payment schedule for committee-approved applications with recurring payments
+        if (result === 'passed' && application.isRecurring && application.recurringConfig) {
+          try {
+            console.log('🔄 Generating recurring payment schedule for committee-approved application:', savedApp._id);
+            const RecurringPaymentService = require('../services/recurringPaymentService');
+            const service = new RecurringPaymentService();
+            const generatedPayments = await service.generatePaymentSchedule(savedApp._id);
+            console.log(`✅ Generated ${generatedPayments.length} recurring payment records`);
+          } catch (recurringError) {
+            console.error('❌ Failed to generate recurring payment schedule:', recurringError);
+            // Don't fail the whole request, just log the error
+          }
+        }
       } catch (saveError) {
         console.error('❌ Error saving application:', saveError);
         console.error('❌ Error name:', saveError.name);

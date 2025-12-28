@@ -1,4 +1,4 @@
-const { Project, Scheme, Application, Payment } = require('../models');
+const { Project, Scheme, Application, Payment, RecurringPayment } = require('../models');
 const ResponseHelper = require('../utils/responseHelper');
 
 class BudgetController {
@@ -53,21 +53,38 @@ class BudgetController {
 
       // Get actual disbursement data from completed payments
       const paymentDateFilter = BudgetController.buildPaymentDateFilter(period);
-      const disbursementStats = await Payment.aggregate([
-        {
-          $match: { 
-            status: 'completed',
-            type: { $in: ['full_payment', 'installment'] },
-            ...paymentDateFilter
+      const [disbursementStats, recurringDisbursementStats] = await Promise.all([
+        Payment.aggregate([
+          {
+            $match: { 
+              status: 'completed',
+              type: { $in: ['full_payment', 'installment'] },
+              ...paymentDateFilter
+            }
+          },
+          {
+            $group: {
+              _id: null,
+              totalDisbursed: { $sum: '$amount' },
+              paymentCount: { $sum: 1 }
+            }
           }
-        },
-        {
-          $group: {
-            _id: null,
-            totalDisbursed: { $sum: '$amount' },
-            paymentCount: { $sum: 1 }
+        ]),
+        RecurringPayment.aggregate([
+          {
+            $match: { 
+              status: 'completed',
+              ...paymentDateFilter
+            }
+          },
+          {
+            $group: {
+              _id: null,
+              totalDisbursed: { $sum: '$amount' },
+              paymentCount: { $sum: 1 }
+            }
           }
-        }
+        ])
       ]);
 
       // Get approved applications total amount
@@ -86,27 +103,53 @@ class BudgetController {
         }
       ]);
 
-      // Get pending payments amount
-      const pendingPaymentsStats = await Payment.aggregate([
-        {
-          $match: { 
-            status: { $in: ['pending', 'approved', 'processing'] }
+      // Get pending payments amount (both regular and recurring)
+      const [pendingPaymentsStats, pendingRecurringStats] = await Promise.all([
+        Payment.aggregate([
+          {
+            $match: { 
+              status: { $in: ['pending', 'approved', 'processing'] }
+            }
+          },
+          {
+            $group: {
+              _id: null,
+              totalPendingAmount: { $sum: '$amount' },
+              pendingCount: { $sum: 1 }
+            }
           }
-        },
-        {
-          $group: {
-            _id: null,
-            totalPendingAmount: { $sum: '$amount' },
-            pendingCount: { $sum: 1 }
+        ]),
+        RecurringPayment.aggregate([
+          {
+            $match: { 
+              status: { $in: ['scheduled', 'due', 'overdue', 'processing'] }
+            }
+          },
+          {
+            $group: {
+              _id: null,
+              totalPendingAmount: { $sum: '$amount' },
+              pendingCount: { $sum: 1 }
+            }
           }
-        }
+        ])
       ]);
 
       const projectData = projectStats[0] || { totalBudget: 0, totalAllocated: 0, totalSpent: 0, projectCount: 0 };
       const schemeData = schemeStats[0] || { totalBudget: 0, totalAllocated: 0, totalSpent: 0, schemeCount: 0 };
-      const disbursementData = disbursementStats[0] || { totalDisbursed: 0, paymentCount: 0 };
+      const regularDisbursement = disbursementStats[0] || { totalDisbursed: 0, paymentCount: 0 };
+      const recurringDisbursement = recurringDisbursementStats[0] || { totalDisbursed: 0, paymentCount: 0 };
+      const disbursementData = {
+        totalDisbursed: regularDisbursement.totalDisbursed + recurringDisbursement.totalDisbursed,
+        paymentCount: regularDisbursement.paymentCount + recurringDisbursement.paymentCount
+      };
       const approvedData = approvedApplicationsStats[0] || { totalApprovedAmount: 0, applicationCount: 0 };
-      const pendingData = pendingPaymentsStats[0] || { totalPendingAmount: 0, pendingCount: 0 };
+      const regularPending = pendingPaymentsStats[0] || { totalPendingAmount: 0, pendingCount: 0 };
+      const recurringPending = pendingRecurringStats[0] || { totalPendingAmount: 0, pendingCount: 0 };
+      const pendingData = {
+        totalPendingAmount: regularPending.totalPendingAmount + recurringPending.totalPendingAmount,
+        pendingCount: regularPending.pendingCount + recurringPending.pendingCount
+      };
 
       // Calculate combined totals
       const totalBudget = projectData.totalBudget + schemeData.totalBudget;

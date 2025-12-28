@@ -24,6 +24,7 @@ import {
   Newspaper,
   BookOpen,
   ImageIcon,
+  CalendarClock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -151,6 +152,28 @@ const menuCategories = [
           {
             to: "/payment-tracking/completed",
             label: "Completed",
+            permissions: ["finances.read.all", "finances.read.regional", "finances.manage"]
+          }
+        ]
+      },
+      { 
+        label: "Recurring Payments",
+        icon: CalendarClock,
+        permissions: ["finances.read.all", "finances.read.regional", "finances.manage"],
+        submenu: [
+          {
+            to: "/recurring-payments/dashboard",
+            label: "Overview",
+            permissions: ["finances.read.all", "finances.read.regional", "finances.manage"]
+          },
+          {
+            to: "/recurring-payments/schedule",
+            label: "Schedule",
+            permissions: ["finances.read.all", "finances.read.regional", "finances.manage"]
+          },
+          {
+            to: "/recurring-payments/forecast",
+            label: "Forecast",
             permissions: ["finances.read.all", "finances.read.regional", "finances.manage"]
           }
         ]

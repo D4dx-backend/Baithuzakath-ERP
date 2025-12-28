@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { IndianRupee, Calendar, Download, Eye, Wallet, Loader2, Edit, Grid, List, Clock, CheckCircle2, AlertCircle, X, Save, Filter } from "lucide-react";
+import { IndianRupee, Calendar, Download, Eye, Wallet, Loader2, Edit, Grid, List, Clock, CheckCircle2, AlertCircle, X, Save, Filter, Repeat } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -338,6 +338,12 @@ export default function AllPayments() {
                                   From Interview
                                 </Badge>
                               )}
+                              {schedule.isRecurring && (
+                                <Badge variant="outline" className="text-xs bg-purple-50 text-purple-600 border-purple-200">
+                                  <Repeat className="h-3 w-3 mr-1" />
+                                  Recurring {schedule.recurringPaymentNumber}/{schedule.totalRecurringPayments}
+                                </Badge>
+                              )}
                             </div>
                             <p className="text-sm text-muted-foreground">{schedule.paymentNumber}</p>
                             <p className="text-xs text-muted-foreground">ID: {schedule.beneficiaryId}</p>
@@ -365,6 +371,15 @@ export default function AllPayments() {
                               <span className="font-medium">Phase:</span>
                               <span className="text-muted-foreground">{schedule.phase}</span>
                             </div>
+                            {schedule.isRecurring && schedule.recurringPeriod && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <Repeat className="h-4 w-4 text-muted-foreground" />
+                                <span className="font-medium">Period:</span>
+                                <span className="text-muted-foreground capitalize">
+                                  {schedule.recurringPeriod.replace('_', ' ')}
+                                </span>
+                              </div>
+                            )}
                             <div className="flex items-center gap-2 text-sm">
                               <span className="font-medium">Gender:</span>
                               <span className="text-muted-foreground">
@@ -442,6 +457,12 @@ export default function AllPayments() {
                               {schedule.source === 'interview' && (
                                 <Badge variant="outline" className="text-xs bg-blue-50 text-blue-600 border-blue-200">
                                   Interview
+                                </Badge>
+                              )}
+                              {schedule.isRecurring && (
+                                <Badge variant="outline" className="text-xs bg-purple-50 text-purple-600 border-purple-200">
+                                  <Repeat className="h-3 w-3 mr-1" />
+                                  {schedule.recurringPaymentNumber}/{schedule.totalRecurringPayments}
                                 </Badge>
                               )}
                             </div>
