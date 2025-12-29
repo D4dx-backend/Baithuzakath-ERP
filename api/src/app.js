@@ -123,6 +123,9 @@ const brochureRoutes = require('./routes/brochureRoutes');
 const partnerRoutes = require('./routes/partnerRoutes');
 const bannerRoutes = require('./routes/bannerRoutes');
 
+// Application Configuration Routes
+const applicationConfigRoutes = require('./routes/applicationConfig');
+
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/sms', smsRoutes);
@@ -156,6 +159,9 @@ app.use('/api/news-events', newsEventRoutes);
 app.use('/api/brochures', brochureRoutes);
 app.use('/api/partners', partnerRoutes);
 app.use('/api/banners', bannerRoutes);
+
+// Application Configuration Routes
+app.use('/api/config', applicationConfigRoutes);
 
 // 404 handler for API routes - must come before static file serving
 app.use('/api/*', (req, res) => {

@@ -1,12 +1,12 @@
-import { Save, Building2, Globe, Shield, Bell, Palette, Settings as SettingsIcon } from "lucide-react";
+import { Save, Building2, Settings as SettingsIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRBAC } from "@/hooks/useRBAC";
+import { ApplicationConfigTab } from "@/components/ApplicationConfigTab";
 
 export default function Settings() {
   const { hasPermission } = useRBAC();
@@ -44,13 +44,15 @@ export default function Settings() {
         )}
       </div>
 
-      <Tabs defaultValue="organization" className="space-y-4">
+      <Tabs defaultValue="configuration" className="space-y-4">
         <TabsList>
+          <TabsTrigger value="configuration">Configuration</TabsTrigger>
           <TabsTrigger value="organization">Organization</TabsTrigger>
-          <TabsTrigger value="notifications">Notifications</TabsTrigger>
-          <TabsTrigger value="security">Security</TabsTrigger>
-          <TabsTrigger value="appearance">Appearance</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="configuration">
+          <ApplicationConfigTab />
+        </TabsContent>
 
         <TabsContent value="organization">
           <Card>
@@ -87,88 +89,6 @@ export default function Settings() {
                 <div className="space-y-2">
                   <Label>Website</Label>
                   <Input type="url" defaultValue="https://baithuzzakath.org" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="notifications">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Bell className="h-5 w-5" />
-                Notification Preferences
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {[
-                { id: "app-submit", label: "New Application Submitted", desc: "Get notified when applicants submit new applications" },
-                { id: "app-approve", label: "Application Approved", desc: "Receive alerts when applications are approved" },
-                { id: "donor-reg", label: "New Donor Registration", desc: "Alert when new donors register" },
-                { id: "budget-alert", label: "Budget Threshold Alerts", desc: "Notify when project budgets exceed thresholds" },
-              ].map((item) => (
-                <div key={item.id} className="flex items-center justify-between border-b pb-3">
-                  <div>
-                    <p className="font-medium">{item.label}</p>
-                    <p className="text-sm text-muted-foreground">{item.desc}</p>
-                  </div>
-                  <Switch defaultChecked />
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="security">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="h-5 w-5" />
-                Security Settings
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between border-b pb-3">
-                <div>
-                  <p className="font-medium">Two-Factor Authentication</p>
-                  <p className="text-sm text-muted-foreground">Add an extra layer of security</p>
-                </div>
-                <Switch />
-              </div>
-              <div className="flex items-center justify-between border-b pb-3">
-                <div>
-                  <p className="font-medium">Session Timeout</p>
-                  <p className="text-sm text-muted-foreground">Auto logout after inactivity</p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-              <div className="space-y-2">
-                <Label>Password Requirements</Label>
-                <p className="text-sm text-muted-foreground">Minimum 8 characters, uppercase, lowercase, number, special character</p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="appearance">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Palette className="h-5 w-5" />
-                Appearance
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">Customize the look and feel of your dashboard</p>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="border rounded-lg p-4 cursor-pointer hover:border-primary">
-                  <div className="h-24 bg-gradient-primary rounded mb-2"></div>
-                  <p className="font-medium">Green Theme (Active)</p>
-                </div>
-                <div className="border rounded-lg p-4 cursor-pointer hover:border-primary opacity-50">
-                  <div className="h-24 bg-gradient-to-br from-blue-600 to-blue-400 rounded mb-2"></div>
-                  <p className="font-medium">Blue Theme</p>
                 </div>
               </div>
             </CardContent>

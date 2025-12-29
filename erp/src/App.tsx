@@ -7,6 +7,8 @@ import { Layout } from "./components/Layout";
 import { AuthGuard } from "./components/AuthGuard";
 import { AuthProvider } from "./hooks/useAuth";
 import { RBACProvider } from "./hooks/useRBAC";
+import { ConfigProvider } from "./contexts/ConfigContext";
+import CommandPalette from "./components/CommandPalette";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Projects from "./pages/Projects";
@@ -83,7 +85,9 @@ const App = () => (
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <AuthProvider>
           <RBACProvider>
-            <Routes>
+            <ConfigProvider>
+              <CommandPalette />
+              <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/login" element={<Login />} />
@@ -160,6 +164,7 @@ const App = () => (
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
             </Routes>
+            </ConfigProvider>
           </RBACProvider>
         </AuthProvider>
       </BrowserRouter>

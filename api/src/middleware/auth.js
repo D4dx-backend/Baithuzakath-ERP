@@ -9,6 +9,13 @@ const config = require('../config/environment');
  */
 const authenticate = async (req, res, next) => {
   try {
+    // Skip authentication for public routes
+    const publicPaths = ['/public', '/test'];
+    if (publicPaths.some(path => req.path.endsWith(path))) {
+      console.log('✅ Skipping auth for public path:', req.path);
+      return next();
+    }
+    
     const authHeader = req.header('Authorization');
     
     console.log('🔍 AUTHENTICATION DEBUG:');
