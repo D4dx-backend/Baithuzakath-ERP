@@ -283,7 +283,7 @@ router.patch('/:id/committee-decision',
   async (req, res) => {
     try {
       const { id } = req.params;
-      const { decision, comments, distributionTimeline } = req.body;
+      const { decision, comments, distributionTimeline, isRecurring, recurringConfig } = req.body;
 
       if (!decision || !['approved', 'rejected'].includes(decision)) {
         return res.status(400).json({
@@ -315,15 +315,45 @@ router.patch('/:id/committee-decision',
       application.committeeApprovedAt = new Date();
       application.committeeComments = comments;
 
-      if (decision === 'approved' && distributionTimeline && Array.isArray(distributionTimeline)) {
+      // Handle recurring payments
+      if (decision === 'approved' && isRecurring && recurringConfig) {
+        application.isRecurring = true;
+        application.recurringConfig = {
+          ...recurringConfig,
+          status: 'active'
+        };
+        
+        // Calculate total recurring amount
+        if (recurringConfig.hasDistributionTimeline && recurringConfig.distributionTimeline) {
+          // Timeline + recurring: total = timeline amount × number of cycles
+          const timelineTotal = recurringConfig.distributionTimeline.reduce((sum, phase) => sum + (phase.amount || 0), 0);
+          application.recurringConfig.totalRecurringAmount = timelineTotal * recurringConfig.numberOfPayments;
+          application.approvedAmount = timelineTotal; // Approved amount per cycle
+        } else {
+          // Simple recurring: total = amount per payment × number of cycles
+          application.recurringConfig.totalRecurringAmount = recurringConfig.amountPerPayment * recurringConfig.numberOfPayments;
+          application.approvedAmount = recurringConfig.amountPerPayment * recurringConfig.numberOfPayments;
+        }
+      } else if (decision === 'approved' && distributionTimeline && Array.isArray(distributionTimeline)) {
+        // Non-recurring with timeline
         application.distributionTimeline = distributionTimeline;
         application.approvedAmount = distributionTimeline.reduce((sum, phase) => sum + (phase.amount || 0), 0);
       }
 
       await application.save();
 
-      // Create payment records for approved applications
-      if (decision === 'approved' && distributionTimeline && Array.isArray(distributionTimeline)) {
+      // Generate recurring payment schedule if recurring
+      if (decision === 'approved' && isRecurring && recurringConfig) {
+        try {
+          const recurringPaymentService = require('../services/recurringPaymentService');
+          const schedule = await recurringPaymentService.generatePaymentSchedule(application._id);
+          console.log(`✅ Generated ${schedule.length} recurring payment records`);
+        } catch (recurringError) {
+          console.error('❌ Error generating recurring schedule:', recurringError);
+        }
+      }
+      // Create payment records for non-recurring approved applications with timeline
+      else if (decision === 'approved' && distributionTimeline && Array.isArray(distributionTimeline)) {
         try {
           const Payment = require('../models/Payment');
           

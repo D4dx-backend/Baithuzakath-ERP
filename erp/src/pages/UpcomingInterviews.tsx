@@ -159,7 +159,7 @@ export default function UpcomingInterviews() {
     }
   };
 
-  const handleApprove = async (applicationId: string, remarks: string, distributionTimeline?: any[], forwardToCommittee?: boolean, interviewReport?: string) => {
+  const handleApprove = async (applicationId: string, remarks: string, distributionTimeline?: any[], forwardToCommittee?: boolean, interviewReport?: string, isRecurring?: boolean, recurringConfig?: any) => {
     try {
       const interview = interviewList.find(i => i.applicationId === applicationId);
       if (!interview) {
@@ -172,7 +172,9 @@ export default function UpcomingInterviews() {
         notes: remarks,
         distributionTimeline: !forwardToCommittee ? distributionTimeline : undefined,
         forwardToCommittee: forwardToCommittee || false,
-        interviewReport: interviewReport || ''
+        interviewReport: interviewReport || '',
+        isRecurring: !forwardToCommittee ? isRecurring : false,
+        recurringConfig: !forwardToCommittee ? recurringConfig : undefined
       });
       
       if (response.success) {
@@ -183,9 +185,12 @@ export default function UpcomingInterviews() {
             description: `Application has been forwarded to committee for approval.` 
           });
         } else {
+          const message = isRecurring 
+            ? `Application approved with ${recurringConfig?.numberOfPayments || ''} recurring payments`
+            : 'Application approved successfully';
           toast({ 
             title: "Interview Completed", 
-            description: `Interview has been marked as passed successfully.` 
+            description: message
           });
         }
       } else {

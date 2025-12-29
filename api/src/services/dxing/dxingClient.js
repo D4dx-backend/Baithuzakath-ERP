@@ -10,7 +10,7 @@ class DXingClient {
     this.senderId = config.DXING_SENDER_ID;
     this.otpTemplateId = config.DXING_OTP_TEMPLATE_ID;
     this.notificationTemplateId = config.DXING_NOTIFICATION_TEMPLATE_ID;
-    this.baseURL = 'https://dxing.net/dxapi';
+    this.baseURL = config.DXING_BASE_URL || 'https://dxing.net/dxapi';
     
     this.client = this.createAxiosClient();
   }

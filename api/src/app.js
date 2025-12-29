@@ -92,6 +92,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, {
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const smsRoutes = require('./routes/smsRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 const projectRoutes = require('./routes/projectRoutes');
 const schemeRoutes = require('./routes/schemeRoutes');
 const locationRoutes = require('./routes/locationRoutes');
@@ -105,6 +106,7 @@ const donationRoutes = require('./routes/donationRoutes');
 const interviewRoutes = require('./routes/interviewRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const reportRoutes = require('./routes/reportRoutes');
+const recurringPaymentRoutes = require('./routes/recurringPaymentRoutes');
 
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const rbacRoutes = require('./routes/rbacRoutes');
@@ -121,9 +123,13 @@ const brochureRoutes = require('./routes/brochureRoutes');
 const partnerRoutes = require('./routes/partnerRoutes');
 const bannerRoutes = require('./routes/bannerRoutes');
 
+// Application Configuration Routes
+const applicationConfigRoutes = require('./routes/applicationConfig');
+
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/sms', smsRoutes);
+app.use('/api/notifications', notificationRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/schemes', schemeRoutes);
 app.use('/api/locations', locationRoutes);
@@ -137,6 +143,7 @@ app.use('/api/donations', donationRoutes);
 app.use('/api/interviews', interviewRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/recurring-payments', recurringPaymentRoutes);
 
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/rbac', rbacRoutes);
@@ -152,6 +159,9 @@ app.use('/api/news-events', newsEventRoutes);
 app.use('/api/brochures', brochureRoutes);
 app.use('/api/partners', partnerRoutes);
 app.use('/api/banners', bannerRoutes);
+
+// Application Configuration Routes
+app.use('/api/config', applicationConfigRoutes);
 
 // 404 handler for API routes - must come before static file serving
 app.use('/api/*', (req, res) => {

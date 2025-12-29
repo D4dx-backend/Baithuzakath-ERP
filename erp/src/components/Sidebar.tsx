@@ -18,19 +18,20 @@ import {
   Search,
   CalendarCheck,
   Shield,
-  Wrench,
   Activity,
   Scale,
   Globe,
   Newspaper,
   BookOpen,
   ImageIcon,
+  CalendarClock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useRBAC } from "@/hooks/useRBAC";
 import { useAuth } from "@/hooks/useAuth";
+import { useConfig } from "@/hooks/useConfig";
 
 const menuCategories = [
   {
@@ -157,6 +158,28 @@ const menuCategories = [
         ]
       },
       { 
+        label: "Recurring Payments",
+        icon: CalendarClock,
+        permissions: ["finances.read.all", "finances.read.regional", "finances.manage"],
+        submenu: [
+          {
+            to: "/recurring-payments/dashboard",
+            label: "Overview",
+            permissions: ["finances.read.all", "finances.read.regional", "finances.manage"]
+          },
+          {
+            to: "/recurring-payments/schedule",
+            label: "Schedule",
+            permissions: ["finances.read.all", "finances.read.regional", "finances.manage"]
+          },
+          {
+            to: "/recurring-payments/forecast",
+            label: "Forecast",
+            permissions: ["finances.read.all", "finances.read.regional", "finances.manage"]
+          }
+        ]
+      },
+      { 
         to: "/budget", 
         icon: IndianRupee, 
         label: "Budget & Expenses",
@@ -259,12 +282,12 @@ const menuCategories = [
         permissions: ["roles.read"]
       },
       { 
-        to: "/form-builder", 
-        icon: Wrench, 
-        label: "Form Builder",
-        permissions: ["forms.read", "forms.create", "forms.manage"]
+        to: "/settings", 
+        icon: Settings, 
+        label: "Application Settings",
+        permissions: ["config.write", "settings.write"],
+        requireSuperAdmin: true
       },
-
       { 
         label: "Activity Logs",
         icon: Activity,
@@ -278,17 +301,6 @@ const menuCategories = [
           },
          
         ]
-      },
-    ]
-  },
-  {
-    label: "System Tools",
-    items: [
-      { 
-        to: "/debug-permissions", 
-        icon: Search, 
-        label: "Debug Permissions",
-        permissions: ["system.debug", "permissions.read"]
       },
     ]
   },
@@ -313,8 +325,18 @@ interface SidebarProps {
 export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const { hasAnyPermission } = useRBAC();
   const { user } = useAuth();
+  const { menuStyle, sidebarSearchEnabled } = useConfig();
   const location = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
+  
+  // Menu style padding classes
+  const menuPaddingClasses = {
+    compact: 'py-2 px-3',
+    comfortable: 'py-3 px-4',
+    spacious: 'py-4 px-5'
+  };
+  
+  const itemPaddingClass = menuPaddingClasses[menuStyle] || menuPaddingClasses.comfortable;
   
   // Check if user is area_admin, district_admin, or unit_admin
   const isLimitedAdmin = user && ['area_admin', 'district_admin', 'unit_admin'].includes(user.role);
@@ -445,6 +467,11 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
 
   // Filter menu items based on permissions
   const hasAccessToItem = (item: any) => {
+    // Check super admin requirement
+    if (item.requireSuperAdmin && user?.role !== 'super_admin') {
+      return false;
+    }
+    
     if (!item.permissions || item.permissions.length === 0) {
       return true; // No permissions required
     }
@@ -478,17 +505,19 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        <div className="p-4 border-b">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search menu..."
-              className="pl-8 h-9"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+        {sidebarSearchEnabled && (
+          <div className="p-4 border-b">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search menu..."
+                className="pl-8 h-9"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
           </div>
-        </div>
+        )}
 
         <nav className="space-y-2 p-4">
           {filteredItems ? (
@@ -501,7 +530,8 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                 onClick={onClose}
                 className={({ isActive }) =>
                   cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                    "flex items-center gap-3 rounded-lg text-sm font-medium transition-colors",
+                    itemPaddingClass,
                     isActive
                       ? "bg-gradient-primary text-primary-foreground shadow-elegant"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -564,7 +594,8 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                                   onClick={onClose}
                                   className={() =>
                                     cn(
-                                      "flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                                      "flex items-center rounded-lg text-sm font-medium transition-colors",
+                                      itemPaddingClass,
                                       isSubmenuItemActive(subItem.to)
                                         ? "bg-gradient-primary text-primary-foreground shadow-elegant"
                                         : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -584,7 +615,8 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                             onClick={onClose}
                             className={({ isActive }) =>
                               cn(
-                                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                                "flex items-center gap-3 rounded-lg text-sm font-medium transition-colors",
+                                itemPaddingClass,
                                 isActive
                                   ? "bg-gradient-primary text-primary-foreground shadow-elegant"
                                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -608,7 +640,8 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                         onClick={onClose}
                         className={({ isActive }) =>
                           cn(
-                            "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                            "flex items-center gap-3 rounded-lg text-sm font-medium transition-colors",
+                            itemPaddingClass,
                             isActive
                               ? "bg-gradient-primary text-primary-foreground shadow-elegant"
                               : "text-muted-foreground hover:bg-muted hover:text-foreground"

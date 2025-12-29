@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Calendar, IndianRupee, Target, Users, Loader2, AlertCircle, Clock, Edit, Trash2, Eye, FileText, Settings, GitBranch, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Calendar, IndianRupee, Target, Users, Loader2, AlertCircle, Clock, Edit, Trash2, Eye, Settings, GitBranch, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -199,11 +199,6 @@ export default function Schemes() {
   const handleViewDetails = (scheme: Scheme) => {
     setSchemeForDetails(scheme);
     setDetailsModalOpen(true);
-  };
-
-  const handleManageForm = (scheme: Scheme) => {
-    // Navigate to form builder with scheme context
-    navigate(`/form-builder?schemeId=${scheme.id}&schemeName=${encodeURIComponent(scheme.name)}`);
   };
 
   const handleConfigureTimeline = (scheme: Scheme) => {
@@ -504,10 +499,6 @@ export default function Schemes() {
                         )}
                         {canManageSchemes && (
                           <>
-                            <Button variant="outline" size="sm" onClick={() => handleManageForm(scheme)}>
-                              <FileText className="mr-1 h-3 w-3" />
-                              Manage Form
-                            </Button>
                             <Button variant="outline" size="sm" onClick={() => handleConfigureTimeline(scheme)}>
                               <GitBranch className="mr-1 h-3 w-3" />
                               Timeline

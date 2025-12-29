@@ -17,9 +17,15 @@ module.exports = {
   
   // DXing SMS Service
   DXING_API_KEY: process.env.DXING_API_KEY,
+  DXING_BASE_URL: process.env.DXING_BASE_URL || 'https://dxing.net/dxapi',
   DXING_SENDER_ID: process.env.DXING_SENDER_ID || 'BZKRLA',
   DXING_OTP_TEMPLATE_ID: process.env.DXING_OTP_TEMPLATE_ID,
   DXING_NOTIFICATION_TEMPLATE_ID: process.env.DXING_NOTIFICATION_TEMPLATE_ID,
+
+  // DXing WhatsApp (optional)
+  DXING_WHATSAPP_ENABLED: process.env.DXING_WHATSAPP_ENABLED === 'true',
+  DXING_WHATSAPP_SEND_PATH: process.env.DXING_WHATSAPP_SEND_PATH || '/whatsapp/send',
+  DXING_WHATSAPP_TEMPLATE_ID: process.env.DXING_WHATSAPP_TEMPLATE_ID,
   
   // Email Service
   SMTP_HOST: process.env.SMTP_HOST,

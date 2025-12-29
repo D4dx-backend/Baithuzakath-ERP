@@ -7,6 +7,8 @@ import { Layout } from "./components/Layout";
 import { AuthGuard } from "./components/AuthGuard";
 import { AuthProvider } from "./hooks/useAuth";
 import { RBACProvider } from "./hooks/useRBAC";
+import { ConfigProvider } from "./contexts/ConfigContext";
+import CommandPalette from "./components/CommandPalette";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Projects from "./pages/Projects";
@@ -29,12 +31,15 @@ import DueSoonPayments from "./pages/payments/DueSoonPayments";
 import UpcomingPayments from "./pages/payments/UpcomingPayments";
 import ProcessingPayments from "./pages/payments/ProcessingPayments";
 import CompletedPayments from "./pages/payments/CompletedPayments";
+import RecurringPaymentsDashboard from "./pages/recurring-payments/RecurringPaymentsDashboard";
+import ScheduleOverview from "./pages/recurring-payments/ScheduleOverview";
+import PaymentScheduleView from "./pages/recurring-payments/PaymentScheduleView";
+import BudgetForecastPage from "./pages/recurring-payments/BudgetForecastPage";
 
 
 import AnonymousDonation from "./pages/donors/AnonymousDonation";
 import DonationHistory from "./pages/donors/DonationHistory";
 import Donations from "./pages/donors/Donations";
-import FormBuilder from "./pages/FormBuilder";
 import Budget from "./pages/Budget";
 import Locations from "./pages/Locations";
 import Districts from "./pages/Districts";
@@ -57,7 +62,6 @@ import BeneficiarySchemes from "./pages/BeneficiarySchemes";
 import BeneficiaryApplication from "./pages/BeneficiaryApplication";
 import BeneficiaryAuthGuard from "./components/BeneficiaryAuthGuard";
 import ApplicationTracking from "./pages/ApplicationTracking";
-import DebugPermissions from "./pages/DebugPermissions";
 import ActivityLogs from "./pages/ActivityLogs";
 import ActivityLogAnalytics from "./pages/ActivityLogAnalytics";
 import UserActivity from "./pages/UserActivity";
@@ -81,7 +85,9 @@ const App = () => (
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <AuthProvider>
           <RBACProvider>
-            <Routes>
+            <ConfigProvider>
+              <CommandPalette />
+              <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/login" element={<Login />} />
@@ -118,12 +124,19 @@ const App = () => (
             <Route path="/payment-tracking/upcoming" element={<AuthGuard><Layout><UpcomingPayments /></Layout></AuthGuard>} />
             <Route path="/payment-tracking/processing" element={<AuthGuard><Layout><ProcessingPayments /></Layout></AuthGuard>} />
             <Route path="/payment-tracking/completed" element={<AuthGuard><Layout><CompletedPayments /></Layout></AuthGuard>} />
+            
+            {/* Recurring Payments Routes */}
+            <Route path="/recurring-payments" element={<AuthGuard><Layout><RecurringPaymentsDashboard /></Layout></AuthGuard>} />
+            <Route path="/recurring-payments/dashboard" element={<AuthGuard><Layout><RecurringPaymentsDashboard /></Layout></AuthGuard>} />
+            <Route path="/recurring-payments/schedule" element={<AuthGuard><Layout><ScheduleOverview /></Layout></AuthGuard>} />
+            <Route path="/recurring-payments/schedule/:applicationId" element={<AuthGuard><Layout><PaymentScheduleView /></Layout></AuthGuard>} />
+            <Route path="/recurring-payments/forecast" element={<AuthGuard><Layout><BudgetForecastPage /></Layout></AuthGuard>} />
+            
             {/* Donor Routes */}
             <Route path="/donors" element={<AuthGuard><Layout><Donors /></Layout></AuthGuard>} />
             <Route path="/donors/all" element={<AuthGuard><Layout><AllDonors /></Layout></AuthGuard>} />
             <Route path="/donors/donations" element={<AuthGuard><Layout><Donations /></Layout></AuthGuard>} />
             <Route path="/donors/history" element={<AuthGuard><Layout><DonationHistory /></Layout></AuthGuard>} />
-            <Route path="/form-builder" element={<AuthGuard><Layout><FormBuilder /></Layout></AuthGuard>} />
             <Route path="/budget" element={<AuthGuard><Layout><Budget /></Layout></AuthGuard>} />
             <Route path="/locations" element={<AuthGuard><Layout><Locations /></Layout></AuthGuard>} />
             <Route path="/locations/districts" element={<AuthGuard><Layout><Districts /></Layout></AuthGuard>} />
@@ -134,7 +147,6 @@ const App = () => (
 
             <Route path="/communications" element={<AuthGuard><Layout><Communications /></Layout></AuthGuard>} />
             <Route path="/settings" element={<AuthGuard><Layout><Settings /></Layout></AuthGuard>} />
-            <Route path="/debug-permissions" element={<AuthGuard><Layout><DebugPermissions /></Layout></AuthGuard>} />
             <Route path="/activity-logs" element={<AuthGuard><Layout><ActivityLogs /></Layout></AuthGuard>} />
             <Route path="/activity-logs/analytics" element={<AuthGuard><Layout><ActivityLogAnalytics /></Layout></AuthGuard>} />
             <Route path="/activity-logs/user-activity" element={<AuthGuard><Layout><UserActivity /></Layout></AuthGuard>} />
@@ -152,6 +164,7 @@ const App = () => (
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
             </Routes>
+            </ConfigProvider>
           </RBACProvider>
         </AuthProvider>
       </BrowserRouter>

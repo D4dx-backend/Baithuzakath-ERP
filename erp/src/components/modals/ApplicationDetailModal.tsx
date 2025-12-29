@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, FileText, Calendar, User, MapPin, IndianRupee, Download, Eye, CheckCircle, XCircle, Loader2, Plus, Trash2, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { X, FileText, Calendar, User, MapPin, IndianRupee, Download, Eye, CheckCircle, XCircle, Loader2, Plus, Trash2, AlertTriangle, CheckCircle2, Repeat } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
@@ -8,6 +8,7 @@ import { Textarea } from '../ui/textarea';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { Checkbox } from '../ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { applications as applicationsApi, interviews } from '../../lib/api';
 import { useToast } from '@/hooks/use-toast';
 
@@ -192,9 +193,25 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
   const [remarks, setRemarks] = useState("");
   const [forwardToCommittee, setForwardToCommittee] = useState(false);
   const [approvedAmount, setApprovedAmount] = useState(0);
+  
+  // Helper function to calculate date based on days from approval
+  const calculateDate = (daysFromApproval: number) => {
+    const today = new Date();
+    const futureDate = new Date(today);
+    futureDate.setDate(today.getDate() + daysFromApproval);
+    return futureDate.toISOString().split('T')[0];
+  };
+  
   const [distributionTimeline, setDistributionTimeline] = useState([
-    { id: 1, phase: "First Installment", percentage: 40, date: "" },
+    { id: 1, phase: "First Installment", percentage: 40, date: calculateDate(1) },
   ]);
+  
+  // Recurring payment state
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurringPeriod, setRecurringPeriod] = useState<'monthly' | 'quarterly' | 'semi_annually' | 'annually'>('monthly');
+  const [numberOfPayments, setNumberOfPayments] = useState(12);
+  const [amountPerPayment, setAmountPerPayment] = useState(0);
+  const [recurringStartDate, setRecurringStartDate] = useState('');
 
   useEffect(() => {
     if (isOpen && applicationId) {
@@ -207,6 +224,14 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
       setApprovedAmount(application.requestedAmount || 0);
     }
   }, [application]);
+
+  // Set default recurring start date when recurring is enabled
+  useEffect(() => {
+    if (isRecurring && !recurringStartDate) {
+      // Default to 7 days from now
+      setRecurringStartDate(calculateDate(7));
+    }
+  }, [isRecurring]);
 
   const fetchApplicationDetails = async () => {
     if (!applicationId) return;
@@ -294,13 +319,6 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
     }
   };
 
-  const calculateDate = (daysFromApproval: number) => {
-    const today = new Date();
-    const futureDate = new Date(today);
-    futureDate.setDate(today.getDate() + daysFromApproval);
-    return futureDate.toISOString().split('T')[0];
-  };
-
   const loadSchemeDefaults = () => {
     if (application?.scheme?.distributionTimeline && application.scheme.distributionTimeline.length > 0) {
       const schemeDefaults = application.scheme.distributionTimeline.map((item: any, index: number) => ({
@@ -358,6 +376,18 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
         expectedDate: phase.date
       }));
 
+      // Build recurring config if enabled (for both direct approval and committee forwarding)
+      let recurringConfig = null;
+      if (isRecurring) {
+        recurringConfig = {
+          period: recurringPeriod,
+          numberOfPayments,
+          amountPerPayment,
+          startDate: recurringStartDate,
+          hasDistributionTimeline: distributionTimeline.length > 0 && distributionTimeline.some(p => p.percentage > 0)
+        };
+      }
+
       let response;
       
       // If interview_scheduled, use interview complete API
@@ -367,7 +397,9 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
           notes: remarks,
           distributionTimeline: forwardToCommittee ? undefined : timelineData,
           forwardToCommittee: forwardToCommittee || false,
-          interviewReport: remarks
+          interviewReport: remarks,
+          isRecurring: isRecurring,
+          recurringConfig: recurringConfig
         });
       } else {
         // For pending/under_review without interview requirement, use direct approval API
@@ -385,9 +417,12 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
             description: "Application has been forwarded to committee for approval" 
           });
         } else {
+          const message = isRecurring 
+            ? `Application approved with ${numberOfPayments} recurring payments`
+            : 'Application approved successfully';
           toast({ 
             title: "Success", 
-            description: "Application approved successfully" 
+            description: message
           });
         }
         setShowAction(null);
@@ -700,15 +735,133 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
                         </p>
                       </div>
 
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="font-semibold text-lg">Money Distribution Timeline</h3>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={loadSchemeDefaults}
-                        >
-                          Load Scheme Defaults
-                        </Button>
+                      {/* Recurring Payment Configuration - Can be configured for both direct approval and committee review */}
+                      <div className="rounded-lg border-2 border-blue-200 p-4 space-y-4 bg-gradient-to-br from-blue-50 to-blue-50/30 mb-4">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center space-x-3">
+                            <div className="p-2 bg-blue-100 rounded-lg">
+                              <Repeat className="h-5 w-5 text-blue-600" />
+                            </div>
+                            <div>
+                              <Label htmlFor="recurring-detail" className="text-base font-semibold cursor-pointer">
+                                Recurring Payments
+                              </Label>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {forwardToCommittee 
+                                  ? "Configure recurring payments for committee review (committee can modify)" 
+                                  : "Enable for monthly, quarterly, or yearly payments"}
+                              </p>
+                            </div>
+                          </div>
+                          <Checkbox
+                            id="recurring-detail"
+                            checked={isRecurring}
+                            onCheckedChange={(checked) => {
+                              setIsRecurring(checked as boolean);
+                              if (checked && approvedAmount > 0 && numberOfPayments > 0) {
+                                setAmountPerPayment(Math.round(approvedAmount / numberOfPayments));
+                              }
+                            }}
+                            className="mt-1"
+                          />
+                        </div>
+
+                        {isRecurring && (
+                          <div className="space-y-4 pt-3 border-t-2 border-blue-200">
+                            <div className="grid md:grid-cols-2 gap-3">
+                              <div className="space-y-2">
+                                <Label className="font-medium">Recurring Period *</Label>
+                                <Select value={recurringPeriod} onValueChange={(value: any) => setRecurringPeriod(value)}>
+                                  <SelectTrigger className="h-10">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="monthly">📅 Monthly (12/year)</SelectItem>
+                                    <SelectItem value="quarterly">📅 Quarterly (4/year)</SelectItem>
+                                    <SelectItem value="semi_annually">📅 Semi-Annually (2/year)</SelectItem>
+                                    <SelectItem value="annually">📅 Annually (1/year)</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label className="font-medium">Number of Cycles *</Label>
+                                <Input
+                                  type="number"
+                                  value={numberOfPayments}
+                                  onChange={(e) => {
+                                    const num = Number(e.target.value);
+                                    setNumberOfPayments(num);
+                                    if (approvedAmount > 0 && num > 0) {
+                                      setAmountPerPayment(Math.round(approvedAmount / num));
+                                    }
+                                  }}
+                                  min={1}
+                                  max={60}
+                                  placeholder="e.g., 12"
+                                  className="h-10"
+                                />
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label className="font-medium">Start Date *</Label>
+                                <Input
+                                  type="date"
+                                  value={recurringStartDate}
+                                  onChange={(e) => setRecurringStartDate(e.target.value)}
+                                  min={new Date().toISOString().split('T')[0]}
+                                  className="h-10"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="bg-white rounded p-3 text-sm space-y-1 border">
+                              <div className="font-semibold text-blue-700">Summary:</div>
+                              <div className="flex justify-between">
+                                <span>Total Payments:</span>
+                                <span className="font-medium">{numberOfPayments} × {recurringPeriod}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span>Total Amount:</span>
+                                <span className="font-bold text-blue-700">₹{(approvedAmount * numberOfPayments).toLocaleString('en-IN')}</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-3 mb-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <h3 className="font-semibold text-lg">Money Distribution Timeline</h3>
+                            {(() => {
+                              const total = distributionTimeline.reduce((sum, phase) => sum + (phase.percentage || 0), 0);
+                              const isValid = total === 100;
+                              return (
+                                <div className={`text-xs font-medium px-2.5 py-1 rounded-md border ${isValid ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+                                  {total}% {isValid ? '✓' : '(Need 100%)'}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={addDistributionPhase}
+                            >
+                              <Plus className="mr-2 h-4 w-4" />
+                              Add Phase
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={loadSchemeDefaults}
+                            >
+                              Load Scheme Defaults
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                       <div className="space-y-3 mb-4">
                         {distributionTimeline.map((phase, index) => (
@@ -746,49 +899,27 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
                           </div>
                         ))}
                       </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={addDistributionPhase}
-                        className="mb-4"
-                      >
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add Phase
-                      </Button>
-                      
-                      {/* Distribution Total Validation */}
-                      {(() => {
-                        const total = distributionTimeline.reduce((sum, phase) => sum + (phase.percentage || 0), 0);
-                        const isValid = total === 100;
-                        return (
-                          <div className={`text-sm font-medium p-3 rounded-lg border ${isValid ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
-                            Total Distribution: {total}% {isValid ? '✓' : '(Must be 100%)'}
-                          </div>
-                        );
-                      })()}
-                    </>
-                  )}
-                  
-                  {/* Forward to Committee Option - Only for interview_scheduled status */}
-                  {showAction === "approve" && application?.status === 'interview_scheduled' && (
-                    <div className="flex items-start space-x-3 rounded-lg border p-4 bg-blue-50/50">
-                      <Checkbox
-                        id="forwardToCommittee"
-                        checked={forwardToCommittee}
-                        onCheckedChange={(checked) => setForwardToCommittee(checked as boolean)}
-                      />
-                      <div className="grid gap-1.5 leading-none">
-                        <label
-                          htmlFor="forwardToCommittee"
-                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                        >
-                          Forward to Committee Approval
-                        </label>
-                        <p className="text-sm text-muted-foreground">
-                          Send this application to committee for final approval decision instead of approving directly
-                        </p>
+
+                      {/* Forward to Committee Option */}
+                      <div className="flex items-start space-x-3 rounded-lg border p-4 bg-blue-50/50 mt-4">
+                        <Checkbox
+                          id="forwardToCommittee"
+                          checked={forwardToCommittee}
+                          onCheckedChange={(checked) => setForwardToCommittee(checked as boolean)}
+                        />
+                        <div className="grid gap-1.5 leading-none">
+                          <label
+                            htmlFor="forwardToCommittee"
+                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                          >
+                            Forward to Committee Approval
+                          </label>
+                          <p className="text-sm text-muted-foreground">
+                            Send this application to committee for final approval decision instead of approving directly
+                          </p>
+                        </div>
                       </div>
-                    </div>
+                    </>
                   )}
 
                   <div className="space-y-2">

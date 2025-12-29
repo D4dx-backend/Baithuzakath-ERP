@@ -137,6 +137,88 @@ const applicationSchema = new mongoose.Schema({
     notes: String
   }],
 
+  // Recurring Payment Configuration
+  isRecurring: {
+    type: Boolean,
+    default: false
+  },
+  recurringConfig: {
+    enabled: {
+      type: Boolean,
+      default: false
+    },
+    period: {
+      type: String,
+      enum: ['monthly', 'quarterly', 'semi_annually', 'annually'],
+      required: function() { 
+        return this.isRecurring && this.status !== 'pending_committee_approval'; 
+      }
+    },
+    numberOfPayments: {
+      type: Number,
+      min: 1,
+      max: 60,
+      required: function() { 
+        return this.isRecurring && this.status !== 'pending_committee_approval'; 
+      }
+    },
+    amountPerPayment: {
+      type: Number,
+      min: 0,
+      required: function() { 
+        return this.isRecurring && this.status !== 'pending_committee_approval'; 
+      }
+    },
+    startDate: {
+      type: Date,
+      required: function() { 
+        return this.isRecurring && this.status !== 'pending_committee_approval'; 
+      }
+    },
+    endDate: {
+      type: Date
+    },
+    customAmounts: [{
+      paymentNumber: {
+        type: Number,
+        required: true,
+        min: 1
+      },
+      amount: {
+        type: Number,
+        required: true,
+        min: 0
+      },
+      description: {
+        type: String,
+        maxlength: 200
+      }
+    }],
+    totalRecurringAmount: {
+      type: Number,
+      default: 0
+    },
+    completedPayments: {
+      type: Number,
+      default: 0
+    },
+    nextPaymentDate: {
+      type: Date
+    },
+    lastPaymentDate: {
+      type: Date
+    },
+    status: {
+      type: String,
+      enum: ['active', 'paused', 'completed', 'cancelled'],
+      default: 'active'
+    },
+    notes: {
+      type: String,
+      maxlength: 500
+    }
+  },
+
   // Application Workflow Stages (from scheme configuration)
   applicationStages: [{
     name: {
@@ -333,6 +415,8 @@ applicationSchema.index({ project: 1 });
 applicationSchema.index({ status: 1 });
 applicationSchema.index({ state: 1, district: 1, area: 1, unit: 1 });
 applicationSchema.index({ createdAt: -1 });
+applicationSchema.index({ isRecurring: 1, 'recurringConfig.status': 1 });
+applicationSchema.index({ 'recurringConfig.nextPaymentDate': 1 });
 
 // Pre-save middleware to generate application number
 applicationSchema.pre('save', async function(next) {

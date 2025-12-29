@@ -3,6 +3,8 @@ const Beneficiary = require('../models/Beneficiary');
 const Scheme = require('../models/Scheme');
 const Project = require('../models/Project');
 const MasterData = require('../models/MasterData');
+const notificationService = require('../services/notificationService');
+const recurringPaymentService = require('../services/recurringPaymentService');
 const { validationResult } = require('express-validator');
 
 // Get all applications with pagination and search
@@ -173,7 +175,7 @@ const createApplication = async (req, res) => {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { beneficiary, scheme, project, requestedAmount, documents } = req.body;
+    const { beneficiary, scheme, project, requestedAmount, documents, isRecurring, recurringConfig } = req.body;
 
     // Verify beneficiary exists and is active
     const beneficiaryDoc = await Beneficiary.findById(beneficiary);
@@ -236,10 +238,35 @@ const createApplication = async (req, res) => {
       district: beneficiaryDoc.district,
       area: beneficiaryDoc.area,
       unit: beneficiaryDoc.unit,
-      createdBy: req.user.id
+      createdBy: req.user.id,
+      // Add recurring configuration
+      isRecurring: isRecurring || false,
+      recurringConfig: isRecurring ? {
+        enabled: true,
+        period: recurringConfig.period,
+        numberOfPayments: recurringConfig.numberOfPayments,
+        amountPerPayment: recurringConfig.amountPerPayment,
+        startDate: recurringConfig.startDate,
+        customAmounts: recurringConfig.customAmounts || [],
+        status: 'active'
+      } : undefined
     });
 
     await application.save();
+
+    // If recurring, generate payment schedule after application is created
+    if (isRecurring && recurringConfig) {
+      try {
+        await recurringPaymentService.generatePaymentSchedule(
+          application,
+          recurringConfig,
+          req.user.id
+        );
+      } catch (recurringError) {
+        console.error('Error generating recurring schedule:', recurringError);
+        // Don't fail the application creation, just log the error
+      }
+    }
 
     // Add application to beneficiary's applications array
     beneficiaryDoc.applications.push(application._id);
@@ -353,10 +380,17 @@ const reviewApplication = async (req, res) => {
     await application.save();
 
     const reviewedApplication = await Application.findById(application._id)
-      .populate('beneficiary', 'name phone')
+      .populate('beneficiary', 'name phone area')
       .populate('scheme', 'name code distributionTimeline applicationSettings')
       .populate('project', 'name code')
       .populate('reviewedBy', 'name');
+
+    // Notify area coordinator when marked for review
+    if (status === 'under_review') {
+      notificationService
+        .notifyAreaReviewRequired(reviewedApplication, { createdBy: req.user.id })
+        .catch(err => console.error('❌ Area review notification failed:', err));
+    }
 
     res.json(reviewedApplication);
   } catch (error) {
@@ -411,6 +445,11 @@ const approveApplication = async (req, res) => {
       .populate('scheme', 'name code distributionTimeline applicationSettings')
       .populate('project', 'name code')
       .populate('approvedBy', 'name');
+
+    // Notify beneficiary (WhatsApp) on approval
+    notificationService
+      .notifyApplicationDecisionToBeneficiary(approvedApplication, 'approved', { createdBy: req.user.id })
+      .catch(err => console.error('❌ Beneficiary approval notification failed:', err));
 
     res.json(approvedApplication);
   } catch (error) {

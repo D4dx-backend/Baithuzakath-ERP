@@ -3,6 +3,7 @@ const ResponseHelper = require('../utils/responseHelper');
 const authService = require('../services/authService');
 const staticOTPConfig = require('../config/staticOTP');
 const whatsappOTPService = require('../utils/whatsappOtpService');
+const notificationService = require('../services/notificationService');
 
 class RegionalAdminController {
   /**
@@ -447,6 +448,18 @@ class RegionalAdminController {
       });
 
       await application.save();
+
+        // Notify beneficiary on approval/rejection (DXing WhatsApp + in-app)
+        if (status === 'approved' || status === 'rejected') {
+          notificationService
+            .notifyApplicationDecisionToBeneficiary(application, status, { createdBy: user._id })
+            .catch(err => console.error('❌ Beneficiary decision notification failed:', err));
+        } else if (status === 'under_review') {
+          // Notify area coordinator (self-reminder for review)
+          notificationService
+            .notifyAreaReviewRequired(application, { createdBy: user._id })
+            .catch(err => console.error('❌ Area review notification failed:', err));
+        }
 
       // Populate for response
       await application.populate('reviewedBy approvedBy', 'name role');

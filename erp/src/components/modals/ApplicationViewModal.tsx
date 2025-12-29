@@ -2,11 +2,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { CheckCircle, XCircle, User, MapPin, Calendar, IndianRupee, FileText, Phone, Mail, Download, Plus, Trash2, Clock, AlertCircle } from "lucide-react";
+import { CheckCircle, XCircle, User, MapPin, Calendar, IndianRupee, FileText, Phone, Mail, Download, Plus, Trash2, Clock, AlertCircle, Repeat } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useState, useEffect } from "react";
 
 // Previous applications will be passed as prop or fetched from API
@@ -16,7 +18,7 @@ interface ApplicationViewModalProps {
   onOpenChange: (open: boolean) => void;
   application: any;
   mode?: "view" | "approve" | "reject" | "edit";
-  onApprove?: (id: string, remarks: string, distributionTimeline?: any[], forwardToCommittee?: boolean, interviewReport?: string) => void;
+  onApprove?: (id: string, remarks: string, distributionTimeline?: any[], forwardToCommittee?: boolean, interviewReport?: string, isRecurring?: boolean, recurringConfig?: any) => void;
   onReject?: (id: string, remarks: string) => void;
   previousApplications?: any[];
 }
@@ -37,10 +39,7 @@ export function ApplicationViewModal({
   const [showAction, setShowAction] = useState<"approve" | "reject" | null>(
     mode === "approve" ? "approve" : mode === "reject" ? "reject" : null
   );
-  const [distributionTimeline, setDistributionTimeline] = useState([
-    { id: 1, phase: "First Installment", percentage: 40, date: "" },
-  ]);
-
+  
   // Helper function to calculate date based on days from approval
   const calculateDate = (daysFromApproval: number) => {
     const today = new Date();
@@ -48,6 +47,17 @@ export function ApplicationViewModal({
     futureDate.setDate(today.getDate() + daysFromApproval);
     return futureDate.toISOString().split('T')[0];
   };
+  
+  const [distributionTimeline, setDistributionTimeline] = useState([
+    { id: 1, phase: "First Installment", percentage: 40, date: calculateDate(1) },
+  ]);
+  
+  // Recurring payment state
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurringPeriod, setRecurringPeriod] = useState<'monthly' | 'quarterly' | 'semi_annually' | 'annually'>('monthly');
+  const [numberOfPayments, setNumberOfPayments] = useState(12);
+  const [amountPerPayment, setAmountPerPayment] = useState(0);
+  const [recurringStartDate, setRecurringStartDate] = useState('');
 
   // Initialize approved amount when application changes
   useEffect(() => {
@@ -55,6 +65,14 @@ export function ApplicationViewModal({
       setApprovedAmount(application.requestedAmount);
     }
   }, [application]);
+
+  // Set default recurring start date when recurring is enabled
+  useEffect(() => {
+    if (isRecurring && !recurringStartDate) {
+      // Default to 7 days from now
+      setRecurringStartDate(calculateDate(7));
+    }
+  }, [isRecurring]);
 
   // Load distribution timeline from application or scheme defaults
   useEffect(() => {
@@ -177,6 +195,12 @@ Status: ${application?.status || 'N/A'}
 
   const handleApprove = () => {
     if (onApprove) {
+      // Validate recurring payment configuration if enabled and not forwarding to committee
+      if (!forwardToCommittee && isRecurring && !recurringStartDate) {
+        alert('Please select a start date for recurring payments');
+        return;
+      }
+
       // Convert distribution timeline to the format expected by the backend
       const timelineData = !forwardToCommittee ? distributionTimeline.map(phase => ({
         description: phase.phase,
@@ -185,10 +209,22 @@ Status: ${application?.status || 'N/A'}
         expectedDate: phase.date
       })) : undefined;
       
-      onApprove(application?._id || '', remarks, timelineData, forwardToCommittee, interviewReport);
+      // Prepare recurring config if enabled
+      const recurringConfig = !forwardToCommittee && isRecurring ? {
+        period: recurringPeriod,
+        numberOfPayments: numberOfPayments,
+        amountPerPayment: distributionTimeline.length === 0 ? (amountPerPayment || Math.round(approvedAmount / numberOfPayments)) : approvedAmount,
+        startDate: recurringStartDate,
+        customAmounts: [],
+        hasDistributionTimeline: distributionTimeline.length > 0,
+        distributionTimeline: distributionTimeline.length > 0 ? timelineData : undefined
+      } : undefined;
+      
+      onApprove(application?._id || '', remarks, timelineData, forwardToCommittee, interviewReport, isRecurring, recurringConfig);
       setRemarks("");
       setForwardToCommittee(false);
       setInterviewReport("");
+      setIsRecurring(false);
       setShowAction(null);
       onOpenChange(false);
     }
@@ -422,6 +458,121 @@ Status: ${application?.status || 'N/A'}
                 </p>
               </div>
 
+              {/* Forward to Committee Option */}
+              <div className="flex items-start space-x-3 rounded-lg border p-4 bg-blue-50/50">
+                <Checkbox
+                  id="forwardToCommittee"
+                  checked={forwardToCommittee}
+                  onCheckedChange={(checked) => setForwardToCommittee(checked as boolean)}
+                />
+                <div className="grid gap-1.5 leading-none">
+                  <label
+                    htmlFor="forwardToCommittee"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                  >
+                    Forward to Committee Approval
+                  </label>
+                  <p className="text-sm text-muted-foreground">
+                    Send this application to committee for final approval decision instead of approving directly
+                  </p>
+                </div>
+              </div>
+
+              {/* Recurring Payment Configuration - Can be configured for both direct approval and committee review */}
+              <div className="rounded-lg border-2 border-blue-200 p-4 space-y-4 bg-gradient-to-br from-blue-50 to-blue-50/30">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="p-2 bg-blue-100 rounded-lg">
+                        <Repeat className="h-5 w-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <Label htmlFor="recurring-interview" className="text-base font-semibold cursor-pointer">
+                          Recurring Payments
+                        </Label>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {forwardToCommittee 
+                            ? "Configure recurring payments for committee review (committee can modify)" 
+                            : "Enable for monthly, quarterly, or yearly payments"}
+                        </p>
+                      </div>
+                    </div>
+                    <Checkbox
+                      id="recurring-interview"
+                      checked={isRecurring}
+                      onCheckedChange={(checked) => {
+                        setIsRecurring(checked as boolean);
+                        if (checked && approvedAmount > 0 && numberOfPayments > 0) {
+                          setAmountPerPayment(Math.round(approvedAmount / numberOfPayments));
+                        }
+                      }}
+                      className="mt-1"
+                    />
+                  </div>
+
+                  {isRecurring && (
+                    <div className="space-y-4 pt-3 border-t-2 border-blue-200">
+                      <div className="grid md:grid-cols-2 gap-3">
+                        <div className="space-y-2">
+                          <Label className="font-medium">Recurring Period *</Label>
+                          <Select value={recurringPeriod} onValueChange={(value: any) => setRecurringPeriod(value)}>
+                            <SelectTrigger className="h-10">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="monthly">📅 Monthly (12/year)</SelectItem>
+                              <SelectItem value="quarterly">📅 Quarterly (4/year)</SelectItem>
+                              <SelectItem value="semi_annually">📅 Semi-Annually (2/year)</SelectItem>
+                              <SelectItem value="annually">📅 Annually (1/year)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="font-medium">Number of Cycles *</Label>
+                          <Input
+                            type="number"
+                            value={numberOfPayments}
+                            onChange={(e) => {
+                              const num = Number(e.target.value);
+                              setNumberOfPayments(num);
+                              if (approvedAmount > 0 && num > 0) {
+                                setAmountPerPayment(Math.round(approvedAmount / num));
+                              }
+                            }}
+                            min={1}
+                            max={60}
+                            placeholder="e.g., 12"
+                            className="h-10"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="font-medium">Start Date *</Label>
+                          <Input
+                            type="date"
+                            value={recurringStartDate}
+                            onChange={(e) => setRecurringStartDate(e.target.value)}
+                            min={new Date().toISOString().split('T')[0]}
+                            className="h-10"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="bg-white rounded p-3 text-sm space-y-1 border">
+                        <div className="font-semibold text-blue-700">Summary:</div>
+                        <div className="flex justify-between">
+                          <span>Total Payments:</span>
+                          <span className="font-medium">{numberOfPayments} × {recurringPeriod}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Total Amount:</span>
+                          <span className="font-bold text-blue-700">₹{(approvedAmount * numberOfPayments).toLocaleString('en-IN')}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <Label className="text-base font-semibold">Money Distribution Timeline</Label>
@@ -498,28 +649,6 @@ Status: ${application?.status || 'N/A'}
           {showAction && (
             <>
               <Separator />
-              
-              {/* Forward to Committee Option - Only show for approval */}
-              {showAction === "approve" && (
-                <div className="flex items-start space-x-3 rounded-lg border p-4 bg-blue-50/50">
-                  <Checkbox
-                    id="forwardToCommittee"
-                    checked={forwardToCommittee}
-                    onCheckedChange={(checked) => setForwardToCommittee(checked as boolean)}
-                  />
-                  <div className="grid gap-1.5 leading-none">
-                    <label
-                      htmlFor="forwardToCommittee"
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                    >
-                      Forward to Committee Approval
-                    </label>
-                    <p className="text-sm text-muted-foreground">
-                      Send this application to committee for final approval decision instead of approving directly
-                    </p>
-                  </div>
-                </div>
-              )}
 
               {/* Interview Report - Show when forwarding to committee */}
               {showAction === "approve" && forwardToCommittee && (

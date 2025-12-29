@@ -1665,6 +1665,28 @@ export const banners = {
   })
 };
 
+// Application Configuration API
+export const config = {
+  getPublic: () => apiClient.request('/config/public'),
+  getAll: (category?: string) => apiClient.request(`/config${category ? `?category=${category}` : ''}`),
+  getById: (id: string) => apiClient.request(`/config/${id}`),
+  create: (data: any) => apiClient.request('/config', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  }),
+  update: (id: string, value: any) => apiClient.request(`/config/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify({ value })
+  }),
+  bulkUpdate: (configs: Array<{ id: string; value: any }>) => apiClient.request('/config/bulk/update', {
+    method: 'PUT',
+    body: JSON.stringify({ configs })
+  }),
+  delete: (id: string) => apiClient.request(`/config/${id}`, {
+    method: 'DELETE'
+  })
+};
+
 // Export api as alias for apiClient for backward compatibility
 export const api = masterDataApiClient;
 export default masterDataApiClient;
