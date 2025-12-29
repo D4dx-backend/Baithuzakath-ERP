@@ -31,17 +31,9 @@ export default function Settings() {
   
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Settings</h1>
-          <p className="text-muted-foreground mt-1">Manage organization settings and preferences</p>
-        </div>
-        {canUpdateSettings && (
-          <Button className="bg-gradient-primary shadow-glow">
-            <Save className="mr-2 h-4 w-4" />
-            Save Changes
-          </Button>
-        )}
+      <div>
+        <h1 className="text-3xl font-bold">Settings</h1>
+        <p className="text-muted-foreground mt-1">Manage organization settings and preferences</p>
       </div>
 
       <Tabs defaultValue="configuration" className="space-y-4">
