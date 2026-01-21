@@ -178,12 +178,12 @@ function determineAction(req, res, responseData) {
         return statusCode === 200 ? 'data_exported' : 'export_failed';
       }
       if (path.includes('/stats') || path.includes('/analytics')) {
-        return 'analytics_accessed';
+        return 'data_accessed'; // Use valid enum value
       }
-      return statusCode === 200 ? 'data_accessed' : 'access_failed';
+      return statusCode === 200 ? 'data_accessed' : 'permission_denied';
   }
 
-  return statusCode >= 400 ? 'request_failed' : 'request_processed';
+  return statusCode >= 400 ? 'permission_denied' : 'data_accessed';
 }
 
 /**
@@ -227,7 +227,7 @@ function determineResource(req) {
   if (path.includes('/permissions')) return 'permission';
   if (path.includes('/system')) return 'system';
 
-  return 'unknown';
+  return 'system'; // Use 'system' instead of 'unknown' for unmapped resources
 }
 
 /**

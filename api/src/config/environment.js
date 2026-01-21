@@ -38,9 +38,6 @@ module.exports = {
   MAX_FILE_SIZE: process.env.MAX_FILE_SIZE || 10485760, // 10MB
   ALLOWED_FILE_TYPES: process.env.ALLOWED_FILE_TYPES || 'jpg,jpeg,png,pdf,doc,docx',
   
-  // Rate Limiting
-  RATE_LIMIT_WINDOW: process.env.RATE_LIMIT_WINDOW || 15,
-  RATE_LIMIT_MAX_REQUESTS: process.env.RATE_LIMIT_MAX_REQUESTS || 100,
   
   // Frontend URL
   FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3000',

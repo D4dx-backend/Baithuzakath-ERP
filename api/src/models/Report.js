@@ -25,8 +25,27 @@ const reportSchema = new mongoose.Schema({
     required: true
   },
 
-  // Field Verification Tracking (for field_verification reports)
+  // Report Content
+  title: {
+    type: String,
+    required: true
+  },
+  details: {
+    type: String,
+    required: true
+  },
+  
+  // Field Verification Information (consolidated)
   fieldVerification: {
+    isRequired: {
+      type: Boolean,
+      default: false
+    },
+    status: {
+      type: String,
+      enum: ['pending', 'in_progress', 'completed', 'failed', 'verified', 'rejected', 'needs_clarification'],
+      default: 'pending'
+    },
     verifiedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User'
@@ -34,12 +53,9 @@ const reportSchema = new mongoose.Schema({
     verifiedAt: {
       type: Date
     },
-    verificationStatus: {
-      type: String,
-      enum: ['pending', 'verified', 'rejected', 'needs_clarification'],
-      default: 'pending'
+    verificationNotes: {
+      type: String
     },
-    verificationNotes: String,
     // Stage-based verification tracking
     stageVerifications: [{
       stageName: {
@@ -68,40 +84,7 @@ const reportSchema = new mongoose.Schema({
           default: Date.now
         }
       }]
-    }]
-  },
-  
-  // Report Content
-  title: {
-    type: String,
-    required: true
-  },
-  details: {
-    type: String,
-    required: true
-  },
-  
-  // Field Verification Information
-  fieldVerification: {
-    isRequired: {
-      type: Boolean,
-      default: false
-    },
-    status: {
-      type: String,
-      enum: ['pending', 'in_progress', 'completed', 'failed'],
-      default: 'pending'
-    },
-    verifiedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User'
-    },
-    verifiedAt: {
-      type: Date
-    },
-    verificationNotes: {
-      type: String
-    },
+    }],
     verificationHistory: [{
       status: {
         type: String,
@@ -205,16 +188,56 @@ reportSchema.index({ createdAt: -1 });
 // Pre-save middleware to generate report number
 reportSchema.pre('save', async function(next) {
   if (this.isNew && !this.reportNumber) {
-    try {
-      const count = await this.constructor.countDocuments();
-      const year = new Date().getFullYear();
-      this.reportNumber = `REP${year}${String(count + 1).padStart(6, '0')}`;
-    } catch (error) {
-      console.error('Error generating report number:', error);
-      // Fallback to timestamp-based number
-      const timestamp = Date.now().toString().slice(-6);
-      this.reportNumber = `REP${new Date().getFullYear()}${timestamp}`;
+    let attempts = 0;
+    const maxAttempts = 10;
+    
+    while (attempts < maxAttempts) {
+      try {
+        const year = new Date().getFullYear();
+        
+        // Find the highest report number for this year
+        const lastReport = await this.constructor
+          .findOne({ reportNumber: new RegExp(`^REP${year}`) })
+          .sort({ reportNumber: -1 })
+          .select('reportNumber')
+          .lean();
+        
+        let reportNumber;
+        if (lastReport && lastReport.reportNumber) {
+          // Extract the number part and increment
+          const lastNumber = parseInt(lastReport.reportNumber.replace(`REP${year}`, '')) || 0;
+          const nextNumber = lastNumber + 1;
+          reportNumber = `REP${year}${String(nextNumber).padStart(6, '0')}`;
+        } else {
+          // First report of the year
+          reportNumber = `REP${year}000001`;
+        }
+        
+        // Check if this number already exists (race condition protection)
+        const exists = await this.constructor.findOne({ reportNumber }).lean();
+        if (!exists) {
+          this.reportNumber = reportNumber;
+          return next();
+        }
+        
+        // If exists, increment and try again
+        attempts++;
+        if (attempts < maxAttempts) {
+          // Add a small random delay to avoid race conditions
+          await new Promise(resolve => setTimeout(resolve, Math.random() * 100));
+        }
+      } catch (error) {
+        console.error('Error generating report number:', error);
+        // Fallback to timestamp-based number
+        const timestamp = Date.now().toString().slice(-9);
+        this.reportNumber = `REP${new Date().getFullYear()}${timestamp}`;
+        return next();
+      }
     }
+    
+    // Final fallback if all attempts failed
+    const timestamp = Date.now().toString().slice(-9);
+    this.reportNumber = `REP${new Date().getFullYear()}${timestamp}`;
   }
   next();
 });

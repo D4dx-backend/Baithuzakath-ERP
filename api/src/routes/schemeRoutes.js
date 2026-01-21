@@ -311,7 +311,17 @@ router.delete('/:id',
  *         description: Authentication required
  */
 router.get('/:id/form-config', 
-  authorize('super_admin', 'state_admin', 'district_admin', 'project_coordinator', 'scheme_coordinator'),
+  // Note: Route-level authorization removed for read operations
+  // The controller checks scheme access via canUserAccess which is more granular
+  // This allows anyone who can view applications to also view form configs
+  (req, res, next) => {
+    console.log('🔍 GET /:id/form-config route hit:', {
+      id: req.params.id,
+      userRole: req.user?.role,
+      userId: req.user?._id
+    });
+    next();
+  },
   schemeController.getFormConfiguration
 );
 

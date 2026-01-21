@@ -21,6 +21,12 @@ class RBACMiddleware {
           });
         }
 
+        // Super admin and state admin have all permissions - bypass check
+        if (req.user.role === 'super_admin' || req.user.role === 'state_admin') {
+          req.checkedPermission = permissionName;
+          return next();
+        }
+
         const context = {
           user: req.user,
           ip: req.ip,
@@ -68,6 +74,12 @@ class RBACMiddleware {
             success: false,
             message: 'Authentication required'
           });
+        }
+
+        // Super admin and state admin have all permissions - bypass check
+        if (req.user.role === 'super_admin' || req.user.role === 'state_admin') {
+          req.grantedPermission = permissions[0];
+          return next();
         }
 
         const context = {
@@ -297,45 +309,6 @@ class RBACMiddleware {
     };
   }
 
-  /**
-   * Rate limiting for sensitive operations
-   * @param {number} maxAttempts - Maximum attempts allowed
-   * @param {number} windowMs - Time window in milliseconds
-   * @returns {Function} Express middleware
-   */
-  static rateLimitSensitiveOperation(maxAttempts = 5, windowMs = 15 * 60 * 1000) {
-    const attempts = new Map();
-
-    return (req, res, next) => {
-      const key = `${req.user._id}:${req.route.path}`;
-      const now = Date.now();
-
-      // Clean old entries
-      for (const [k, v] of attempts.entries()) {
-        if (now - v.firstAttempt > windowMs) {
-          attempts.delete(k);
-        }
-      }
-
-      const userAttempts = attempts.get(key);
-
-      if (!userAttempts) {
-        attempts.set(key, { count: 1, firstAttempt: now });
-        return next();
-      }
-
-      if (userAttempts.count >= maxAttempts) {
-        const timeLeft = Math.ceil((windowMs - (now - userAttempts.firstAttempt)) / 1000 / 60);
-        return res.status(429).json({
-          success: false,
-          message: `Too many attempts. Please try again in ${timeLeft} minutes.`
-        });
-      }
-
-      userAttempts.count++;
-      next();
-    };
-  }
 
   /**
    * Audit logging middleware for sensitive operations
@@ -511,34 +484,64 @@ class RBACMiddleware {
     try {
       // Super admin and state admin have access to everything
       if (user.role === 'super_admin' || user.role === 'state_admin') {
+        console.log(`✅ RBAC: ${user.role} - full access granted`);
         return true;
       }
 
+      console.log('🔍 RBAC: Getting user scope...');
       const userScope = await this.getUserScope(user);
+      console.log('🔍 RBAC: User scope:', userScope);
+      
+      // Helper function to get ID from populated reference or direct ID
+      const getId = (ref) => {
+        if (!ref) return null;
+        if (typeof ref === 'object' && ref._id) return ref._id.toString();
+        return ref.toString();
+      };
       
       // Check if user has access to the application's regions
       const applicationRegions = [
-        application.state?.toString(),
-        application.district?.toString(),
-        application.area?.toString(),
-        application.unit?.toString()
+        getId(application.state),
+        getId(application.district),
+        getId(application.area),
+        getId(application.unit)
       ].filter(Boolean);
+
+      console.log('🔍 RBAC: Application regions:', applicationRegions);
+      console.log('🔍 RBAC: User scope regions:', userScope.regions.map(r => r.toString()));
 
       const hasRegionAccess = userScope.regions.some(region => 
         applicationRegions.includes(region.toString())
       );
 
+      console.log('🔍 RBAC: Region access:', hasRegionAccess);
+
       // Check if user has access to the application's project
-      const hasProjectAccess = !application.project || 
-        userScope.projects.includes(application.project.toString());
+      const applicationProjectId = getId(application.project);
+      const hasProjectAccess = !applicationProjectId || 
+        userScope.projects.includes(applicationProjectId);
+
+      console.log('🔍 RBAC: Project access:', hasProjectAccess, {
+        applicationProject: applicationProjectId,
+        userProjects: userScope.projects.map(p => p.toString())
+      });
 
       // Check if user has access to the application's scheme
+      const applicationSchemeId = getId(application.scheme);
       const hasSchemeAccess = userScope.schemes.length === 0 || 
-        userScope.schemes.includes(application.scheme.toString());
+        userScope.schemes.includes(applicationSchemeId);
 
-      return hasRegionAccess && hasProjectAccess && hasSchemeAccess;
+      console.log('🔍 RBAC: Scheme access:', hasSchemeAccess, {
+        applicationScheme: applicationSchemeId,
+        userSchemes: userScope.schemes.map(s => s.toString())
+      });
+
+      const hasAccess = hasRegionAccess && hasProjectAccess && hasSchemeAccess;
+      console.log(`✅ RBAC: Final access result: ${hasAccess}`);
+      
+      return hasAccess;
     } catch (error) {
-      console.error('Error checking application access:', error);
+      console.error('❌ RBAC: Error checking application access:', error);
       return false;
     }
   }

@@ -148,6 +148,7 @@ router.get('/', projectController.getProjects);
  */
 router.post('/', 
   authorize('super_admin', 'state_admin', 'district_admin', 'project_coordinator'),
+  validate(projectSchemas.create),
   projectController.createProject
 );
 

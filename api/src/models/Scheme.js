@@ -361,14 +361,52 @@ schemeSchema.methods.canUserAccess = function(user) {
     return ['district_admin', 'area_admin', 'unit_admin'].includes(user.role);
   }
   
-  // Other admins can access schemes in their regions
-  if (!user.adminScope?.regions) return false;
+  // Helper function to get ID from populated reference or direct ID
+  const getId = (ref) => {
+    if (!ref) return null;
+    if (typeof ref === 'object' && ref._id) return ref._id.toString();
+    return ref.toString();
+  };
   
-  return this.targetRegions.some(regionId => 
-    user.adminScope.regions.some(userRegionId => 
-      userRegionId.toString() === regionId.toString()
-    )
-  );
+  // Check if user has access via regions array (Format 1)
+  if (user.adminScope?.regions && user.adminScope.regions.length > 0) {
+    const userRegions = user.adminScope.regions.map(r => getId(r));
+    const hasAccess = this.targetRegions.some(regionId => 
+      userRegions.includes(getId(regionId))
+    );
+    if (hasAccess) return true;
+  }
+  
+  // Check if user has access via direct district/area/unit properties (Format 2)
+  // Unit admins can access schemes if their unit is in targetRegions
+  if (user.role === 'unit_admin' && user.adminScope?.unit) {
+    const userUnitId = getId(user.adminScope.unit);
+    const hasAccess = this.targetRegions.some(regionId => 
+      getId(regionId) === userUnitId
+    );
+    if (hasAccess) return true;
+  }
+  
+  // Area admins can access schemes if their area is in targetRegions
+  if (user.role === 'area_admin' && user.adminScope?.area) {
+    const userAreaId = getId(user.adminScope.area);
+    const hasAccess = this.targetRegions.some(regionId => 
+      getId(regionId) === userAreaId
+    );
+    if (hasAccess) return true;
+  }
+  
+  // District admins can access schemes if their district is in targetRegions
+  if (user.role === 'district_admin' && user.adminScope?.district) {
+    const userDistrictId = getId(user.adminScope.district);
+    const hasAccess = this.targetRegions.some(regionId => 
+      getId(regionId) === userDistrictId
+    );
+    if (hasAccess) return true;
+  }
+  
+  // No matching access found
+  return false;
 };
 
 // Method to check if scheme is accepting applications

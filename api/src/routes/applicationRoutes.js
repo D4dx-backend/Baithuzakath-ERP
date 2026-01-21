@@ -110,7 +110,16 @@ router.patch('/:id/review',
   reviewApplication
 );
 
+// Approve application - PATCH (keep for backward compatibility)
 router.patch('/:id/approve', 
+  authenticate, 
+  authorize('super_admin', 'state_admin', 'area_admin'), 
+  approveApplicationValidation, 
+  approveApplication
+);
+
+// Approve application - PUT (preferred method)
+router.put('/:id/approve', 
   authenticate, 
   authorize('super_admin', 'state_admin', 'area_admin'), 
   approveApplicationValidation, 

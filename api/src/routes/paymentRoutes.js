@@ -928,9 +928,111 @@ router.put('/:id',
     try {
       const { amount, dueDate, method, phase, percentage, status, paymentDate, chequeNumber } = req.body;
       
-      const payment = await Payment.findById(req.params.id).populate('application');
+      // Validate MongoDB ObjectId format
+      if (!req.params.id || !require('mongoose').Types.ObjectId.isValid(req.params.id)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid payment ID format',
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      // Check if it's a regular payment or recurring payment
+      let payment = await Payment.findById(req.params.id).populate('application');
+      let isRecurringPayment = false;
+      
+      // If not found in Payment collection, check RecurringPayment collection
+      if (!payment) {
+        const recurringPayment = await RecurringPayment.findById(req.params.id)
+          .populate('application')
+          .populate('beneficiary')
+          .populate('scheme')
+          .populate('project');
+        
+        if (recurringPayment) {
+          isRecurringPayment = true;
+          // For recurring payments, redirect to recurring payment update route
+          // or handle it here if the data structure is compatible
+          console.log(`🔄 Found recurring payment: ${req.params.id}`);
+          
+          // Update recurring payment fields
+          if (amount !== undefined && amount > 0) recurringPayment.amount = amount;
+          if (dueDate !== undefined) {
+            const dueDateObj = new Date(dueDate);
+            recurringPayment.dueDate = dueDateObj;
+            // scheduledDate is required, so always update it if dueDate is provided
+            recurringPayment.scheduledDate = dueDateObj;
+          }
+          if (method !== undefined) {
+            // Validate method is in enum
+            const validMethods = ['bank_transfer', 'cheque', 'cash', 'digital_wallet', 'upi'];
+            if (validMethods.includes(method)) {
+              recurringPayment.paymentMethod = method;
+            }
+          }
+          if (status !== undefined) {
+            // Map status to RecurringPayment enum values
+            // RecurringPayment uses: 'scheduled', 'due', 'overdue', 'processing', 'completed', 'failed', 'skipped', 'cancelled'
+            const validStatuses = ['scheduled', 'due', 'overdue', 'processing', 'completed', 'failed', 'skipped', 'cancelled'];
+            if (status === 'completed') {
+              recurringPayment.status = 'completed';
+              recurringPayment.processedBy = req.user._id;
+              if (paymentDate) {
+                recurringPayment.processedAt = new Date(paymentDate);
+                recurringPayment.actualPaymentDate = new Date(paymentDate);
+              } else {
+                recurringPayment.processedAt = new Date();
+                recurringPayment.actualPaymentDate = new Date();
+              }
+            } else if (status === 'pending') {
+              recurringPayment.status = 'scheduled';
+            } else if (validStatuses.includes(status)) {
+              recurringPayment.status = status;
+              if (status === 'completed') {
+                recurringPayment.processedBy = req.user._id;
+                recurringPayment.processedAt = paymentDate ? new Date(paymentDate) : new Date();
+                recurringPayment.actualPaymentDate = paymentDate ? new Date(paymentDate) : new Date();
+              }
+            } else {
+              // Default to scheduled if invalid status
+              console.warn(`⚠️ Invalid status "${status}" for recurring payment, defaulting to "scheduled"`);
+              recurringPayment.status = 'scheduled';
+            }
+          }
+          if (paymentDate !== undefined && status === 'completed') {
+            recurringPayment.actualPaymentDate = new Date(paymentDate);
+            recurringPayment.processedAt = new Date(paymentDate);
+          }
+          if (chequeNumber !== undefined && method === 'cheque') {
+            recurringPayment.transactionReference = chequeNumber;
+          }
+          
+          try {
+            await recurringPayment.save();
+            console.log(`✅ Recurring payment ${req.params.id} updated successfully`);
+            
+            const updatedRecurringPayment = await RecurringPayment.findById(recurringPayment._id)
+              .populate('application', 'applicationNumber')
+              .populate('beneficiary', 'name phone')
+              .populate('project', 'name code')
+              .populate('scheme', 'name code');
+            
+            return res.json({
+              success: true,
+              message: 'Recurring payment updated successfully',
+              data: updatedRecurringPayment,
+              timestamp: new Date().toISOString()
+            });
+          } catch (saveError) {
+            console.error('❌ Error saving recurring payment:', saveError);
+            console.error('❌ Validation errors:', saveError.errors);
+            throw saveError;
+          }
+        }
+      }
       
       if (!payment) {
+        console.error(`❌ Payment not found in Payment or RecurringPayment: ${req.params.id}`);
         return res.status(404).json({
           success: false,
           message: 'Payment not found',
@@ -1074,10 +1176,19 @@ router.put('/:id',
       });
 
     } catch (error) {
-      console.error('Error updating payment:', error);
+      console.error('❌ Error updating payment:', error);
+      console.error('❌ Payment ID:', req.params.id);
+      console.error('❌ Request body:', req.body);
+      console.error('❌ Error details:', error.errors || error.message);
+      console.error('❌ Error stack:', error.stack);
       res.status(500).json({
         success: false,
         message: 'Failed to update payment',
+        error: error.message || 'Unknown error occurred',
+        details: error.errors ? Object.keys(error.errors).map(key => ({
+          field: key,
+          message: error.errors[key].message
+        })) : undefined,
         timestamp: new Date().toISOString()
       });
     }

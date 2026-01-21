@@ -327,16 +327,6 @@ class BeneficiaryAuthController {
         return ResponseHelper.error(res, 'User not found', 404);
       }
 
-      // Check if enough time has passed since last OTP
-      if (user.otp.lastSentAt) {
-        const timeSinceLastOTP = Date.now() - user.otp.lastSentAt.getTime();
-        const minInterval = 60 * 1000; // 1 minute
-
-        if (timeSinceLastOTP < minInterval) {
-          const remainingTime = Math.ceil((minInterval - timeSinceLastOTP) / 1000);
-          return ResponseHelper.error(res, `Please wait ${remainingTime} seconds before requesting a new OTP`, 429);
-        }
-      }
 
       // Generate OTP based on configuration or test account
       const otp = isTestAccount

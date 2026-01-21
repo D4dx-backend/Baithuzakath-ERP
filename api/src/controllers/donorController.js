@@ -147,8 +147,16 @@ class DonorController {
       // Get donation history
       const donationHistory = await donor.getDonationHistory(20);
 
+      // Transform donor to include id field (convert _id to id)
+      const donorObj = donor.toObject ? donor.toObject() : donor;
+      const transformedDonor = {
+        ...donorObj,
+        id: donorObj._id || donorObj.id,
+        _id: donorObj._id
+      };
+
       return ResponseHelper.success(res, {
-        donor,
+        donor: transformedDonor,
         donationHistory
       });
     } catch (error) {

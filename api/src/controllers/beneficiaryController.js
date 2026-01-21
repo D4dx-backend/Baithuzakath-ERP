@@ -1,6 +1,8 @@
 const Beneficiary = require('../models/Beneficiary');
 const Location = require('../models/Location');
+const { User } = require('../models');
 const { validationResult } = require('express-validator');
+const ResponseHelper = require('../utils/responseHelper');
 
 // Get all beneficiaries with pagination and search
 const getBeneficiaries = async (req, res) => {
@@ -185,28 +187,90 @@ const createBeneficiary = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+      return ResponseHelper.validationError(res, errors.array());
     }
 
     const { name, phone, state, district, area, unit } = req.body;
 
-    // Check if phone already exists
+    // Check if phone already exists in Beneficiary collection
     const existingBeneficiary = await Beneficiary.findOne({ phone });
     if (existingBeneficiary) {
-      return res.status(400).json({ message: 'Phone number already registered' });
+      return ResponseHelper.error(res, 'Phone number already registered', 400);
+    }
+
+    // Check if phone already exists in User collection
+    const existingUser = await User.findOne({ phone });
+    if (existingUser) {
+      return ResponseHelper.error(res, 'Phone number already registered as user', 400);
     }
 
     // Verify location hierarchy
     const locationValid = await verifyLocationHierarchy(state, district, area, unit);
     if (!locationValid) {
-      return res.status(400).json({ message: 'Invalid location hierarchy' });
+      return ResponseHelper.error(res, 'Invalid location hierarchy', 400);
     }
 
     // Check if user has access to create beneficiary in this location
+    console.log('🔍 Checking location access:', {
+      userRole: req.user?.role,
+      userId: req.user?._id,
+      location: { state, district, area, unit }
+    });
+    
     if (!hasAccessToLocation(req.user, { state, district, area, unit })) {
-      return res.status(403).json({ message: 'Access denied for this location' });
+      console.log('❌ Location access denied for user:', req.user?.role);
+      return ResponseHelper.forbidden(res, 'Access denied for this location');
+    }
+    
+    console.log('✅ Location access granted for user:', req.user?.role);
+
+    // Create User record for the beneficiary (so it appears in User Management)
+    // This must be done BEFORE creating the Beneficiary record
+    let user;
+    try {
+      user = new User({
+        name,
+        phone,
+        role: 'beneficiary',
+        profile: {
+          location: {
+            district,
+            area,
+            unit
+          }
+        },
+        isVerified: true, // Admin-created beneficiaries are pre-verified
+        isActive: true,
+        createdBy: req.user._id || req.user.id
+      });
+
+      await user.save();
+      console.log(`✅ Created User record for beneficiary: ${name} (${phone}), User ID: ${user._id}`);
+      
+      // Verify the user was actually created
+      const verifyUser = await User.findById(user._id);
+      if (!verifyUser) {
+        console.error(`❌ User was not found after creation! ID: ${user._id}`);
+        return ResponseHelper.error(res, 'Failed to create user record', 500);
+      }
+      console.log(`✅ Verified User exists in database: ${verifyUser.name} (${verifyUser.phone}), Role: ${verifyUser.role}`);
+    } catch (userError) {
+      console.error('❌ Error creating User record:', userError);
+      // If it's a duplicate key error, check if user already exists
+      if (userError.code === 11000) {
+        // User with this phone already exists, try to find it
+        user = await User.findOne({ phone });
+        if (user) {
+          console.log(`⚠️ User already exists with phone ${phone}, using existing user`);
+        } else {
+          return ResponseHelper.error(res, `Failed to create user: ${userError.message}`, 400);
+        }
+      } else {
+        return ResponseHelper.error(res, `Failed to create user: ${userError.message}`, 400);
+      }
     }
 
+    // Create Beneficiary record
     const beneficiary = new Beneficiary({
       name,
       phone,
@@ -214,10 +278,13 @@ const createBeneficiary = async (req, res) => {
       district,
       area,
       unit,
-      createdBy: req.user.id
+      status: 'active',
+      isVerified: true, // Admin-created beneficiaries are pre-verified
+      createdBy: req.user._id || req.user.id
     });
 
     await beneficiary.save();
+    console.log(`✅ Created Beneficiary record: ${name} (${phone}), Beneficiary ID: ${beneficiary._id}`);
 
     const populatedBeneficiary = await Beneficiary.findById(beneficiary._id)
       .populate('state', 'name code')
@@ -226,10 +293,10 @@ const createBeneficiary = async (req, res) => {
       .populate('unit', 'name code')
       .populate('createdBy', 'name');
 
-    res.status(201).json(populatedBeneficiary);
+    return ResponseHelper.success(res, { beneficiary: populatedBeneficiary }, 'Beneficiary created successfully', 201);
   } catch (error) {
     console.error('Error creating beneficiary:', error);
-    res.status(500).json({ message: 'Server error' });
+    return ResponseHelper.error(res, error.message || 'Server error', 500);
   }
 };
 
@@ -238,7 +305,7 @@ const updateBeneficiary = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+      return ResponseHelper.validationError(res, errors.array());
     }
 
     const beneficiary = await Beneficiary.findById(req.params.id);
@@ -306,12 +373,13 @@ const updateBeneficiary = async (req, res) => {
       .populate('area', 'name code')
       .populate('unit', 'name code')
       .populate('createdBy', 'name')
-      .populate('updatedBy', 'name');
+      .populate('updatedBy', 'name')
+      .populate('verifiedBy', 'name');
 
-    res.json(updatedBeneficiary);
+    return ResponseHelper.success(res, { beneficiary: updatedBeneficiary }, 'Beneficiary updated successfully', 200);
   } catch (error) {
     console.error('Error updating beneficiary:', error);
-    res.status(500).json({ message: 'Server error' });
+    return ResponseHelper.error(res, error.message || 'Server error', 500);
   }
 };
 
@@ -423,18 +491,43 @@ const hasAccessToBeneficiary = (user, beneficiary) => {
 };
 
 const hasAccessToLocation = (user, location) => {
-  if (user.role === 'super_admin') return true;
-  
-  if (user.role === 'state_admin') {
-    return user.regionalAccess?.state?.toString() === location.state?.toString();
-  } else if (user.role === 'district_admin') {
-    return user.regionalAccess?.district?.toString() === location.district?.toString();
-  } else if (user.role === 'area_admin') {
-    return user.regionalAccess?.area?.toString() === location.area?.toString();
-  } else if (user.role === 'unit_admin') {
-    return user.regionalAccess?.unit?.toString() === location.unit?.toString();
+  // Safety check
+  if (!user || !user.role) {
+    console.log('⚠️ hasAccessToLocation: Invalid user object');
+    return false;
+  }
+
+  // Super admin and state admin have full access
+  if (user.role === 'super_admin' || user.role === 'state_admin') {
+    console.log(`✅ hasAccessToLocation: ${user.role} has full access`);
+    return true;
   }
   
+  // For other admin roles, check their adminScope
+  if (user.role === 'district_admin') {
+    // Check if user's district matches the location's district
+    const userDistrictId = user.adminScope?.district?.toString() || 
+                          (user.adminScope?.regions && user.adminScope.regions[0]?.toString());
+    const hasAccess = userDistrictId === location.district?.toString();
+    console.log(`🔍 district_admin access check: ${hasAccess}`, { userDistrictId, locationDistrict: location.district?.toString() });
+    return hasAccess;
+  } else if (user.role === 'area_admin') {
+    // Check if user's area matches the location's area
+    const userAreaId = user.adminScope?.area?.toString() || 
+                      (user.adminScope?.regions && user.adminScope.regions[0]?.toString());
+    const hasAccess = userAreaId === location.area?.toString();
+    console.log(`🔍 area_admin access check: ${hasAccess}`, { userAreaId, locationArea: location.area?.toString() });
+    return hasAccess;
+  } else if (user.role === 'unit_admin') {
+    // Check if user's unit matches the location's unit
+    const userUnitId = user.adminScope?.unit?.toString() || 
+                      (user.adminScope?.regions && user.adminScope.regions[0]?.toString());
+    const hasAccess = userUnitId === location.unit?.toString();
+    console.log(`🔍 unit_admin access check: ${hasAccess}`, { userUnitId, locationUnit: location.unit?.toString() });
+    return hasAccess;
+  }
+  
+  console.log(`❌ hasAccessToLocation: Unknown role ${user.role}`);
   return false;
 };
 

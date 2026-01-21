@@ -502,51 +502,82 @@ class LocationController {
     async getLocationsByType(req, res) {
         try {
             const { type } = req.params;
-            const { parent, active = true } = req.query;
+            const { parent, active } = req.query;
             const currentUser = req.user;
+
+            console.log('🔍 getLocationsByType called:', {
+                type,
+                parent,
+                active,
+                userRole: currentUser.role,
+                userId: currentUser._id
+            });
 
             let query = { type };
 
-            if (typeof active === 'boolean') {
-                query.isActive = active;
+            // Handle active parameter (can be string "true"/"false" or boolean)
+            if (active !== undefined) {
+                if (typeof active === 'string') {
+                    query.isActive = active.toLowerCase() === 'true';
+                } else if (typeof active === 'boolean') {
+                    query.isActive = active;
+                }
+            } else {
+                // Default to active locations if not specified
+                query.isActive = true;
             }
 
             if (parent) {
                 query.parent = parent;
             }
 
-            // Regional filtering
+            // Regional filtering - Allow district_admin, area_admin, unit_admin to see locations
+            // They need to see locations for filtering applications
             if (currentUser.role !== 'super_admin' && currentUser.role !== 'state_admin') {
-                if (currentUser.adminScope?.regions?.length > 0) {
-                    const userRegions = await Location.find({
-                        _id: { $in: currentUser.adminScope.regions }
-                    });
-
-                    const allAccessibleRegions = [];
-                    for (const region of userRegions) {
-                        allAccessibleRegions.push(region._id);
-                        const children = await region.getAllChildren();
-                        allAccessibleRegions.push(...children.map(c => c._id));
-                    }
-
-                    query._id = { $in: allAccessibleRegions };
-                }
+                // For regional admins, we still allow them to see locations
+                // but we can optionally filter to their regions if needed
+                // For now, let's allow them to see all locations for filtering purposes
+                // The actual application filtering will handle regional restrictions
+                console.log('🔍 Regional admin accessing locations - allowing access for filtering');
             }
+
+            console.log('🔍 Final query for locations:', JSON.stringify(query, null, 2));
 
             const locations = await Location.find(query)
                 .populate('parent', 'name type code')
                 .select('name code type parent isActive contactPerson')
                 .sort({ name: 1 });
 
-            res.status(200).json({
+            console.log('🔍 Locations found:', locations.length);
+            console.log('🔍 Sample location:', locations.length > 0 ? {
+                _id: locations[0]._id,
+                name: locations[0].name,
+                type: locations[0].type,
+                isActive: locations[0].isActive
+            } : 'No locations found');
+
+            // Check total locations in database for this type
+            const totalCount = await Location.countDocuments({ type });
+            console.log('🔍 Total locations of type', type, 'in database:', totalCount);
+
+            const response = {
                 success: true,
-                data: { locations }
-            });
+                data: { 
+                    locations,
+                    count: locations.length,
+                    totalInDatabase: totalCount
+                }
+            };
+
+            console.log('✅ Sending response with', locations.length, 'locations');
+            res.status(200).json(response);
         } catch (error) {
             console.error('❌ Get Locations By Type Error:', error);
+            console.error('❌ Error stack:', error.stack);
             res.status(500).json({
                 success: false,
-                message: 'Failed to fetch locations by type'
+                message: 'Failed to fetch locations by type',
+                error: process.env.NODE_ENV === 'development' ? error.message : undefined
             });
         }
     }

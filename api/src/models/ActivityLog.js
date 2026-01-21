@@ -24,6 +24,7 @@ const activityLogSchema = new mongoose.Schema({
       
       // Beneficiary management
       'beneficiary_created', 'beneficiary_updated', 'beneficiary_deleted', 'beneficiary_approved', 'beneficiary_rejected',
+      'beneficiary_create_failed', 'beneficiary_update_failed',
       'interview_scheduled', 'interview_completed', 'interview_cancelled',
       
       // Application management
@@ -31,12 +32,14 @@ const activityLogSchema = new mongoose.Schema({
       
       // Project management
       'project_created', 'project_updated', 'project_deleted', 'project_activated', 'project_deactivated',
+      'project_create_failed', 'project_update_failed',
       
       // Scheme management
       'scheme_created', 'scheme_updated', 'scheme_deleted', 'scheme_activated', 'scheme_deactivated',
       
       // Payment management
       'payment_created', 'payment_updated', 'payment_approved', 'payment_rejected', 'payment_processed',
+      'payment_update_failed', 'payment_create_failed',
       
       // Report generation
       'report_generated', 'report_downloaded', 'report_shared',

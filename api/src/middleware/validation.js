@@ -28,6 +28,18 @@ const validateRequest = (req, res, next) => {
  */
 const validate = (schema, property = 'body') => {
   return (req, res, next) => {
+    // Clean up empty strings and empty arrays for optional fields before validation
+    if (req[property] && typeof req[property] === 'object') {
+      // Convert empty strings to undefined for optional fields
+      if (req[property].coordinator === '') {
+        delete req[property].coordinator;
+      }
+      // Convert empty arrays to undefined for optional array fields
+      if (Array.isArray(req[property].targetRegions) && req[property].targetRegions.length === 0) {
+        delete req[property].targetRegions;
+      }
+    }
+
     const { error, value } = schema.validate(req[property], {
       abortEarly: false,
       allowUnknown: false,
@@ -40,6 +52,13 @@ const validate = (schema, property = 'body') => {
         message: detail.message,
         value: detail.context?.value
       }));
+
+      console.error('❌ Validation Error:', {
+        path: req.path,
+        method: req.method,
+        errors: errors,
+        receivedData: req[property]
+      });
 
       return res.status(400).json({
         success: false,
@@ -231,14 +250,16 @@ const projectSchemas = {
     ).required(),
     priority: Joi.string().valid('low', 'medium', 'high', 'critical').default('medium'),
     scope: Joi.string().valid('state', 'district', 'area', 'unit', 'multi_region').required(),
-    targetRegions: Joi.array().items(commonSchemas.objectId).min(1).required(),
+    targetRegions: Joi.array().items(commonSchemas.objectId).optional(),
     startDate: commonSchemas.date.required(),
     endDate: commonSchemas.date.greater(Joi.ref('startDate')).required(),
     budget: Joi.object({
       total: Joi.number().positive().required(),
+      allocated: Joi.number().min(0).optional(),
+      spent: Joi.number().min(0).optional(),
       currency: Joi.string().default('INR')
     }).required(),
-    coordinator: commonSchemas.objectId.required(),
+    coordinator: commonSchemas.objectId.optional(),
     targetBeneficiaries: Joi.object({
       estimated: Joi.number().integer().min(0)
     })
