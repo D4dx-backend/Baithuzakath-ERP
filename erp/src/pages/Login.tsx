@@ -145,6 +145,44 @@ export default function Login() {
         // Use admin auth for verification
         await login(phoneNumber, otp);
         
+        // Wait a bit longer to ensure token is stored and React state is updated
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // Verify token was saved
+        const savedToken = localStorage.getItem('token');
+        const savedUser = localStorage.getItem('user');
+        
+        if (!savedToken || !savedUser) {
+          toast({
+            title: "Login Error",
+            description: "Failed to save authentication data. Please try again.",
+            variant: "destructive",
+          });
+          return;
+        }
+        
+        // Test the token by making a simple API call
+        try {
+          const testResponse = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000/api'}/auth/me`, {
+            headers: {
+              'Authorization': `Bearer ${savedToken}`,
+              'Content-Type': 'application/json',
+            },
+          });
+          
+          if (!testResponse.ok) {
+            throw new Error('Token validation failed');
+          }
+        } catch (testError) {
+          console.error('Token validation error:', testError);
+          toast({
+            title: "Authentication Error",
+            description: "Token validation failed. Please try logging in again.",
+            variant: "destructive",
+          });
+          return;
+        }
+        
         toast({
           title: "Login Successful",
           description: "Welcome back!",

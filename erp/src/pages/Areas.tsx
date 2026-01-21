@@ -49,7 +49,7 @@ export default function Areas() {
       const response = await locations.getByType('district', { active: true });
       
       if (response.success) {
-        setDistrictList(response.data?.locations || []);
+        setDistrictList(Array.isArray(response.data?.locations) ? response.data.locations : []);
       }
     } catch (error) {
       console.error('Failed to load districts:', error);
@@ -76,7 +76,7 @@ export default function Areas() {
       const response = await locations.getAll(params);
 
       if (response.success) {
-        setAreaList(response.data?.locations || []);
+        setAreaList(Array.isArray(response.data?.locations) ? response.data.locations : []);
         setPagination(prev => ({
           ...prev,
           page: response.data?.pagination?.page || 1,
@@ -223,7 +223,7 @@ export default function Areas() {
                 
                 const response = await locations.getAll({ ...params, limit: 1000 });
                 if (response.success) {
-                  const data = response.data?.locations || [];
+                  const data = Array.isArray(response.data?.locations) ? response.data.locations : [];
                   const csv = [
                     ['Name', 'Code', 'District', 'Status', 'Contact Person', 'Phone'].join(','),
                     ...data.map((area: Location) => [

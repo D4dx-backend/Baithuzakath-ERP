@@ -122,9 +122,15 @@ export default function InterviewScheduledApplications() {
       console.log('📋 Interview history response:', response);
       
       if (response.success) {
-        const historyData = (response.data as any)?.history || response.data || [];
+        const historyData = (response.data as any)?.history;
         console.log('✅ History data:', historyData);
-        setInterviewHistory(Array.isArray(historyData) ? historyData : []);
+        if (Array.isArray(historyData)) {
+          setInterviewHistory(historyData);
+        } else if (Array.isArray(response.data)) {
+          setInterviewHistory(response.data);
+        } else {
+          setInterviewHistory([]);
+        }
       } else {
         // If no history found, just set empty array without showing error toast
         console.log('ℹ️ No interview history found');

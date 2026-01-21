@@ -96,7 +96,7 @@ export function ProjectDetailsModal({ open, onOpenChange, project }: ProjectDeta
                   <IndianRupee className="h-5 w-5 text-green-600" />
                   <div>
                     <p className="text-sm text-muted-foreground">Total Budget</p>
-                    <p className="text-lg font-semibold">{formatCurrency(project.budget.total)}</p>
+                    <p className="text-lg font-semibold">{formatCurrency(project.budget?.total || 0)}</p>
                   </div>
                 </div>
               </CardContent>
@@ -108,8 +108,8 @@ export function ProjectDetailsModal({ open, onOpenChange, project }: ProjectDeta
                   <Target className="h-5 w-5 text-blue-600" />
                   <div>
                     <p className="text-sm text-muted-foreground">Beneficiaries</p>
-                    <p className="text-lg font-semibold">{project.targetBeneficiaries.actual.toLocaleString()}</p>
-                    <p className="text-xs text-muted-foreground">of {project.targetBeneficiaries.estimated.toLocaleString()} target</p>
+                    <p className="text-lg font-semibold">{(project.targetBeneficiaries?.actual || 0).toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground">of {(project.targetBeneficiaries?.estimated || 0).toLocaleString()} target</p>
                   </div>
                 </div>
               </CardContent>
@@ -133,8 +133,8 @@ export function ProjectDetailsModal({ open, onOpenChange, project }: ProjectDeta
                   <Users className="h-5 w-5 text-purple-600" />
                   <div>
                     <p className="text-sm text-muted-foreground">Coordinator</p>
-                    <p className="text-sm font-semibold">{project.coordinator.name}</p>
-                    <p className="text-xs text-muted-foreground">{project.coordinator.role.replace('_', ' ')}</p>
+                    <p className="text-sm font-semibold">{project.coordinator?.name || 'Not assigned'}</p>
+                    <p className="text-xs text-muted-foreground">{project.coordinator?.role?.replace('_', ' ') || 'N/A'}</p>
                   </div>
                 </div>
               </CardContent>
@@ -172,29 +172,29 @@ export function ProjectDetailsModal({ open, onOpenChange, project }: ProjectDeta
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
                   <span>Budget Utilization</span>
-                  <span className="font-medium">{project.budgetUtilization}%</span>
+                  <span className="font-medium">{project.budgetUtilization || 0}%</span>
                 </div>
-                <Progress value={project.budgetUtilization} className="h-3" />
+                <Progress value={project.budgetUtilization || 0} className="h-3" />
               </div>
               
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="text-center p-3 bg-green-50 rounded-lg">
                   <p className="text-sm text-muted-foreground">Total Budget</p>
-                  <p className="text-lg font-semibold text-green-700">{formatCurrency(project.budget.total)}</p>
+                  <p className="text-lg font-semibold text-green-700">{formatCurrency(project.budget?.total || 0)}</p>
                 </div>
                 <div className="text-center p-3 bg-blue-50 rounded-lg">
                   <p className="text-sm text-muted-foreground">Allocated</p>
-                  <p className="text-lg font-semibold text-blue-700">{formatCurrency(project.budget.allocated)}</p>
+                  <p className="text-lg font-semibold text-blue-700">{formatCurrency(project.budget?.allocated || 0)}</p>
                 </div>
                 <div className="text-center p-3 bg-orange-50 rounded-lg">
                   <p className="text-sm text-muted-foreground">Spent</p>
-                  <p className="text-lg font-semibold text-orange-700">{formatCurrency(project.budget.spent)}</p>
+                  <p className="text-lg font-semibold text-orange-700">{formatCurrency(project.budget?.spent || 0)}</p>
                 </div>
               </div>
               
               <div className="text-center p-3 bg-gray-50 rounded-lg">
                 <p className="text-sm text-muted-foreground">Remaining Budget</p>
-                <p className="text-xl font-bold text-gray-700">{formatCurrency(project.remainingBudget)}</p>
+                <p className="text-xl font-bold text-gray-700">{formatCurrency(project.remainingBudget || 0)}</p>
               </div>
             </CardContent>
           </Card>
@@ -208,9 +208,9 @@ export function ProjectDetailsModal({ open, onOpenChange, project }: ProjectDeta
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
                   <span>Overall Progress</span>
-                  <span className="font-medium">{project.progress.percentage}%</span>
+                  <span className="font-medium">{project.progress?.percentage || 0}%</span>
                 </div>
-                <Progress value={project.progress.percentage} className="h-3" />
+                <Progress value={project.progress?.percentage || 0} className="h-3" />
               </div>
 
               {project.progress.milestones && project.progress.milestones.length > 0 && (

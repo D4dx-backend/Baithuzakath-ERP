@@ -83,7 +83,7 @@ export default function AllDonors() {
               <DialogTitle>Donor Details</DialogTitle>
             </DialogHeader>
             <DonorDetails 
-              donorId={selectedDonor.id} 
+              donorId={selectedDonor.id || selectedDonor._id} 
               onEdit={handleEdit}
             />
           </DialogContent>

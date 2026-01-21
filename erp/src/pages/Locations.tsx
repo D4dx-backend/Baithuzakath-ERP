@@ -130,7 +130,7 @@ export default function Locations() {
       });
 
       if (response.success) {
-        setDistrictList(response.data?.locations || []);
+        setDistrictList(Array.isArray(response.data?.locations) ? response.data.locations : []);
         setDistrictPagination(prev => ({
           ...prev,
           page: response.data?.pagination?.page || 1,
@@ -153,7 +153,7 @@ export default function Locations() {
       });
 
       if (response.success) {
-        setAreaList(response.data?.locations || []);
+        setAreaList(Array.isArray(response.data?.locations) ? response.data.locations : []);
         setAreaPagination(prev => ({
           ...prev,
           page: response.data?.pagination?.page || 1,
@@ -176,7 +176,7 @@ export default function Locations() {
       });
 
       if (response.success) {
-        setUnitList(response.data?.locations || []);
+        setUnitList(Array.isArray(response.data?.locations) ? response.data.locations : []);
         setUnitPagination(prev => ({
           ...prev,
           page: response.data?.pagination?.page || 1,

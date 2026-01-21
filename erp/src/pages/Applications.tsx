@@ -16,6 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { EmptyState } from "@/components/ui/empty-state";
 import { 
   Pagination,
   PaginationContent,
@@ -251,7 +252,7 @@ export default function Applications() {
       const projectsResponse = await projects.getAll({ limit: 100 });
       console.log('📋 Projects response:', projectsResponse);
       if (projectsResponse.success) {
-        setProjectsList(projectsResponse.data.projects || []);
+        setProjectsList(Array.isArray(projectsResponse.data.projects) ? projectsResponse.data.projects : []);
         console.log('✅ Projects loaded:', projectsResponse.data.projects?.length || 0);
       }
 
@@ -259,7 +260,7 @@ export default function Applications() {
       const schemesResponse = await schemes.getAll({ limit: 100 });
       console.log('📋 Schemes response:', schemesResponse);
       if (schemesResponse.success) {
-        setSchemesList(schemesResponse.data.schemes || []);
+        setSchemesList(Array.isArray(schemesResponse.data.schemes) ? schemesResponse.data.schemes : []);
         console.log('✅ Schemes loaded:', schemesResponse.data.schemes?.length || 0);
       }
 
@@ -267,7 +268,7 @@ export default function Applications() {
       const districtsResponse = await locations.getByType('district', { active: true });
       console.log('📋 Districts response:', districtsResponse);
       if (districtsResponse.success) {
-        setDistricts(districtsResponse.data.locations || []);
+        setDistricts(Array.isArray(districtsResponse.data.locations) ? districtsResponse.data.locations : []);
         console.log('✅ Districts loaded:', districtsResponse.data.locations?.length || 0);
       }
 
@@ -275,7 +276,7 @@ export default function Applications() {
       const areasResponse = await locations.getByType('area', { active: true });
       console.log('📋 Areas response:', areasResponse);
       if (areasResponse.success) {
-        setAreas(areasResponse.data.locations || []);
+        setAreas(Array.isArray(areasResponse.data.locations) ? areasResponse.data.locations : []);
         console.log('✅ Areas loaded:', areasResponse.data.locations?.length || 0);
       }
     } catch (error) {
@@ -803,7 +804,11 @@ export default function Applications() {
                   <span className="ml-2">Loading applications...</span>
                 </div>
               ) : filteredApplicationsForCurrentTab.length === 0 ? (
-                <p className="text-muted-foreground text-center py-8">No applications found</p>
+                <EmptyState
+                  icon={FileText}
+                  title="No Applications Found"
+                  description="No applications match your current filters. Try adjusting your search criteria."
+                />
               ) : (
                 filteredApplicationsForCurrentTab.map((app) => {
                 const statusInfo = statusConfig[app.status as keyof typeof statusConfig] || statusConfig.pending;

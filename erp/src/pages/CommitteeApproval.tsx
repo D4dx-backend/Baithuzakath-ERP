@@ -135,7 +135,8 @@ export default function CommitteeApproval() {
       const response = await applications.getPendingCommitteeApprovals(params);
       
       if (response.success) {
-        setApplicationList((response.data as any)?.applications || []);
+        const apps = (response.data as any)?.applications;
+        setApplicationList(Array.isArray(apps) ? apps : []);
         setPagination((response.data as any)?.pagination || { page: 1, pages: 1, total: 0, limit: 10 });
       } else {
         setError(response.message || "Failed to load applications");

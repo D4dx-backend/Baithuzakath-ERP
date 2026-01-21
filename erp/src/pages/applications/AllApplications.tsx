@@ -77,6 +77,7 @@ export default function AllApplications() {
   const [pagination, setPagination] = useState({ current: 1, pages: 1, total: 0, limit: 10 });
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('table');
   const [showFilters, setShowFilters] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0); // Force refresh trigger
 
   const canViewApplications = hasAnyPermission(['applications.read.all', 'applications.read.regional', 'applications.read.own']);
   const canApproveApplications = hasPermission('applications.approve');
@@ -134,17 +135,8 @@ export default function AllApplications() {
     filterHook.filters.toDate,
     filterHook.filters.quickDateFilter,
     pagination.limit,
+    refreshKey, // Add refreshKey to trigger re-fetch
   ]);
-
-  const loadApplications = useCallback(async () => {
-    const params = filterHook.getApiParams(filterHook.filters.currentPage, pagination.limit);
-    const response = await applications.getAll(params);
-    
-    if (response.success) {
-      setApplicationList(response.data.applications);
-      setPagination(response.data.pagination);
-    }
-  }, [filterHook.filters.currentPage, filterHook.filters.searchTerm, filterHook.filters.statusFilter, filterHook.filters.projectFilter, filterHook.filters.districtFilter, filterHook.filters.areaFilter, filterHook.filters.schemeFilter, filterHook.filters.fromDate, filterHook.filters.toDate, filterHook.filters.quickDateFilter, pagination.limit]);
 
   if (!canViewApplications) {
     return (
@@ -167,7 +159,8 @@ export default function AllApplications() {
     try {
       const response = await applications.approve(id, { approvedAmount: selectedApp?.requestedAmount, comments: remarks });
       if (response.success) {
-        await loadApplications();
+        // Force refresh by updating refreshKey
+        setRefreshKey(prev => prev + 1);
         toast({ title: "Application Approved", description: `Application ${id} has been approved successfully.` });
       }
     } catch (error) {
@@ -179,12 +172,18 @@ export default function AllApplications() {
     try {
       const response = await applications.review(id, { status: 'rejected', comments: remarks });
       if (response.success) {
-        await loadApplications();
+        // Force refresh by updating refreshKey
+        setRefreshKey(prev => prev + 1);
         toast({ title: "Application Rejected", description: `Application ${id} has been rejected.`, variant: "destructive" });
       }
     } catch (error) {
       toast({ title: "Error", description: "Failed to reject application", variant: "destructive" });
     }
+  };
+
+  const handleApplicationActionComplete = () => {
+    // Force refresh by updating refreshKey
+    setRefreshKey(prev => prev + 1);
   };
 
   const handleExport = () => {
@@ -459,7 +458,7 @@ export default function AllApplications() {
 
       {selectedApp && (
         <>
-          <ShortlistModal isOpen={showShortlistModal} onClose={() => { setShowShortlistModal(false); setSelectedApp(null); }} applicationId={selectedApp.applicationNumber} applicantName={selectedApp.beneficiary.name} mode={selectedApp.status === 'interview_scheduled' ? 'reschedule' : 'schedule'} existingInterview={selectedApp.status === 'interview_scheduled' ? selectedApp.interview : undefined} onSuccess={() => { loadApplications(); }} />
+          <ShortlistModal isOpen={showShortlistModal} onClose={() => { setShowShortlistModal(false); setSelectedApp(null); }} applicationId={selectedApp.applicationNumber} applicantName={selectedApp.beneficiary.name} mode={selectedApp.status === 'interview_scheduled' ? 'reschedule' : 'schedule'} existingInterview={selectedApp.status === 'interview_scheduled' ? selectedApp.interview : undefined} onSuccess={() => { setRefreshKey(prev => prev + 1); }} />
           <ReportsModal isOpen={showReportsModal} onClose={() => { setShowReportsModal(false); setSelectedApp(null); }} applicationId={selectedApp.applicationNumber} applicantName={selectedApp.beneficiary.name} />
         </>
       )}
@@ -472,6 +471,7 @@ export default function AllApplications() {
           setShowDetailModal(false);
           setSelectedApplicationId(null);
         }}
+        onActionComplete={handleApplicationActionComplete}
       />
     </div>
   );

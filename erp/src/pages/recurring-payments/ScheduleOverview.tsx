@@ -25,8 +25,8 @@ const ScheduleOverview = () => {
         getUpcomingPayments(timeframe),
         getOverduePayments(),
       ]);
-      setUpcomingPayments(upcoming.payments || []);
-      setOverduePayments(overdue.payments || []);
+      setUpcomingPayments(Array.isArray(upcoming.payments) ? upcoming.payments : []);
+      setOverduePayments(Array.isArray(overdue.payments) ? overdue.payments : []);
     } catch (error) {
       console.error('Error loading schedule data:', error);
     } finally {

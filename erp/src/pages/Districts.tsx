@@ -49,7 +49,7 @@ export default function Districts() {
       });
 
       if (response.success) {
-        setDistrictList(response.data?.locations || []);
+        setDistrictList(Array.isArray(response.data?.locations) ? response.data.locations : []);
         setPagination(prev => ({
           ...prev,
           page: response.data?.pagination?.page || 1,
@@ -183,7 +183,7 @@ export default function Districts() {
                 
                 const response = await locations.getAll({ ...params, limit: 1000 });
                 if (response.success) {
-                  const data = response.data?.locations || [];
+                  const data = Array.isArray(response.data?.locations) ? response.data.locations : [];
                   const csv = [
                     ['Name', 'Code', 'Status', 'Areas Count', 'Contact Person', 'Phone'].join(','),
                     ...data.map((district: Location) => [

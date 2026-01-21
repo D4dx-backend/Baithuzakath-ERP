@@ -52,6 +52,8 @@ export function useApplicationFilters(defaultStatus?: string) {
   const loadDropdownData = useCallback(async () => {
     try {
       setLoadingDropdowns(true);
+      console.log('🔄 [FILTERS] Loading dropdown data...');
+      
       const [projectsResponse, schemesResponse, districtsResponse, areasResponse, unitsResponse] = await Promise.all([
         projects.getAll({ limit: 100 }),
         schemes.getAll({ limit: 100 }),
@@ -60,15 +62,46 @@ export function useApplicationFilters(defaultStatus?: string) {
         locations.getByType('unit', { active: true })
       ]);
 
-      if (projectsResponse.success) setProjectsList(projectsResponse.data.projects || []);
-      if (schemesResponse.success) setSchemesList(schemesResponse.data.schemes || []);
-      if (districtsResponse.success) setDistricts(districtsResponse.data.locations || []);
-      if (areasResponse.success) setAreas(areasResponse.data.locations || []);
-      if (unitsResponse.success) setUnits(unitsResponse.data.locations || []);
+      console.log('📋 [FILTERS] Projects response:', { success: projectsResponse.success, count: projectsResponse.data?.projects?.length || 0 });
+      console.log('📋 [FILTERS] Schemes response:', { success: schemesResponse.success, count: schemesResponse.data?.schemes?.length || 0 });
+      console.log('📋 [FILTERS] Districts response:', { success: districtsResponse.success, count: districtsResponse.data?.locations?.length || 0 });
+      console.log('📋 [FILTERS] Areas response:', { success: areasResponse.success, count: areasResponse.data?.locations?.length || 0 });
+      console.log('📋 [FILTERS] Units response:', { success: unitsResponse.success, count: unitsResponse.data?.locations?.length || 0 });
+
+      if (projectsResponse.success) {
+        const projects = Array.isArray(projectsResponse.data.projects) ? projectsResponse.data.projects : [];
+        setProjectsList(projects);
+        console.log('✅ [FILTERS] Projects loaded:', projects.length);
+      }
+      
+      if (schemesResponse.success) {
+        const schemes = Array.isArray(schemesResponse.data.schemes) ? schemesResponse.data.schemes : [];
+        setSchemesList(schemes);
+        console.log('✅ [FILTERS] Schemes loaded:', schemes.length);
+      }
+      
+      if (districtsResponse.success) {
+        const districts = Array.isArray(districtsResponse.data.locations) ? districtsResponse.data.locations : [];
+        setDistricts(districts);
+        console.log('✅ [FILTERS] Districts loaded:', districts.length);
+      }
+      
+      if (areasResponse.success) {
+        const areas = Array.isArray(areasResponse.data.locations) ? areasResponse.data.locations : [];
+        setAreas(areas);
+        console.log('✅ [FILTERS] Areas loaded:', areas.length);
+      }
+      
+      if (unitsResponse.success) {
+        const units = Array.isArray(unitsResponse.data.locations) ? unitsResponse.data.locations : [];
+        setUnits(units);
+        console.log('✅ [FILTERS] Units loaded:', units.length);
+      }
     } catch (error) {
-      console.error('Error loading dropdown data:', error);
+      console.error('❌ [FILTERS] Error loading dropdown data:', error);
     } finally {
       setLoadingDropdowns(false);
+      console.log('✅ [FILTERS] Dropdown data loading complete');
     }
   }, []);
 

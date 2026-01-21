@@ -40,11 +40,70 @@ export const DonorDetails: React.FC<DonorDetailsProps> = ({ donorId, onEdit }) =
     return <div>Loading donor details...</div>;
   }
 
-  if (!donorData?.data) {
+  // Handle different response structures
+  // API returns: { success: true, data: { donor, donationHistory } }
+  // donorService.getById returns: { donor, donationHistory }
+  // So donorData is: { donor, donationHistory }
+  const donor = donorData?.donor || donorData?.data?.donor || donorData?.data;
+  const donationHistoryArray = donorData?.donationHistory || donorData?.data?.donationHistory || [];
+  
+  if (!donor) {
+    console.error('Donor not found. donorData:', donorData);
+    console.error('Donor ID:', donorId);
     return <div>Donor not found</div>;
   }
 
-  const donor = donorData.data;
+  // Extract donation stats - use donationStats from donor model, or calculate from donationHistory array
+  const donationStats = donor.donationStats || {};
+  
+  // Calculate stats from donationHistory array if available
+  const calculatedTotalDonated = donationHistoryArray.length > 0 
+    ? donationHistoryArray.reduce((sum: number, d: any) => sum + (d.amount || 0), 0)
+    : 0;
+  const calculatedDonationCount = donationHistoryArray.length;
+  
+  // Use stats from model if available, otherwise use calculated values
+  const totalDonated = donationStats.totalDonated || calculatedTotalDonated || 0;
+  const donationCount = donationStats.donationCount || calculatedDonationCount || 0;
+  const averageDonation = donationStats.averageDonation || (donationCount > 0 ? totalDonated / donationCount : 0);
+  
+  // Get first and last donation dates
+  const sortedHistory = [...donationHistoryArray].sort((a: any, b: any) => 
+    new Date(a.createdAt || a.date || 0).getTime() - new Date(b.createdAt || b.date || 0).getTime()
+  );
+  const firstDonation = donationStats.firstDonation || (sortedHistory.length > 0 ? (sortedHistory[0]?.createdAt || sortedHistory[0]?.date) : null);
+  const lastDonation = donationStats.lastDonation || (sortedHistory.length > 0 ? (sortedHistory[sortedHistory.length - 1]?.createdAt || sortedHistory[sortedHistory.length - 1]?.date) : null);
+  const largestDonation = donationStats.largestDonation || (donationHistoryArray.length > 0 ? Math.max(...donationHistoryArray.map((d: any) => d.amount || 0)) : 0);
+
+  // Ensure preferences object exists with defaults
+  const preferences = donor.preferences || {
+    communicationMethod: 'email',
+    frequency: 'one-time',
+    programs: [],
+    anonymousGiving: false
+  };
+
+  // Ensure other nested objects exist with defaults
+  const address = donor.address || {
+    street: '',
+    city: '',
+    state: '',
+    pincode: '',
+    country: 'India'
+  };
+
+  const taxInfo = donor.taxInfo || {
+    panNumber: '',
+    gstNumber: ''
+  };
+
+  const tags = donor.tags || [];
+  const notes = donor.notes || '';
+
+  // Ensure nested user objects exist with defaults
+  const createdBy = donor.createdBy || { name: 'Unknown', email: '' };
+  const updatedBy = donor.updatedBy || { name: 'Unknown', email: '' };
+  const assignedTo = donor.assignedTo || null;
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -147,7 +206,7 @@ export const DonorDetails: React.FC<DonorDetailsProps> = ({ donorId, onEdit }) =
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total Donated</p>
                 <p className="text-2xl font-bold">
-                  {formatCurrency(donor.donationHistory.totalDonated)}
+                  {formatCurrency(totalDonated)}
                 </p>
               </div>
             </div>
@@ -160,7 +219,7 @@ export const DonorDetails: React.FC<DonorDetailsProps> = ({ donorId, onEdit }) =
               <TrendingUp className="h-5 w-5 text-blue-600" />
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Donations</p>
-                <p className="text-2xl font-bold">{donor.donationHistory.donationCount}</p>
+                <p className="text-2xl font-bold">{donationCount}</p>
               </div>
             </div>
           </CardContent>
@@ -173,7 +232,7 @@ export const DonorDetails: React.FC<DonorDetailsProps> = ({ donorId, onEdit }) =
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Average</p>
                 <p className="text-2xl font-bold">
-                  {formatCurrency(donor.donationHistory.averageDonation)}
+                  {formatCurrency(averageDonation)}
                 </p>
               </div>
             </div>
@@ -187,8 +246,8 @@ export const DonorDetails: React.FC<DonorDetailsProps> = ({ donorId, onEdit }) =
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Last Donation</p>
                 <p className="text-lg font-semibold">
-                  {donor.donationHistory.lastDonation 
-                    ? new Date(donor.donationHistory.lastDonation).toLocaleDateString()
+                  {lastDonation 
+                    ? new Date(lastDonation).toLocaleDateString()
                     : 'Never'
                   }
                 </p>
@@ -225,10 +284,10 @@ export const DonorDetails: React.FC<DonorDetailsProps> = ({ donorId, onEdit }) =
                   <MapPin className="h-4 w-4 text-muted-foreground mt-1" />
                   <div>
                     <p className="font-medium">
-                      {donor.address.street}, {donor.address.city}
+                      {address.street}, {address.city}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      {donor.address.state} {donor.address.pincode}, {donor.address.country}
+                      {address.state} {address.pincode}, {address.country}
                     </p>
                   </div>
                 </div>
@@ -244,26 +303,28 @@ export const DonorDetails: React.FC<DonorDetailsProps> = ({ donorId, onEdit }) =
                 <div>
                   <p className="font-medium">Communication Method</p>
                   <p className="text-sm text-muted-foreground capitalize">
-                    {donor.preferences.communicationMethod}
+                    {preferences.communicationMethod || 'email'}
                   </p>
                 </div>
                 <div>
                   <p className="font-medium">Donation Frequency</p>
                   <p className="text-sm text-muted-foreground capitalize">
-                    {donor.preferences.frequency.replace('_', ' ')}
+                    {(preferences.frequency || 'one-time').replace('_', ' ')}
                   </p>
                 </div>
-                <div>
-                  <p className="font-medium">Preferred Programs</p>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {donor.preferences.programs.map((program) => (
-                      <Badge key={program} variant="secondary" className="text-xs">
-                        {program}
-                      </Badge>
-                    ))}
+                {preferences.programs && preferences.programs.length > 0 && (
+                  <div>
+                    <p className="font-medium">Preferred Programs</p>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {preferences.programs.map((program: string) => (
+                        <Badge key={program} variant="secondary" className="text-xs">
+                          {program}
+                        </Badge>
+                      ))}
+                    </div>
                   </div>
-                </div>
-                {donor.preferences.anonymousGiving && (
+                )}
+                {preferences.anonymousGiving && (
                   <div className="flex items-center gap-2">
                     <Badge variant="outline">Anonymous Giving</Badge>
                   </div>
@@ -272,22 +333,22 @@ export const DonorDetails: React.FC<DonorDetailsProps> = ({ donorId, onEdit }) =
             </Card>
 
             {/* Tax Information */}
-            {(donor.taxInfo.panNumber || donor.taxInfo.gstNumber) && (
+            {(taxInfo.panNumber || taxInfo.gstNumber) && (
               <Card>
                 <CardHeader>
                   <CardTitle>Tax Information</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {donor.taxInfo.panNumber && (
+                  {taxInfo.panNumber && (
                     <div>
                       <p className="font-medium">PAN Number</p>
-                      <p className="text-sm text-muted-foreground">{donor.taxInfo.panNumber}</p>
+                      <p className="text-sm text-muted-foreground">{taxInfo.panNumber}</p>
                     </div>
                   )}
-                  {donor.taxInfo.gstNumber && (
+                  {taxInfo.gstNumber && (
                     <div>
                       <p className="font-medium">GST Number</p>
-                      <p className="text-sm text-muted-foreground">{donor.taxInfo.gstNumber}</p>
+                      <p className="text-sm text-muted-foreground">{taxInfo.gstNumber}</p>
                     </div>
                   )}
                 </CardContent>
@@ -300,11 +361,11 @@ export const DonorDetails: React.FC<DonorDetailsProps> = ({ donorId, onEdit }) =
                 <CardTitle>Additional Information</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {donor.tags.length > 0 && (
+                {tags.length > 0 && (
                   <div>
                     <p className="font-medium mb-2">Tags</p>
                     <div className="flex flex-wrap gap-1">
-                      {donor.tags.map((tag) => (
+                      {tags.map((tag: string) => (
                         <Badge key={tag} variant="secondary">
                           {tag}
                         </Badge>
@@ -312,17 +373,17 @@ export const DonorDetails: React.FC<DonorDetailsProps> = ({ donorId, onEdit }) =
                     </div>
                   </div>
                 )}
-                {donor.notes && (
+                {notes && (
                   <div>
                     <p className="font-medium mb-2">Notes</p>
-                    <p className="text-sm text-muted-foreground">{donor.notes}</p>
+                    <p className="text-sm text-muted-foreground">{notes}</p>
                   </div>
                 )}
                 <Separator />
                 <div className="text-xs text-muted-foreground">
-                  <p>Created: {new Date(donor.createdAt).toLocaleString()}</p>
-                  <p>Updated: {new Date(donor.updatedAt).toLocaleString()}</p>
-                  <p>Created by: {donor.createdBy.name}</p>
+                  <p>Created: {donor.createdAt ? new Date(donor.createdAt).toLocaleString() : 'N/A'}</p>
+                  <p>Updated: {donor.updatedAt ? new Date(donor.updatedAt).toLocaleString() : 'N/A'}</p>
+                  <p>Created by: {createdBy.name || 'Unknown'}</p>
                 </div>
               </CardContent>
             </Card>

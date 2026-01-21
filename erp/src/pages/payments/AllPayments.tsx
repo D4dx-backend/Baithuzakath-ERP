@@ -116,7 +116,13 @@ export default function AllPayments() {
   };
 
   const handleEditSchedule = (schedule: any) => {
-    setEditingSchedule({ ...schedule, status: "completed" });
+    // Ensure we use _id if id is not present (MongoDB uses _id)
+    const scheduleId = schedule._id || schedule.id;
+    setEditingSchedule({ 
+      ...schedule, 
+      id: scheduleId, // Ensure id field is set
+      status: schedule.status || "completed" // Preserve existing status or default to completed
+    });
     setShowEditModal(true);
   };
 
@@ -131,6 +137,18 @@ export default function AllPayments() {
     if (!editingSchedule) return;
 
     try {
+      // Get the payment ID - prefer id, fallback to _id
+      const paymentId = editingSchedule.id || editingSchedule._id;
+      
+      if (!paymentId) {
+        toast({
+          title: "Error",
+          description: "Payment ID is missing. Cannot update payment.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const updateData = {
         amount: editingSchedule.amount,
         dueDate: editingSchedule.dueDate,
@@ -142,7 +160,8 @@ export default function AllPayments() {
         chequeNumber: editingSchedule.chequeNumber
       };
 
-      const response = await payments.update(editingSchedule.id, updateData);
+      console.log('Updating payment with ID:', paymentId, 'Data:', updateData);
+      const response = await payments.update(paymentId, updateData);
       
       if (response.success) {
         await loadPayments();

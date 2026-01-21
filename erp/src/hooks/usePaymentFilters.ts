@@ -46,6 +46,7 @@ export function usePaymentFilters(defaultStatus?: string) {
   const loadDropdownData = useCallback(async () => {
     try {
       setLoadingDropdowns(true);
+      
       const [projectsResponse, schemesResponse, districtsResponse, areasResponse, unitsResponse] = await Promise.all([
         projects.getAll({ limit: 100 }),
         schemes.getAll({ limit: 100 }),
@@ -54,11 +55,11 @@ export function usePaymentFilters(defaultStatus?: string) {
         locations.getByType('unit', { active: true })
       ]);
 
-      if (projectsResponse.success) setProjectsList(projectsResponse.data.projects || []);
-      if (schemesResponse.success) setSchemesList(schemesResponse.data.schemes || []);
-      if (districtsResponse.success) setDistricts(districtsResponse.data.locations || []);
-      if (areasResponse.success) setAreas(areasResponse.data.locations || []);
-      if (unitsResponse.success) setUnits(unitsResponse.data.locations || []);
+      if (projectsResponse.success) setProjectsList(Array.isArray(projectsResponse.data.projects) ? projectsResponse.data.projects : []);
+      if (schemesResponse.success) setSchemesList(Array.isArray(schemesResponse.data.schemes) ? schemesResponse.data.schemes : []);
+      if (districtsResponse.success) setDistricts(Array.isArray(districtsResponse.data.locations) ? districtsResponse.data.locations : []);
+      if (areasResponse.success) setAreas(Array.isArray(areasResponse.data.locations) ? areasResponse.data.locations : []);
+      if (unitsResponse.success) setUnits(Array.isArray(unitsResponse.data.locations) ? unitsResponse.data.locations : []);
     } catch (error) {
       console.error('Error loading dropdown data:', error);
     } finally {

@@ -19,7 +19,9 @@ class DonorService {
 
   async getById(id: string): Promise<ApiResponse<Donor>> {
     const response = await donors.getById(id);
-    return response.data;
+    // API returns: { success: true, data: { donor, donationHistory } }
+    // Return the entire data object which contains donor and donationHistory
+    return response.data || response;
   }
 
   async create(data: DonorFormData): Promise<ApiResponse<Donor>> {
