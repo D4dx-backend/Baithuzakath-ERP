@@ -48,16 +48,16 @@ Complete API documentation for Baithuzzakath Kerala ERP system serving all user 
     },
     servers: [
       {
-        url: 'http://localhost:4000',
-        description: 'Development server'
-      },
-      {
-        url: 'https://baithuzakath-api-uie39.ondigitalocean.app',
-        description: 'Digital Ocean Production server'
-      },
-      {
-        url: 'https://api.baithuzzakath.org',
-        description: 'Production server'
+        url: (() => {
+          // Prefer SWAGGER_SERVER_URL, fallback to FRONTEND_URL, but require at least one
+          const swaggerUrl = process.env.SWAGGER_SERVER_URL;
+          const frontendUrl = process.env.FRONTEND_URL?.replace(/\/$/, '');
+          if (!swaggerUrl && !frontendUrl) {
+            throw new Error('Either SWAGGER_SERVER_URL or FRONTEND_URL environment variable must be set for Swagger documentation');
+          }
+          return swaggerUrl || frontendUrl;
+        })(),
+        description: process.env.NODE_ENV === 'production' ? 'Production server' : 'Development server'
       }
     ],
     tags: [

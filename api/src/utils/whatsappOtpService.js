@@ -12,13 +12,22 @@ const axios = require('axios');
  * - Rate limiting and error handling
  */
 
+const { getOptionalEnvVar } = require('../config/validateEnv');
+
 class WhatsAppOTPService {
   constructor() {
     // DXing API Configuration from environment variables
     // Support both DXING_secret (new) and DXING_API_KEY (existing)
-    this.apiSecret = process.env.DXING_secret || process.env.DXING_API_KEY;
-    this.account = process.env.DXING_Account;
-    this.baseURL = 'https://app.dxing.in/api';
+    // Both must come from environment - no fallbacks
+    this.apiSecret = getOptionalEnvVar('DXING_secret') || getOptionalEnvVar('DXING_API_KEY');
+    this.account = getOptionalEnvVar('DXING_Account');
+    
+    // Base URL must come from environment
+    const baseURL = getOptionalEnvVar('DXING_WHATSAPP_BASE_URL');
+    if (!baseURL) {
+      throw new Error('DXING_WHATSAPP_BASE_URL environment variable is required for WhatsApp OTP service');
+    }
+    this.baseURL = baseURL;
     
     // Validate credentials on initialization
     this.validateCredentials();

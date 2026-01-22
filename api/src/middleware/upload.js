@@ -2,8 +2,10 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-// Ensure upload directory exists
-const uploadDir = process.env.UPLOAD_PATH || './uploads';
+const { getEnvVar } = require('../config/validateEnv');
+
+// Ensure upload directory exists - must come from environment
+const uploadDir = getEnvVar('UPLOAD_PATH', 'File upload directory path');
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
@@ -26,10 +28,9 @@ const memoryStorage = multer.memoryStorage();
 
 // File filter function
 const fileFilter = (req, file, cb) => {
-  // Get allowed file types from environment or use defaults
-  const allowedTypes = process.env.ALLOWED_FILE_TYPES 
-    ? process.env.ALLOWED_FILE_TYPES.split(',')
-    : ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx', 'xls', 'xlsx'];
+  // Get allowed file types from environment - required, no defaults
+  const allowedTypesStr = getEnvVar('ALLOWED_FILE_TYPES', 'Allowed file types');
+  const allowedTypes = allowedTypesStr.split(',').map(type => type.trim().toLowerCase());
 
   const ext = path.extname(file.originalname).toLowerCase().substring(1);
   
@@ -40,12 +41,15 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
+// Get max file size from environment - required, no defaults
+const maxFileSize = parseInt(getEnvVar('MAX_FILE_SIZE', 'Maximum file size in bytes'), 10);
+
 // Configure multer with disk storage
 const upload = multer({
   storage: diskStorage,
   fileFilter: fileFilter,
   limits: {
-    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 10 * 1024 * 1024 // Default 10MB
+    fileSize: maxFileSize
   }
 });
 
@@ -54,7 +58,7 @@ const uploadMemory = multer({
   storage: memoryStorage,
   fileFilter: fileFilter,
   limits: {
-    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 10 * 1024 * 1024 // Default 10MB
+    fileSize: maxFileSize
   }
 });
 
@@ -68,7 +72,7 @@ const uploadSingle = (fieldName = 'file') => {
         if (err.code === 'LIMIT_FILE_SIZE') {
           return res.status(400).json({
             success: false,
-            message: `File size exceeds the limit of ${process.env.MAX_FILE_SIZE || '10MB'}`
+            message: `File size exceeds the limit of ${maxFileSize} bytes`
           });
         }
         return res.status(400).json({
@@ -96,7 +100,7 @@ const uploadMultiple = (fieldName = 'files', maxCount = 10) => {
         if (err.code === 'LIMIT_FILE_SIZE') {
           return res.status(400).json({
             success: false,
-            message: `File size exceeds the limit of ${process.env.MAX_FILE_SIZE || '10MB'}`
+            message: `File size exceeds the limit of ${maxFileSize} bytes`
           });
         }
         if (err.code === 'LIMIT_UNEXPECTED_FILE') {
@@ -130,7 +134,7 @@ const uploadFields = (fields) => {
         if (err.code === 'LIMIT_FILE_SIZE') {
           return res.status(400).json({
             success: false,
-            message: `File size exceeds the limit of ${process.env.MAX_FILE_SIZE || '10MB'}`
+            message: `File size exceeds the limit of ${maxFileSize} bytes`
           });
         }
         return res.status(400).json({
@@ -158,7 +162,7 @@ const uploadSingleMemory = (fieldName = 'file') => {
         if (err.code === 'LIMIT_FILE_SIZE') {
           return res.status(400).json({
             success: false,
-            message: `File size exceeds the limit of ${process.env.MAX_FILE_SIZE || '10MB'}`
+            message: `File size exceeds the limit of ${maxFileSize} bytes`
           });
         }
         return res.status(400).json({

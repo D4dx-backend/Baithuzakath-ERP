@@ -1,5 +1,14 @@
-// Use environment variable or fallback to localhost API server
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+// API Base URL - must come from environment variable
+// No fallback allowed for production safety
+const API_BASE_URL = import.meta.env.VITE_API_URL;
+
+if (!API_BASE_URL) {
+  throw new Error(
+    'VITE_API_URL environment variable is required. ' +
+    'Please set it in your .env file or build configuration. ' +
+    'No fallback values are allowed for security and configuration clarity.'
+  );
+}
 
 // Types
 export interface User {

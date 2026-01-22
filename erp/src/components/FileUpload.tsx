@@ -71,7 +71,13 @@ const FileUpload: React.FC<FileUploadProps> = ({
 
       const token = localStorage.getItem('token');
       const response = await axios.post(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:4000'}${endpoint}`,
+        (() => {
+          const apiUrl = import.meta.env.VITE_API_URL;
+          if (!apiUrl) {
+            throw new Error('VITE_API_URL environment variable is required');
+          }
+          return `${apiUrl}${endpoint}`;
+        })(),
         formData,
         {
           headers: {
@@ -99,7 +105,13 @@ const FileUpload: React.FC<FileUploadProps> = ({
     try {
       const token = localStorage.getItem('token');
       await axios.delete(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/upload/${encodeURIComponent(fileKey)}`,
+        (() => {
+          const apiUrl = import.meta.env.VITE_API_URL;
+          if (!apiUrl) {
+            throw new Error('VITE_API_URL environment variable is required');
+          }
+          return `${apiUrl}/api/upload/${encodeURIComponent(fileKey)}`;
+        })(),
         {
           headers: {
             'Authorization': `Bearer ${token}`

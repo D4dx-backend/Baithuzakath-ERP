@@ -87,7 +87,10 @@ export const RoleManagement: React.FC = () => {
 
   const fetchRoles = async () => {
     try {
-      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+      const API_BASE_URL = import.meta.env.VITE_API_URL;
+      if (!API_BASE_URL) {
+        throw new Error('VITE_API_URL environment variable is required');
+      }
       const response = await fetch(`${API_BASE_URL}/rbac/roles`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -109,7 +112,10 @@ export const RoleManagement: React.FC = () => {
 
   const fetchPermissions = async () => {
     try {
-      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+      const API_BASE_URL = import.meta.env.VITE_API_URL;
+      if (!API_BASE_URL) {
+        throw new Error('VITE_API_URL environment variable is required');
+      }
       const response = await fetch(`${API_BASE_URL}/rbac/permissions`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -542,7 +548,10 @@ const CreateRoleDialog: React.FC<CreateRoleDialogProps> = ({
     setLoading(true);
 
     try {
-      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+      const API_BASE_URL = import.meta.env.VITE_API_URL;
+      if (!API_BASE_URL) {
+        throw new Error('VITE_API_URL environment variable is required');
+      }
       const response = await fetch(`${API_BASE_URL}/rbac/roles`, {
         method: 'POST',
         headers: {

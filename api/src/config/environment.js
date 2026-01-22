@@ -1,48 +1,57 @@
 const dotenv = require('dotenv');
 dotenv.config();
 
-module.exports = {
-  NODE_ENV: process.env.NODE_ENV || 'development',
-  PORT: process.env.PORT || 5000,
-  API_VERSION: process.env.API_VERSION || 'v1',
-  
-  // Database
-  MONGODB_URI: process.env.MONGODB_URI || 'mongodb://localhost:27017/baithuzzakath',
-  MONGODB_TEST_URI: process.env.MONGODB_TEST_URI || 'mongodb://localhost:27017/baithuzzakath_test',
-  
-  // JWT
-  JWT_SECRET: process.env.JWT_SECRET || 'fallback-secret-key',
-  JWT_EXPIRE: process.env.JWT_EXPIRE || '7d',
-  JWT_REFRESH_EXPIRE: process.env.JWT_REFRESH_EXPIRE || '30d',
-  
-  // DXing SMS Service
-  DXING_API_KEY: process.env.DXING_API_KEY,
-  DXING_BASE_URL: process.env.DXING_BASE_URL || 'https://dxing.net/dxapi',
-  DXING_SENDER_ID: process.env.DXING_SENDER_ID || 'BZKRLA',
-  DXING_OTP_TEMPLATE_ID: process.env.DXING_OTP_TEMPLATE_ID,
-  DXING_NOTIFICATION_TEMPLATE_ID: process.env.DXING_NOTIFICATION_TEMPLATE_ID,
+const { getEnvVar, getOptionalEnvVar } = require('./validateEnv');
 
-  // DXing WhatsApp (optional)
+/**
+ * Environment Configuration
+ * 
+ * STRICT MODE: All required values must come from environment variables.
+ * No fallback defaults are allowed for security and configuration clarity.
+ */
+
+module.exports = {
+  // Core Application (REQUIRED)
+  NODE_ENV: getEnvVar('NODE_ENV', 'Application environment'),
+  PORT: parseInt(getEnvVar('PORT', 'Server port number'), 10),
+  API_VERSION: getOptionalEnvVar('API_VERSION', 'v1'),
+  
+  // Database (REQUIRED)
+  MONGODB_URI: getEnvVar('MONGODB_URI', 'MongoDB connection URI'),
+  MONGODB_TEST_URI: getOptionalEnvVar('MONGODB_TEST_URI'),
+  
+  // JWT Authentication (REQUIRED)
+  JWT_SECRET: getEnvVar('JWT_SECRET', 'JWT secret key'),
+  JWT_EXPIRE: getEnvVar('JWT_EXPIRE', 'JWT token expiration'),
+  JWT_REFRESH_EXPIRE: getEnvVar('JWT_REFRESH_EXPIRE', 'JWT refresh token expiration'),
+  
+  // DXing SMS Service (OPTIONAL)
+  DXING_API_KEY: getOptionalEnvVar('DXING_API_KEY'),
+  DXING_BASE_URL: getOptionalEnvVar('DXING_BASE_URL'),
+  DXING_SENDER_ID: getOptionalEnvVar('DXING_SENDER_ID'),
+  DXING_OTP_TEMPLATE_ID: getOptionalEnvVar('DXING_OTP_TEMPLATE_ID'),
+  DXING_NOTIFICATION_TEMPLATE_ID: getOptionalEnvVar('DXING_NOTIFICATION_TEMPLATE_ID'),
+
+  // DXing WhatsApp (OPTIONAL)
   DXING_WHATSAPP_ENABLED: process.env.DXING_WHATSAPP_ENABLED === 'true',
-  DXING_WHATSAPP_SEND_PATH: process.env.DXING_WHATSAPP_SEND_PATH || '/whatsapp/send',
-  DXING_WHATSAPP_TEMPLATE_ID: process.env.DXING_WHATSAPP_TEMPLATE_ID,
+  DXING_WHATSAPP_SEND_PATH: getOptionalEnvVar('DXING_WHATSAPP_SEND_PATH'),
+  DXING_WHATSAPP_TEMPLATE_ID: getOptionalEnvVar('DXING_WHATSAPP_TEMPLATE_ID'),
   
-  // Email Service
-  SMTP_HOST: process.env.SMTP_HOST,
-  SMTP_PORT: process.env.SMTP_PORT || 587,
-  SMTP_USER: process.env.SMTP_USER,
-  SMTP_PASS: process.env.SMTP_PASS,
+  // Email Service (OPTIONAL)
+  SMTP_HOST: getOptionalEnvVar('SMTP_HOST'),
+  SMTP_PORT: getOptionalEnvVar('SMTP_PORT') ? parseInt(getOptionalEnvVar('SMTP_PORT'), 10) : undefined,
+  SMTP_USER: getOptionalEnvVar('SMTP_USER'),
+  SMTP_PASS: getOptionalEnvVar('SMTP_PASS'),
   
-  // File Upload
-  UPLOAD_PATH: process.env.UPLOAD_PATH || './uploads',
-  MAX_FILE_SIZE: process.env.MAX_FILE_SIZE || 10485760, // 10MB
-  ALLOWED_FILE_TYPES: process.env.ALLOWED_FILE_TYPES || 'jpg,jpeg,png,pdf,doc,docx',
+  // File Upload (REQUIRED)
+  UPLOAD_PATH: getEnvVar('UPLOAD_PATH', 'File upload directory path'),
+  MAX_FILE_SIZE: parseInt(getEnvVar('MAX_FILE_SIZE', 'Maximum file size in bytes'), 10),
+  ALLOWED_FILE_TYPES: getEnvVar('ALLOWED_FILE_TYPES', 'Allowed file types'),
   
+  // Frontend URL (REQUIRED)
+  FRONTEND_URL: getEnvVar('FRONTEND_URL', 'Frontend application URL'),
   
-  // Frontend URL
-  FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3000',
-  
-  // Logging
-  LOG_LEVEL: process.env.LOG_LEVEL || 'info',
-  LOG_FILE: process.env.LOG_FILE || './logs/app.log'
+  // Logging (REQUIRED)
+  LOG_LEVEL: getEnvVar('LOG_LEVEL', 'Logging level'),
+  LOG_FILE: getEnvVar('LOG_FILE', 'Log file path')
 };

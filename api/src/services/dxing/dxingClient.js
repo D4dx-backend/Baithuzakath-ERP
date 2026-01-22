@@ -10,7 +10,12 @@ class DXingClient {
     this.senderId = config.DXING_SENDER_ID;
     this.otpTemplateId = config.DXING_OTP_TEMPLATE_ID;
     this.notificationTemplateId = config.DXING_NOTIFICATION_TEMPLATE_ID;
-    this.baseURL = config.DXING_BASE_URL || 'https://dxing.net/dxapi';
+    
+    // Base URL must come from environment - no fallback
+    if (!config.DXING_BASE_URL) {
+      throw new Error('DXING_BASE_URL environment variable is required for DXing SMS service');
+    }
+    this.baseURL = config.DXING_BASE_URL;
     
     this.client = this.createAxiosClient();
   }

@@ -163,7 +163,11 @@ export default function Login() {
         
         // Test the token by making a simple API call
         try {
-          const testResponse = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000/api'}/auth/me`, {
+          const apiUrl = import.meta.env.VITE_API_URL;
+          if (!apiUrl) {
+            throw new Error('VITE_API_URL environment variable is required');
+          }
+          const testResponse = await fetch(`${apiUrl}/auth/me`, {
             headers: {
               'Authorization': `Bearer ${savedToken}`,
               'Content-Type': 'application/json',

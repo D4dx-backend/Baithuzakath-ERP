@@ -3,7 +3,8 @@ const mongoose = require('mongoose');
 
 async function testPublicConfig() {
   try {
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/baithuzakath');
+const { getEnvVar } = require('../config/validateEnv');
+    await mongoose.connect(getEnvVar('MONGODB_URI', 'MongoDB connection URI'));
     console.log('✅ Connected to MongoDB');
 
     const configs = await ApplicationConfig.find({
