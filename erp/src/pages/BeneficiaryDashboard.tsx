@@ -81,7 +81,7 @@ export default function BeneficiaryDashboard() {
         beneficiaryApi.getApplicationStats()
       ]);
 
-      setApplications(applicationsResponse.applications || []);
+      setApplications(Array.isArray(applicationsResponse.applications) ? applicationsResponse.applications : []);
       setStats(statsResponse.stats);
     } catch (error: any) {
       console.error('Failed to load dashboard data:', error);

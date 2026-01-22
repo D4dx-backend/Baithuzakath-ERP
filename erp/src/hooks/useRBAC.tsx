@@ -1,7 +1,7 @@
 import { useState, useEffect, useContext, createContext, ReactNode } from 'react';
 import { useAuth } from './useAuth';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
 
 interface Permission {
   _id: string;
@@ -75,6 +75,13 @@ export const RBACProvider = ({ children }: RBACProviderProps) => {
       });
 
       if (!response.ok) {
+        // Handle authentication errors
+        if (response.status === 401 || response.status === 403) {
+          console.warn('Authentication error fetching user roles - user may need to login again');
+          // Don't throw error, just return empty array to prevent logout loops
+          setUserRoles([]);
+          return;
+        }
         throw new Error('Failed to fetch user roles');
       }
 
@@ -100,6 +107,13 @@ export const RBACProvider = ({ children }: RBACProviderProps) => {
       });
 
       if (!response.ok) {
+        // Handle authentication errors
+        if (response.status === 401 || response.status === 403) {
+          console.warn('Authentication error fetching user permissions - user may need to login again');
+          // Don't throw error, just return empty array to prevent logout loops
+          setUserPermissions([]);
+          return;
+        }
         throw new Error('Failed to fetch user permissions');
       }
 

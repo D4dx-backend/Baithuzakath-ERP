@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Users, FolderKanban, FileCheck, IndianRupee, TrendingUp, TrendingDown, Loader2, AlertCircle, LayoutDashboard } from "lucide-react";
 import { StatsCard } from "@/components/ui/stats-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { dashboard, budgetApi, donationsApi } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
 import { useRBAC } from "@/hooks/useRBAC";
+import { useAuth } from "@/hooks/useAuth";
 
 const statusColors = {
   pending: "bg-warning/10 text-warning border-warning/20",
@@ -17,7 +19,9 @@ const statusColors = {
 };
 
 export default function Dashboard() {
-  const { user } = useRBAC();
+  const navigate = useNavigate();
+  const { getUserRole, isLoading: rbacLoading } = useRBAC();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const [overview, setOverview] = useState<any>(null);
   const [recentApplications, setRecentApplications] = useState<any[]>([]);
   const [budgetOverview, setBudgetOverview] = useState<any>(null);
@@ -26,17 +30,47 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // Dashboard is accessible to all authenticated users
-  // No specific permission check needed as AuthGuard handles authentication
+  // Check if user is a beneficiary and redirect
+  useEffect(() => {
+    const userRole = getUserRole();
+    const beneficiaryToken = localStorage.getItem('beneficiary_token');
+    
+    if (userRole?.name === 'beneficiary' || beneficiaryToken) {
+      navigate('/beneficiary/dashboard', { replace: true });
+      return;
+    }
+  }, [navigate, getUserRole]);
 
   useEffect(() => {
-    loadDashboardData();
-  }, []);
+    // Wait for auth and RBAC to finish loading before making API calls
+    if (authLoading || rbacLoading) {
+      return;
+    }
+    
+    // Ensure user is authenticated before loading data
+    if (!isAuthenticated) {
+      setLoading(false);
+      return;
+    }
+    
+    // Only load dashboard data if not a beneficiary
+    const userRole = getUserRole();
+    const beneficiaryToken = localStorage.getItem('beneficiary_token');
+    
+    if (userRole?.name !== 'beneficiary' && !beneficiaryToken) {
+      loadDashboardData();
+    } else {
+      setLoading(false);
+    }
+  }, [isAuthenticated, authLoading, rbacLoading, getUserRole]);
 
   const loadDashboardData = async () => {
     try {
       setLoading(true);
       setError(null);
+
+      console.log('📊 Dashboard: Loading data from API...');
+      const startTime = Date.now();
 
       const [overviewRes, applicationsRes, budgetRes, donationRes, projectRes] = await Promise.all([
         dashboard.getOverview(),
@@ -46,19 +80,60 @@ export default function Dashboard() {
         budgetApi.getProjects()
       ]);
 
-      if (overviewRes.success) setOverview(overviewRes.data.overview);
-      if (applicationsRes.success) setRecentApplications(applicationsRes.data.applications);
-      if (budgetRes.success) setBudgetOverview(budgetRes.data.overview);
-      if (donationRes.success) setDonationStats(donationRes.data.stats);
-      if (projectRes.success) setProjectPerformance(projectRes.data.projects.slice(0, 3));
+      const loadTime = Date.now() - startTime;
+      console.log(`✅ Dashboard: Data loaded from API in ${loadTime}ms`);
+
+      // Log API responses to verify they're real data
+      console.log('📈 API Response - Overview:', overviewRes);
+      console.log('📋 API Response - Recent Applications:', applicationsRes);
+      console.log('💰 API Response - Budget Overview:', budgetRes);
+      console.log('💵 API Response - Donation Stats:', donationRes);
+      console.log('📁 API Response - Projects:', projectRes);
+
+      if (overviewRes.success && overviewRes.data) {
+        const overviewData = overviewRes.data as any;
+        console.log('✅ Overview data loaded:', overviewData.overview);
+        setOverview(overviewData.overview);
+      }
+      if (applicationsRes.success && applicationsRes.data) {
+        const applicationsData = applicationsRes.data as any;
+        console.log('✅ Recent applications loaded:', applicationsData.applications);
+        setRecentApplications(applicationsData.applications);
+      }
+      if (budgetRes.success && budgetRes.data) {
+        const budgetData = budgetRes.data as any;
+        console.log('✅ Budget overview loaded:', budgetData.overview);
+        setBudgetOverview(budgetData.overview);
+      }
+      if (donationRes.success && donationRes.data) {
+        const donationData = donationRes.data as any;
+        console.log('✅ Donation stats loaded:', donationData.stats);
+        setDonationStats(donationData.stats);
+      }
+      if (projectRes.success && projectRes.data) {
+        const projectData = projectRes.data as any;
+        console.log('✅ Projects loaded:', projectData.projects);
+        setProjectPerformance(projectData.projects.slice(0, 3));
+      }
 
     } catch (err: any) {
-      setError(err.message || 'Failed to load dashboard data');
-      toast({
-        title: "Error",
-        description: "Failed to load dashboard data",
-        variant: "destructive",
-      });
+      // Check if it's an authentication error
+      if (err.message?.includes('401') || err.message?.includes('403') || err.message?.includes('Authentication') || err.message?.includes('Unauthorized') || (err as any).status === 401 || (err as any).status === 403) {
+        setError('Authentication failed. Please login again.');
+        toast({
+          title: "Authentication Error",
+          description: "Your session may have expired. Please login again.",
+          variant: "destructive",
+        });
+        // Don't logout immediately - let user see the error and login again
+      } else {
+        setError(err.message || 'Failed to load dashboard data');
+        toast({
+          title: "Error",
+          description: "Failed to load dashboard data",
+          variant: "destructive",
+        });
+      }
     } finally {
       setLoading(false);
     }

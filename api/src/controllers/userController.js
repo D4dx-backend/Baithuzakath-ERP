@@ -29,7 +29,25 @@ class UserController {
       // Super admin and state admin can see all users
       if (currentUser.role !== 'super_admin' && currentUser.role !== 'state_admin') {
         if (currentUser.adminScope && currentUser.adminScope.regions && currentUser.adminScope.regions.length > 0) {
-          query['adminScope.regions'] = { $in: currentUser.adminScope.regions };
+          // For admin users, filter by adminScope.regions
+          // For beneficiaries, filter by profile.location (district/area/unit)
+          const regionIds = currentUser.adminScope.regions.map(r => 
+            r.toString ? r.toString() : String(r)
+          );
+          
+          query.$or = [
+            // Admin users with matching adminScope.regions
+            { 'adminScope.regions': { $in: regionIds } },
+            // Beneficiaries with matching profile.location
+            { 
+              role: 'beneficiary',
+              $or: [
+                { 'profile.location.district': { $in: regionIds } },
+                { 'profile.location.area': { $in: regionIds } },
+                { 'profile.location.unit': { $in: regionIds } }
+              ]
+            }
+          ];
         }
       }
 
@@ -39,15 +57,41 @@ class UserController {
       if (isActive !== undefined && isActive !== null && isActive !== '') {
         query.isActive = isActive === 'true' || isActive === true;
       }
-      if (region) query['adminScope.regions'] = region;
+      if (region) {
+        // If region filter is applied, combine with existing $or or create new one
+        if (query.$or) {
+          query.$and = [
+            { $or: query.$or },
+            { 'adminScope.regions': region }
+          ];
+          delete query.$or;
+        } else {
+          query['adminScope.regions'] = region;
+        }
+      }
 
-      // Search functionality
+      // Search functionality - combine with existing $or if present
       if (search) {
-        query.$or = [
+        const searchConditions = [
           { name: { $regex: search, $options: 'i' } },
           { email: { $regex: search, $options: 'i' } },
           { phone: { $regex: search, $options: 'i' } }
         ];
+        
+        if (query.$or) {
+          // Combine search with existing $or using $and
+          if (query.$and) {
+            query.$and.push({ $or: searchConditions });
+          } else {
+            query.$and = [
+              { $or: query.$or },
+              { $or: searchConditions }
+            ];
+            delete query.$or;
+          }
+        } else {
+          query.$or = searchConditions;
+        }
       }
 
       // Pagination
@@ -177,17 +221,26 @@ class UserController {
       }
 
       // Check if email or phone already exists
+      // Build query conditions - only check email if it's provided and not empty
+      const duplicateConditions = [
+        { phone: userData.phone }
+      ];
+      
+      // Only add email check if email is provided and not empty
+      if (userData.email && userData.email.trim() !== '') {
+        duplicateConditions.push({ email: userData.email.trim().toLowerCase() });
+      }
+
       const existingUser = await User.findOne({
-        $or: [
-          { email: userData.email },
-          { phone: userData.phone }
-        ]
+        $or: duplicateConditions
       });
 
       if (existingUser) {
+        // Determine which field caused the duplicate
+        const duplicateField = existingUser.phone === userData.phone ? 'phone' : 'email';
         return res.status(400).json({
           success: false,
-          message: 'User with this email or phone already exists'
+          message: `User with this ${duplicateField} already exists`
         });
       }
 
@@ -211,9 +264,17 @@ class UserController {
       // Set default admin scope and permissions based on role
       const defaultAdminScope = authService.getDefaultAdminScope(userData.role);
       
+      // Prepare user data - ensure email is only included if provided and not empty
+      const userDataToSave = { ...userData };
+      if (userDataToSave.email && userDataToSave.email.trim() === '') {
+        delete userDataToSave.email; // Remove empty email
+      } else if (userDataToSave.email) {
+        userDataToSave.email = userDataToSave.email.trim().toLowerCase();
+      }
+      
       // Create user (OTP-only authentication - no password)
       const user = new User({
-        ...userData,
+        ...userDataToSave,
         password: null, // No password for OTP-only authentication
         adminScope: {
           ...defaultAdminScope,
@@ -360,10 +421,61 @@ class UserController {
         }
       }
 
+      // Check for duplicate email or phone if they're being updated
+      if (updates.email !== undefined || updates.phone !== undefined) {
+        const duplicateConditions = [];
+        
+        // Normalize phone numbers for comparison
+        const currentPhone = user.phone ? String(user.phone).trim() : '';
+        const newPhone = updates.phone ? String(updates.phone).trim() : '';
+        
+        // Check phone if it's being updated and different from current phone
+        if (updates.phone !== undefined && newPhone !== '' && newPhone !== currentPhone) {
+          duplicateConditions.push({ phone: newPhone });
+        }
+        
+        // Normalize email for comparison
+        const currentEmail = user.email ? String(user.email).trim().toLowerCase() : '';
+        const newEmail = updates.email ? String(updates.email).trim().toLowerCase() : '';
+        
+        // Check email if it's being updated and not empty and different from current email
+        if (updates.email !== undefined && newEmail !== '' && newEmail !== currentEmail) {
+          duplicateConditions.push({ email: newEmail });
+        }
+        
+        if (duplicateConditions.length > 0) {
+          const existingUser = await User.findOne({
+            _id: { $ne: id }, // Exclude current user
+            $or: duplicateConditions
+          });
+          
+          if (existingUser) {
+            // Determine which field caused the duplicate
+            let duplicateField = 'email';
+            if (duplicateConditions.some(cond => cond.phone)) {
+              duplicateField = existingUser.phone === newPhone ? 'phone' : 'email';
+            }
+            return res.status(400).json({
+              success: false,
+              message: `User with this ${duplicateField} already exists`
+            });
+          }
+        }
+      }
+
       // Remove sensitive fields that shouldn't be updated
       delete updates.password;
       delete updates.otp;
       delete updates.createdBy;
+
+      // Clean up email field - remove if empty, lowercase if provided
+      if (updates.email !== undefined) {
+        if (updates.email && updates.email.trim() !== '') {
+          updates.email = updates.email.trim().toLowerCase();
+        } else {
+          updates.email = undefined; // Set to undefined instead of empty string
+        }
+      }
 
       const updatedUser = await User.findByIdAndUpdate(
         id,
@@ -423,12 +535,12 @@ class UserController {
         });
       }
 
-      // Soft delete by deactivating
-      await User.findByIdAndUpdate(id, {
-        isActive: false,
-        deletedAt: new Date(),
-        deletedBy: currentUser._id
-      });
+      // Actually delete the user (hard delete)
+      await User.findByIdAndDelete(id);
+
+      // Also delete associated UserRole entries
+      const UserRole = require('../models/UserRole');
+      await UserRole.deleteMany({ user: id });
 
       res.status(200).json({
         success: true,

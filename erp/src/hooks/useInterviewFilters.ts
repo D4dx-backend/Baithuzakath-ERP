@@ -46,10 +46,10 @@ export function useInterviewFilters() {
         locations.getByType('area', { active: true })
       ]);
 
-      if (projectsResponse.success) setProjectsList(projectsResponse.data.projects || []);
-      if (schemesResponse.success) setSchemesList(schemesResponse.data.schemes || []);
-      if (districtsResponse.success) setDistricts(districtsResponse.data.locations || []);
-      if (areasResponse.success) setAreas(areasResponse.data.locations || []);
+      if (projectsResponse.success) setProjectsList(Array.isArray(projectsResponse.data.projects) ? projectsResponse.data.projects : []);
+      if (schemesResponse.success) setSchemesList(Array.isArray(schemesResponse.data.schemes) ? schemesResponse.data.schemes : []);
+      if (districtsResponse.success) setDistricts(Array.isArray(districtsResponse.data.locations) ? districtsResponse.data.locations : []);
+      if (areasResponse.success) setAreas(Array.isArray(areasResponse.data.locations) ? areasResponse.data.locations : []);
     } catch (error) {
       console.error('Error loading dropdown data:', error);
     } finally {

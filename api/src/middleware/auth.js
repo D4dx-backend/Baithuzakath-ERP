@@ -369,42 +369,6 @@ const optionalAuth = async (req, res, next) => {
   }
 };
 
-/**
- * Rate limiting middleware for authentication endpoints
- */
-const authRateLimit = (maxAttempts = 5, windowMs = 15 * 60 * 1000) => {
-  const attempts = new Map();
-
-  return (req, res, next) => {
-    const key = req.ip + (req.body.phone || req.body.email || '');
-    const now = Date.now();
-    
-    // Clean old entries
-    for (const [k, v] of attempts.entries()) {
-      if (now - v.firstAttempt > windowMs) {
-        attempts.delete(k);
-      }
-    }
-
-    const userAttempts = attempts.get(key);
-    
-    if (!userAttempts) {
-      attempts.set(key, { count: 1, firstAttempt: now });
-      return next();
-    }
-
-    if (userAttempts.count >= maxAttempts) {
-      const timeLeft = Math.ceil((windowMs - (now - userAttempts.firstAttempt)) / 1000 / 60);
-      return res.status(429).json({
-        success: false,
-        message: `Too many authentication attempts. Please try again in ${timeLeft} minutes.`
-      });
-    }
-
-    userAttempts.count++;
-    next();
-  };
-};
 
 /**
  * Device registration middleware
@@ -480,7 +444,6 @@ module.exports = {
   checkPermission,
   hasPermission,
   optionalAuth,
-  authRateLimit,
   registerDevice,
   checkAdminHierarchy,
   // RBAC Middleware

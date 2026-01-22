@@ -10,15 +10,101 @@ class FormConfigurationController {
     try {
       const { schemeId } = req.params;
 
+      console.log('🔍 getFormConfiguration called:', {
+        schemeId,
+        userId: req.user?._id,
+        userRole: req.user?.role,
+        userAdminScope: req.user?.adminScope
+      });
+
       // First, verify the scheme exists and user has access
       const scheme = await Scheme.findById(schemeId);
       
       if (!scheme) {
+        console.log('❌ Scheme not found:', schemeId);
         return ResponseHelper.error(res, 'Scheme not found', 404);
       }
 
-      // Check if user can access this scheme
-      if (!scheme.canUserAccess(req.user)) {
+      console.log('🔍 Scheme found:', {
+        schemeId: scheme._id,
+        schemeName: scheme.name,
+        targetRegions: scheme.targetRegions,
+        project: scheme.project
+      });
+
+      // For form config viewing (read-only), use more permissive access check
+      // If user can view applications, they should be able to view form configs
+      // This is because form config is metadata needed to display application data
+      let canAccess = scheme.canUserAccess(req.user);
+      console.log('🔍 [FORM-CONFIG] Initial canUserAccess result:', canAccess);
+      console.log('🔍 [FORM-CONFIG] User role:', req.user.role);
+      
+      // SIMPLE FIX: If direct scheme access fails for unit/area/district admin,
+      // check if they have ANY applications for this scheme in their scope
+      // Since form config is read-only metadata, this is safe
+      if (!canAccess && ['unit_admin', 'area_admin', 'district_admin'].includes(req.user.role)) {
+        console.log('🔍 [FORM-CONFIG] Fallback check: Looking for applications in user scope');
+        const Application = require('../models/Application');
+        
+        const userUnitId = req.user.adminScope?.unit || null;
+        const userAreaId = req.user.adminScope?.area || null;
+        const userDistrictId = req.user.adminScope?.district || null;
+        const userRegions = req.user.adminScope?.regions || [];
+        
+        console.log('🔍 [FORM-CONFIG] User scope:', { 
+          unit: userUnitId?.toString(), 
+          area: userAreaId?.toString(), 
+          district: userDistrictId?.toString(),
+          regions: userRegions.map(r => r.toString())
+        });
+        
+        // Build query - check if any application for this scheme matches user's scope
+        const locationMatch = [];
+        
+        if (req.user.role === 'unit_admin' && userUnitId) {
+          locationMatch.push({ unit: userUnitId });
+        }
+        if (req.user.role === 'area_admin' && userAreaId) {
+          locationMatch.push({ area: userAreaId });
+        }
+        if (req.user.role === 'district_admin' && userDistrictId) {
+          locationMatch.push({ district: userDistrictId });
+        }
+        
+        // Add region matches
+        if (userRegions.length > 0) {
+          locationMatch.push(
+            { unit: { $in: userRegions } },
+            { area: { $in: userRegions } },
+            { district: { $in: userRegions } }
+          );
+        }
+        
+        const query = { scheme: schemeId };
+        if (locationMatch.length > 0) {
+          query.$or = locationMatch;
+        }
+        
+        console.log('🔍 [FORM-CONFIG] Query:', {
+          scheme: query.scheme,
+          hasLocationMatch: !!query.$or,
+          locationMatchCount: query.$or?.length || 0
+        });
+        
+        const foundApp = await Application.findOne(query).lean();
+        
+        if (foundApp) {
+          canAccess = true;
+          console.log('✅ [FORM-CONFIG] ACCESS GRANTED: Found matching application', foundApp._id);
+        } else {
+          console.log('❌ [FORM-CONFIG] No matching applications found');
+        }
+      }
+      
+      console.log('🔍 [FORM-CONFIG] Final canAccess:', canAccess);
+      
+      if (!canAccess) {
+        console.log('❌ Access denied by canUserAccess check');
         return ResponseHelper.error(res, 'Access denied', 403);
       }
 

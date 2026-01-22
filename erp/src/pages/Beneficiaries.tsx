@@ -73,6 +73,7 @@ const Beneficiaries: React.FC = () => {
     total: 0,
     limit: 10
   });
+  const [refreshKey, setRefreshKey] = useState(0); // Force refresh trigger
   
   const [showFilters, setShowFilters] = useState(false);
   const [showBeneficiaryModal, setShowBeneficiaryModal] = useState(false);
@@ -129,6 +130,7 @@ const Beneficiaries: React.FC = () => {
     filterHook.filters.toDate,
     filterHook.filters.quickDateFilter,
     pagination.limit,
+    refreshKey, // Add refreshKey to trigger re-fetch
   ]);
 
   if (!canViewBeneficiaries) {
@@ -173,8 +175,8 @@ const Beneficiaries: React.FC = () => {
         title: "Success",
         description: "Beneficiary verified successfully"
       });
-      // Reload current page
-      filterHook.setCurrentPage(filterHook.filters.currentPage);
+      // Force refresh by updating refreshKey
+      setRefreshKey(prev => prev + 1);
     } catch (error) {
       console.error('Error verifying beneficiary:', error);
       toast({
@@ -189,7 +191,8 @@ const Beneficiaries: React.FC = () => {
     setShowBeneficiaryModal(false);
     setSelectedBeneficiary(null);
     if (shouldRefresh) {
-      filterHook.setCurrentPage(filterHook.filters.currentPage);
+      // Force refresh by updating refreshKey
+      setRefreshKey(prev => prev + 1);
     }
   };
 
@@ -197,7 +200,8 @@ const Beneficiaries: React.FC = () => {
     setShowDeleteModal(false);
     setSelectedBeneficiary(null);
     if (shouldRefresh) {
-      filterHook.setCurrentPage(filterHook.filters.currentPage);
+      // Force refresh by updating refreshKey
+      setRefreshKey(prev => prev + 1);
     }
   };
 
@@ -237,6 +241,19 @@ const Beneficiaries: React.FC = () => {
           <p className="text-muted-foreground mt-1">Manage and track beneficiaries</p>
         </div>
         <div className="flex gap-2">
+          {canUpdateBeneficiaries && (
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                filterHook.setVerificationFilter('unverified');
+                setShowFilters(true);
+              }}
+              className="bg-orange-50 hover:bg-orange-100 border-orange-200 text-orange-700"
+            >
+              <CheckCircle className="mr-2 h-4 w-4" />
+              Pending Verification
+            </Button>
+          )}
           <Button 
             variant="outline" 
             onClick={() => setShowFilters(!showFilters)}
@@ -358,9 +375,21 @@ const Beneficiaries: React.FC = () => {
                         <td className="px-4 py-3">
                           <div className="font-medium">{beneficiary.name}</div>
                           <div className="text-sm text-muted-foreground">{beneficiary.phone}</div>
-                          {beneficiary.source === 'interview' && (
-                            <Badge variant="outline" className="text-xs mt-1">From Interview</Badge>
-                          )}
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {beneficiary.source === 'interview' && (
+                              <Badge variant="outline" className="text-xs">From Interview</Badge>
+                            )}
+                            {!beneficiary.isVerified && (
+                              <Badge variant="outline" className="text-xs bg-orange-100 text-orange-800 border-orange-300">
+                                Unverified
+                              </Badge>
+                            )}
+                            {beneficiary.status === 'pending' && (
+                              <Badge variant="outline" className="text-xs bg-yellow-100 text-yellow-800 border-yellow-300">
+                                Pending
+                              </Badge>
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-sm">
                           <div>{beneficiary.district?.name || 'N/A'}</div>

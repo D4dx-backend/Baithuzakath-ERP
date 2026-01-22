@@ -5,7 +5,7 @@
   "main": "src/app.js",
   "type": "commonjs",
   "scripts": {
-    "start": "node src/app.js",
+    "start": "nodemon src/app.js",
     "dev": "nodemon src/app.js",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -22,7 +22,8 @@
     "seed:clear": "node scripts/seed.js clear",
     "seed:test": "node seed-applications.js",
     "clear:test": "node clear-test-data.js",
-    "rbac:init": "node src/scripts/initializeRBAC.js",
+    "rbac:init": "node src/scripts/initRBACProduction.js",
+    "rbac:debug": "node src/scripts/debugUserPermissions.js",
     "rbac:cleanup": "node -e \"require('./src/services/rbacService').cleanupExpiredAssignments().then(console.log)\"",
     "validate:nazim": "node src/scripts/validateNazimData.js",
     "import:nazim": "node src/scripts/importNazimData.js",
@@ -67,7 +68,7 @@
   "devDependencies": {
     "eslint": "^8.55.0",
     "jest": "^29.7.0",
-    "nodemon": "^3.0.2",
+    "nodemon": "^3.1.11",
     "prettier": "^3.1.1",
     "supertest": "^6.3.3"
   },

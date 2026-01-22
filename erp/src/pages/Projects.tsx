@@ -127,6 +127,7 @@ export default function Projects() {
       try {
         await projectsApi.delete(selectedProject.id);
         setProjectList(projectList.filter(p => p.id !== selectedProject.id));
+        setShowDeleteModal(false);
         setSelectedProject(null);
         toast({
           title: "Success",
@@ -231,7 +232,7 @@ export default function Projects() {
       ) : (
         <div className="grid gap-6">
           {projectList.map((project) => {
-            const progress = project.budgetUtilization;
+            const progress = project.budgetUtilization || 0;
           
             return (
               <Card key={project.id} className="overflow-hidden hover:shadow-elegant transition-shadow">
@@ -288,7 +289,7 @@ export default function Projects() {
                           <Target className="h-4 w-4 text-muted-foreground" />
                           <div>
                             <p className="text-xs text-muted-foreground">Beneficiaries</p>
-                            <p className="text-sm font-medium">{project.targetBeneficiaries.actual.toLocaleString()}</p>
+                            <p className="text-sm font-medium">{(project.targetBeneficiaries?.actual || 0).toLocaleString()}</p>
                           </div>
                         </div>
                       </div>
@@ -300,19 +301,19 @@ export default function Projects() {
                         </div>
                         <Progress value={progress} className="h-2" />
                         <div className="flex justify-between text-xs text-muted-foreground">
-                          <span>Spent: ₹{(project.budget.spent / 100000).toFixed(1)}L</span>
-                          <span>Remaining: ₹{(project.remainingBudget / 100000).toFixed(1)}L</span>
+                          <span>Spent: ₹{((project.budget?.spent || 0) / 100000).toFixed(1)}L</span>
+                          <span>Remaining: ₹{((project.remainingBudget || 0) / 100000).toFixed(1)}L</span>
                         </div>
                       </div>
 
                       <div className="space-y-2">
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-muted-foreground">Progress</span>
-                          <span className="font-medium">{project.progress.percentage}%</span>
+                          <span className="font-medium">{project.progress?.percentage || 0}%</span>
                         </div>
-                        <Progress value={project.progress.percentage} className="h-2" />
+                        <Progress value={project.progress?.percentage || 0} className="h-2" />
                         <div className="flex justify-between text-xs text-muted-foreground">
-                          <span>Coordinator: {project.coordinator.name}</span>
+                          <span>Coordinator: {project.coordinator?.name || 'Not assigned'}</span>
                           <span>Days Remaining: {project.daysRemaining}</span>
                         </div>
                       </div>

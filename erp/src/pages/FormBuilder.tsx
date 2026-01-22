@@ -118,16 +118,16 @@ export default function FormBuilder() {
           }
           setSelectedScheme(schemeId);
           
-          // Set default pages for new forms
-          setPages(getDefaultPages());
-          setHasUnsavedChanges(true); // Mark as having changes since we're using default template
-          setIsDefaultTemplate(true);
+          // Start with empty form for new schemes
+          setPages([]);
+          setHasUnsavedChanges(false);
+          setIsDefaultTemplate(false);
           setIsPublished(false);
           setFormVersion(1);
 
           toast({
             title: "Create new form",
-            description: "No form exists for this scheme. Using default template - customize and save your form.",
+            description: "No form exists for this scheme. Start building your form by adding pages and fields.",
             variant: "default"
           });
         }
@@ -141,10 +141,10 @@ export default function FormBuilder() {
           setSelectedScheme(schemeId);
         }
 
-        // Set default pages when loading fails
-        setPages(getDefaultPages());
-        setHasUnsavedChanges(true);
-        setIsDefaultTemplate(true);
+        // Don't set default pages when loading fails - show error instead
+        setPages([]);
+        setHasUnsavedChanges(false);
+        setIsDefaultTemplate(false);
 
         // Handle different error types
         if (error.message?.includes('401') || error.message?.includes('Authentication')) {
@@ -182,27 +182,6 @@ export default function FormBuilder() {
   const [showEmbedCode, setShowEmbedCode] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
-  // Helper function to generate default pages
-  const getDefaultPages = (): Page[] => [
-    {
-      id: 1,
-      title: "Personal Information",
-      fields: [
-        { id: 1, label: "Full Name", type: "text", required: true, enabled: true, placeholder: "Enter your full name" },
-        { id: 2, label: "Email Address", type: "email", required: true, enabled: true, placeholder: "your@email.com" },
-        { id: 3, label: "Phone Number", type: "phone", required: true, enabled: true, placeholder: "+91 XXXXXXXXXX" },
-        { id: 4, label: "Date of Birth", type: "date", required: true, enabled: true },
-      ]
-    },
-    {
-      id: 2,
-      title: "Application Details",
-      fields: [
-        { id: 5, label: "Purpose of Application", type: "textarea", required: true, enabled: true, placeholder: "Describe your purpose" },
-        { id: 6, label: "Supporting Documents", type: "file", required: false, enabled: true },
-      ]
-    }
-  ];
 
   const addField = (pageId: number, field: Field) => {
     const newPages = pages.map(page => {
@@ -219,7 +198,12 @@ export default function FormBuilder() {
   };
 
   const addFirstPage = () => {
-    setPages(getDefaultPages());
+    const newPage: Page = {
+      id: 1,
+      title: "Page 1",
+      fields: []
+    };
+    setPages([newPage]);
     setHasUnsavedChanges(true);
     setIsDefaultTemplate(false);
   };

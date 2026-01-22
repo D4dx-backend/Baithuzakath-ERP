@@ -42,7 +42,7 @@ const projectSchema = new mongoose.Schema({
   targetRegions: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Location',
-    required: true
+    required: false
   }],
   
   // Timeline
@@ -82,7 +82,7 @@ const projectSchema = new mongoose.Schema({
   coordinator: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: [true, 'Project coordinator is required']
+    required: false
   },
   team: [{
     user: {

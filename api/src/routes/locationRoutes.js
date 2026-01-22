@@ -91,9 +91,9 @@ const locationSchemas = {
     type: Joi.string().valid('state', 'district', 'area', 'unit'),
     parent: commonSchemas.objectId,
     search: Joi.string().trim().min(2).max(100),
-    isActive: Joi.boolean(),
+    isActive: Joi.boolean().truthy('true', '1').falsy('false', '0'),
     page: Joi.number().integer().min(1).default(1),
-    limit: Joi.number().integer().min(1).max(100).default(10),
+    limit: Joi.number().integer().min(1).max(2000).default(10),
     sort: Joi.string().default('name'),
     order: Joi.string().valid('asc', 'desc').default('asc')
   })

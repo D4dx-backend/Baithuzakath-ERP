@@ -1,5 +1,5 @@
-// Use environment variable or fallback to production API server
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://baithuzakath-api-uie39.ondigitalocean.app/api';
+// Use environment variable or fallback to localhost API server
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
 
 // Types
 export interface User {
@@ -50,12 +50,12 @@ export interface Project {
       status: string;
     }>;
   };
-  coordinator: {
+  coordinator?: {
     id: string;
     name: string;
     email: string;
     role: string;
-  };
+  } | null;
   targetRegions: Array<{
     id: string;
     name: string;
@@ -201,9 +201,10 @@ class ApiClient {
       'Content-Type': 'application/json',
     };
 
-    // Always get the latest token from localStorage
-    const currentToken = this.token || localStorage.getItem('token'); // Use 'token' to match useAuth hook
+    // Always get the latest token from localStorage (don't rely on cached this.token)
+    const currentToken = localStorage.getItem('token');
     if (currentToken) {
+      this.token = currentToken; // Update cached token
       headers.Authorization = `Bearer ${currentToken}`;
     }
 
@@ -239,6 +240,25 @@ class ApiClient {
       const data = await response.json();
 
       if (!response.ok) {
+        // Handle authentication errors - but don't clear token automatically
+        // Let the calling component decide what to do
+        if (response.status === 401 || response.status === 403) {
+          const error = new Error(data.message || 'Authentication failed. Please login again.');
+          (error as any).status = response.status;
+          (error as any).isAuthError = true;
+          throw error;
+        }
+        
+        // Handle validation errors with detailed messages
+        if (response.status === 400 && data.errors && Array.isArray(data.errors)) {
+          const validationMessages = data.errors.map((err: any) => 
+            `${err.field}: ${err.message}`
+          ).join(', ');
+          const error = new Error(validationMessages || data.message || 'Validation failed');
+          (error as any).validationErrors = data.errors;
+          throw error;
+        }
+        
         throw new Error(data.message || `HTTP error! status: ${response.status}`);
       }
 
@@ -307,8 +327,14 @@ class ApiClient {
       console.error('Logout error:', error);
     } finally {
       this.token = null;
+      // Clear admin tokens
       localStorage.removeItem('token'); // Use 'token' to match useAuth hook
       localStorage.removeItem('user');
+      localStorage.removeItem('refreshToken');
+      // Also clear any beneficiary data that might be lingering
+      localStorage.removeItem('beneficiary_token');
+      localStorage.removeItem('beneficiary_user');
+      localStorage.removeItem('user_role');
     }
   }
 
@@ -559,7 +585,11 @@ class ApiClient {
   }
 
   async getUsersByRole(role: string): Promise<ApiResponse<{ users: User[] }>> {
-    return this.request(`/users/by-role/${role}`);
+    return this.request(`/users/role/${role}`);
+  }
+
+  async getUserById(id: string): Promise<ApiResponse<{ user: User }>> {
+    return this.request(`/users/${id}`);
   }
 
   async createUser(userData: Partial<User>): Promise<ApiResponse<{ user: User }>> {
@@ -644,6 +674,7 @@ export const schemes = {
 
 export const users = {
   getAll: (params?: any) => apiClient.getUsers(params),
+  getById: (id: string) => apiClient.getUserById(id),
   getStats: () => apiClient.getUserStats(),
   getByRole: (role: string) => apiClient.getUsersByRole(role),
   create: (data: Partial<User>) => apiClient.createUser(data),
@@ -943,7 +974,7 @@ class ExtendedApiClient extends ApiClient {
 
   async approveApplication(id: string, approvalData: any): Promise<ApiResponse<any>> {
     return this.request(`/applications/${id}/approve`, {
-      method: 'PATCH',
+      method: 'PUT',
       body: JSON.stringify(approvalData),
     });
   }

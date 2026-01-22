@@ -1153,11 +1153,19 @@ class RBACService {
           // Dashboard - View basic stats
           'dashboard.read.regional',
           
+          // Reports - View application reports
+          'reports.read',
+          
           // Schemes - Read only to know what schemes are available
           'schemes.read.assigned',
           
           // Beneficiaries - Read only to view applicant details
-          'beneficiaries.read.regional'
+          'beneficiaries.read.regional',
+          
+          // Financial and donor visibility for dashboard
+          'finances.read.regional',
+          'donors.read.regional',
+          'users.read.regional'
         ]
       },
       {
@@ -1186,7 +1194,10 @@ class RBACService {
           'applications.read.regional', 'applications.update.regional', 'applications.approve',
           'projects.read.assigned',
           'schemes.read.assigned',
-          'reports.read.regional'
+          'reports.read',
+          'dashboard.read.regional',
+          'finances.read.regional',
+          'donors.read.regional'
         ]
       },
       {
@@ -1302,7 +1313,7 @@ class RBACService {
         // Update existing role if it's modifiable or if it's a system role that needs permission updates
         const shouldUpdate = existingRole.type === 'system' && (existingRole.constraints.isModifiable !== false);
         
-        if (shouldUpdate || existingRole.name === 'area_admin' || existingRole.name === 'district_admin') {
+        if (shouldUpdate || existingRole.name === 'area_admin' || existingRole.name === 'district_admin' || existingRole.name === 'unit_admin') {
           const permissionIds = [];
           
           if (roleData.name === 'super_admin') {
@@ -1481,6 +1492,13 @@ class RBACService {
    */
   async hasPermission(userId, permissionName, context = {}) {
     try {
+      // Super admin and state admin have all permissions - bypass check
+      const User = require('../models/User');
+      const user = await User.findById(userId).select('role');
+      if (user && (user.role === 'super_admin' || user.role === 'state_admin')) {
+        return true;
+      }
+
       const permission = await Permission.findOne({ name: permissionName, isActive: true });
       if (!permission) {
         return false;

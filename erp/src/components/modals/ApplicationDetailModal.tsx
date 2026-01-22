@@ -428,8 +428,9 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
         setShowAction(null);
         setRemarks("");
         setForwardToCommittee(false);
-        onClose();
+        // Call onActionComplete before onClose to ensure refresh happens
         if (onActionComplete) onActionComplete();
+        onClose();
       }
     } catch (error: any) {
       toast({ 
@@ -477,8 +478,9 @@ export const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
         });
         setShowAction(null);
         setRemarks("");
-        onClose();
+        // Call onActionComplete before onClose to ensure refresh happens
         if (onActionComplete) onActionComplete();
+        onClose();
       }
     } catch (error: any) {
       toast({ 

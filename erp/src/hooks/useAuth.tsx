@@ -70,6 +70,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         setUser(userData);
         setToken(tokens.accessToken);
         
+        // Clear any beneficiary-related data (admin login)
+        localStorage.removeItem('beneficiary_token');
+        localStorage.removeItem('beneficiary_user');
+        localStorage.removeItem('user_role'); // Clear user_role as it's only for beneficiaries
+        
         // Store in localStorage
         localStorage.setItem('token', tokens.accessToken);
         localStorage.setItem('user', JSON.stringify(userData));
@@ -91,9 +96,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const logout = () => {
     setUser(null);
     setToken(null);
+    // Clear admin tokens
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     localStorage.removeItem('refreshToken');
+    // Also clear any beneficiary data that might be lingering
+    localStorage.removeItem('beneficiary_token');
+    localStorage.removeItem('beneficiary_user');
+    localStorage.removeItem('user_role');
   };
 
   const refreshToken = async () => {

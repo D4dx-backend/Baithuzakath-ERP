@@ -7,10 +7,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { type Project, projects as projectsApi } from "@/lib/api";
+import { type Project, projects as projectsApi, apiClient, locations as locationsApi } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
 
 interface ProjectModalProps {
@@ -23,28 +24,44 @@ interface ProjectModalProps {
 export function ProjectModal({ open, onOpenChange, project, mode }: ProjectModalProps) {
   const [formData, setFormData] = useState({
     name: "",
+    code: "",
     description: "",
     category: "",
     priority: "medium",
     scope: "",
     budget: "",
     coordinator: "",
+    targetRegions: [] as string[],
   });
   const [startDate, setStartDate] = useState<Date>();
   const [endDate, setEndDate] = useState<Date>();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [coordinators, setCoordinators] = useState<Array<{ id: string; name: string; email: string }>>([]);
+  const [locations, setLocations] = useState<Array<{ _id: string; name: string; type: string; code: string }>>([]);
+  const [loadingCoordinators, setLoadingCoordinators] = useState(false);
+  const [loadingLocations, setLoadingLocations] = useState(false);
+
+  // Fetch coordinators and locations when modal opens
+  useEffect(() => {
+    if (open) {
+      fetchCoordinators();
+      fetchLocations();
+    }
+  }, [open]);
 
   // Initialize form data when project changes
   useEffect(() => {
     if (project && mode === "edit") {
       setFormData({
         name: project.name || "",
+        code: project.code || "",
         description: project.description || "",
         category: project.category || "",
         priority: project.priority || "medium",
         scope: project.scope || "",
         budget: project.budget?.total?.toString() || "",
-        coordinator: project.coordinator?.name || "",
+        coordinator: project.coordinator?.id || "",
+        targetRegions: project.targetRegions?.map(r => r.id) || [],
       });
       
       if (project.startDate) {
@@ -57,17 +74,85 @@ export function ProjectModal({ open, onOpenChange, project, mode }: ProjectModal
       // Reset form for create mode
       setFormData({
         name: "",
+        code: "",
         description: "",
         category: "",
         priority: "medium",
         scope: "",
         budget: "",
         coordinator: "",
+        targetRegions: [],
       });
       setStartDate(undefined);
       setEndDate(undefined);
     }
   }, [project, mode, open]);
+
+  const fetchCoordinators = async () => {
+    try {
+      setLoadingCoordinators(true);
+      // Try using getByRole first, fallback to getUsers with role filter
+      let response;
+      try {
+        response = await apiClient.getUsersByRole("project_coordinator");
+      } catch (error) {
+        // Fallback to getUsers with role filter
+        console.log('⚠️ getUsersByRole failed, trying getUsers with role filter');
+        response = await apiClient.getUsers({ role: "project_coordinator", limit: 100 });
+      }
+      
+      console.log('📋 Coordinators API response:', response);
+      if (response.success && response.data) {
+        const users = response.data.users || [];
+        const coordinatorsList = users
+          .filter(u => u.isActive !== false) // Only include active users
+          .map(u => ({ 
+            id: u.id, 
+            name: u.name, 
+            email: u.email || '' 
+          }));
+        console.log('✅ Loaded coordinators:', coordinatorsList.length, coordinatorsList);
+        setCoordinators(coordinatorsList);
+        
+        if (coordinatorsList.length === 0) {
+          console.warn('⚠️ No active project coordinators found in the system');
+        }
+      } else {
+        console.warn('⚠️ No coordinators found or API error:', response);
+        setCoordinators([]);
+      }
+    } catch (error) {
+      console.error("❌ Failed to fetch coordinators:", error);
+      toast({
+        title: "Warning",
+        description: "Failed to load coordinators. You can still create the project without a coordinator.",
+        variant: "default",
+      });
+      setCoordinators([]);
+    } finally {
+      setLoadingCoordinators(false);
+    }
+  };
+
+  const fetchLocations = async () => {
+    try {
+      setLoadingLocations(true);
+      // Fetch districts, areas, and units based on scope
+      const response = await locationsApi.getAll({ limit: 200, isActive: true });
+      if (response.success && response.data) {
+        setLocations(response.data.locations.map(l => ({ 
+          _id: (l as any)._id || l.id, 
+          name: l.name, 
+          type: l.type, 
+          code: l.code 
+        })));
+      }
+    } catch (error) {
+      console.error("Failed to fetch locations:", error);
+    } finally {
+      setLoadingLocations(false);
+    }
+  };
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
@@ -81,7 +166,7 @@ export function ProjectModal({ open, onOpenChange, project, mode }: ProjectModal
       setIsSubmitting(true);
 
       // Validate required fields
-      if (!formData.name || !formData.description || !formData.category || !formData.scope) {
+      if (!formData.name || !formData.code || !formData.description || !formData.category || !formData.scope) {
         toast({
           title: "Validation Error",
           description: "Please fill in all required fields",
@@ -89,6 +174,7 @@ export function ProjectModal({ open, onOpenChange, project, mode }: ProjectModal
         });
         return;
       }
+
 
       if (!startDate || !endDate) {
         toast({
@@ -101,6 +187,7 @@ export function ProjectModal({ open, onOpenChange, project, mode }: ProjectModal
 
       const projectData = {
         name: formData.name,
+        code: formData.code.toUpperCase().replace(/\s+/g, "_"),
         description: formData.description,
         category: formData.category,
         priority: formData.priority,
@@ -111,11 +198,22 @@ export function ProjectModal({ open, onOpenChange, project, mode }: ProjectModal
           total: parseFloat(formData.budget) || 0,
           allocated: parseFloat(formData.budget) || 0,
           spent: project?.budget?.spent || 0,
+          currency: "INR",
         },
       };
 
+      // Only include coordinator if provided
+      if (formData.coordinator) {
+        (projectData as any).coordinator = formData.coordinator;
+      }
+
+      // Only include targetRegions if provided
+      if (formData.targetRegions && formData.targetRegions.length > 0) {
+        (projectData as any).targetRegions = formData.targetRegions;
+      }
+
       if (mode === "create") {
-        const response = await projectsApi.create(projectData);
+        const response = await projectsApi.create(projectData as any);
         if (response.success) {
           toast({
             title: "Success",
@@ -123,10 +221,10 @@ export function ProjectModal({ open, onOpenChange, project, mode }: ProjectModal
           });
           onOpenChange(false);
         } else {
-          throw new Error(response.error || "Failed to create project");
+          throw new Error(response.message || "Failed to create project");
         }
       } else if (mode === "edit" && project) {
-        const response = await projectsApi.update(project.id, projectData);
+        const response = await projectsApi.update(project.id, projectData as any);
         if (response.success) {
           toast({
             title: "Success",
@@ -134,13 +232,24 @@ export function ProjectModal({ open, onOpenChange, project, mode }: ProjectModal
           });
           onOpenChange(false);
         } else {
-          throw new Error(response.error || "Failed to update project");
+          throw new Error(response.message || "Failed to update project");
         }
       }
     } catch (error: any) {
+      console.error('Project save error:', error);
+      let errorMessage = error.message || `Failed to ${mode === "create" ? "create" : "update"} project`;
+      
+      // Show detailed validation errors if available
+      if (error.validationErrors && Array.isArray(error.validationErrors)) {
+        const validationMessages = error.validationErrors.map((err: any) => 
+          `${err.field}: ${err.message}`
+        ).join('\n');
+        errorMessage = `Validation failed:\n${validationMessages}`;
+      }
+      
       toast({
         title: "Error",
-        description: error.message || `Failed to ${mode === "create" ? "create" : "update"} project`,
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -155,13 +264,27 @@ export function ProjectModal({ open, onOpenChange, project, mode }: ProjectModal
           <DialogTitle>{mode === "create" ? "Create New Project" : "Edit Project"}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label>Project Title</Label>
-            <Input 
-              placeholder="Enter project title" 
-              value={formData.name}
-              onChange={(e) => handleInputChange("name", e.target.value)}
-            />
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Project Title *</Label>
+              <Input 
+                placeholder="Enter project title" 
+                value={formData.name}
+                onChange={(e) => handleInputChange("name", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Project Code *</Label>
+              <Input 
+                placeholder="e.g., PROJ-2025-001" 
+                value={formData.code}
+                onChange={(e) => handleInputChange("code", e.target.value)}
+                className="uppercase"
+              />
+              <p className="text-xs text-muted-foreground">
+                Uppercase letters, numbers, hyphens, and underscores only
+              </p>
+            </div>
           </div>
           
           <div className="space-y-2">
@@ -276,20 +399,47 @@ export function ProjectModal({ open, onOpenChange, project, mode }: ProjectModal
             </div>
             <div className="space-y-2">
               <Label>Coordinator</Label>
-              <Input 
-                placeholder="Coordinator name" 
-                value={formData.coordinator}
-                onChange={(e) => handleInputChange("coordinator", e.target.value)}
-                disabled={mode === "edit"}
-              />
-              {mode === "edit" && (
-                <div className="text-sm text-muted-foreground">
-                  Role: {project?.coordinator.role.replace('_', ' ')} | 
-                  Email: {project?.coordinator.email}
-                </div>
+              {mode === "create" ? (
+                <Select 
+                  value={formData.coordinator || undefined} 
+                  onValueChange={(value) => handleInputChange("coordinator", value)}
+                  disabled={loadingCoordinators || coordinators.length === 0}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={
+                      loadingCoordinators 
+                        ? "Loading coordinators..." 
+                        : coordinators.length === 0 
+                        ? "No coordinators available (optional)" 
+                        : "Select coordinator (optional)"
+                    } />
+                  </SelectTrigger>
+                  {coordinators.length > 0 && (
+                    <SelectContent>
+                      {coordinators.map((coord) => (
+                        <SelectItem key={coord.id} value={coord.id}>
+                          {coord.name} {coord.email ? `(${coord.email})` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  )}
+                </Select>
+              ) : (
+                <>
+                  <Input 
+                    value={project?.coordinator?.name || ""}
+                    disabled
+                  />
+                  <div className="text-sm text-muted-foreground">
+                    Role: {project?.coordinator?.role?.replace('_', ' ')} | 
+                    Email: {project?.coordinator?.email}
+                  </div>
+                </>
               )}
             </div>
           </div>
+
+          {/* Target Regions section hidden - made optional */}
 
           {project && mode === "edit" && (
             <div className="space-y-2">

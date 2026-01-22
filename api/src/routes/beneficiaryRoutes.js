@@ -170,6 +170,48 @@ router.get('/stats',
 // These are accessed via /api/beneficiaries (different from /api/beneficiary)
 // ============================================================================
 
+// Create beneficiary (admin route)
+router.post('/', 
+  authenticate,
+  authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'),
+  [
+    body('name')
+      .notEmpty()
+      .withMessage('Name is required')
+      .trim()
+      .isLength({ min: 2, max: 100 })
+      .withMessage('Name must be between 2 and 100 characters'),
+    body('phone')
+      .notEmpty()
+      .withMessage('Phone number is required')
+      .matches(/^[6-9]\d{9}$/)
+      .withMessage('Phone must be a valid 10-digit Indian mobile number'),
+    body('state')
+      .notEmpty()
+      .withMessage('State is required')
+      .isMongoId()
+      .withMessage('Invalid state ID'),
+    body('district')
+      .notEmpty()
+      .withMessage('District is required')
+      .isMongoId()
+      .withMessage('Invalid district ID'),
+    body('area')
+      .notEmpty()
+      .withMessage('Area is required')
+      .isMongoId()
+      .withMessage('Invalid area ID'),
+    body('unit')
+      .notEmpty()
+      .withMessage('Unit is required')
+      .isMongoId()
+      .withMessage('Invalid unit ID'),
+    body('status').optional().isIn(['active', 'inactive', 'pending']),
+    validateRequest
+  ],
+  beneficiaryController.createBeneficiary
+);
+
 // Get all beneficiaries (admin route)
 router.get('/', 
   authenticate,
@@ -199,10 +241,37 @@ router.put('/:id',
   authenticate,
   [
     param('id').isMongoId().withMessage('Invalid beneficiary ID'),
-    body('status').optional().isIn(['active', 'inactive', 'verified', 'suspended']),
+    body('name').optional().trim().isLength({ min: 2, max: 100 }).withMessage('Name must be between 2 and 100 characters'),
+    body('phone').optional().matches(/^[6-9]\d{9}$/).withMessage('Phone must be a valid 10-digit Indian mobile number'),
+    body('state').optional().isMongoId().withMessage('Invalid state ID'),
+    body('district').optional().isMongoId().withMessage('Invalid district ID'),
+    body('area').optional().isMongoId().withMessage('Invalid area ID'),
+    body('unit').optional().isMongoId().withMessage('Invalid unit ID'),
+    body('status').optional().isIn(['active', 'inactive', 'pending']).withMessage('Status must be one of: active, inactive, pending'),
     validateRequest
   ],
   beneficiaryController.updateBeneficiary
+);
+
+// Verify beneficiary (admin route)
+router.patch('/:id/verify',
+  authenticate,
+  [
+    param('id').isMongoId().withMessage('Invalid beneficiary ID'),
+    validateRequest
+  ],
+  beneficiaryController.verifyBeneficiary
+);
+
+// Delete beneficiary (admin route)
+router.delete('/:id',
+  authenticate,
+  authorize('super_admin', 'state_admin', 'district_admin', 'area_admin', 'unit_admin'),
+  [
+    param('id').isMongoId().withMessage('Invalid beneficiary ID'),
+    validateRequest
+  ],
+  beneficiaryController.deleteBeneficiary
 );
 
 module.exports = router;

@@ -6,6 +6,7 @@ const MasterData = require('../models/MasterData');
 const notificationService = require('../services/notificationService');
 const recurringPaymentService = require('../services/recurringPaymentService');
 const { validationResult } = require('express-validator');
+const RBACMiddleware = require('../middleware/rbacMiddleware');
 
 // Get all applications with pagination and search
 const getApplications = async (req, res) => {
@@ -29,6 +30,18 @@ const getApplications = async (req, res) => {
       unit = '' 
     } = req.query;
 
+    console.log('🔍 getApplications - Query parameters:', {
+      page,
+      limit,
+      status,
+      search: search ? '***' : '',
+      scheme,
+      project,
+      district,
+      area,
+      unit
+    });
+
     // Build filter object
     const filter = {};
     
@@ -47,7 +60,10 @@ const getApplications = async (req, res) => {
       ];
     }
     
-    if (status) filter.status = status;
+    if (status) {
+      filter.status = status;
+      console.log('✅ Status filter applied:', status);
+    }
     if (scheme) filter.scheme = scheme;
     if (project) filter.project = project;
     if (state) filter.state = state;
@@ -134,7 +150,39 @@ const getApplication = async (req, res) => {
     }
 
     // Check if user has access to this application
-    if (!hasAccessToApplication(req.user, application)) {
+    console.log('🔍 Checking application access:', {
+      userId: req.user._id,
+      userRole: req.user.role,
+      userAdminScope: req.user.adminScope,
+      applicationId: application._id,
+      applicationDistrict: application.district?._id || application.district,
+      applicationArea: application.area?._id || application.area,
+      applicationUnit: application.unit?._id || application.unit
+    });
+    
+    // Try both access check methods
+    let hasAccess = hasAccessToApplication(req.user, application);
+    
+    // If the simple check fails, try the RBAC middleware check (more comprehensive)
+    if (!hasAccess) {
+      try {
+        hasAccess = await RBACMiddleware.checkApplicationAccess(req.user, application);
+        console.log('✅ RBAC access check result:', hasAccess);
+      } catch (rbacError) {
+        console.error('❌ RBAC access check error:', rbacError);
+        // Fall back to simple check result
+      }
+    } else {
+      console.log('✅ Simple access check result: true');
+    }
+    
+    if (!hasAccess) {
+      console.warn('❌ Access denied for application:', {
+        userId: req.user._id,
+        userRole: req.user.role,
+        userAdminScope: req.user.adminScope,
+        applicationId: application._id
+      });
       return res.status(403).json({ 
         success: false,
         message: 'Access denied',
@@ -414,10 +462,10 @@ const approveApplication = async (req, res) => {
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    // Only under_review applications can be approved
-    if (application.status !== 'under_review') {
+    // Allow approval from 'pending' or 'under_review' status
+    if (!['pending', 'under_review'].includes(application.status)) {
       return res.status(400).json({ 
-        message: 'Only applications under review can be approved' 
+        message: `Only pending or under_review applications can be approved. Current status: ${application.status}` 
       });
     }
 
@@ -507,46 +555,138 @@ const getUserRegionalFilter = (user) => {
     return filter; // No restrictions
   }
   
-  // For other admin roles, check their adminScope.regions
+  // Helper function to get ID from populated reference or direct ID
+  const getId = (ref) => {
+    if (!ref) return null;
+    if (typeof ref === 'object' && ref._id) return ref._id.toString();
+    return ref.toString();
+  };
+  
+  // Check adminScope.regions array first (for backward compatibility)
   if (user.adminScope?.regions && user.adminScope.regions.length > 0) {
-    const regions = user.adminScope.regions;
-    console.log('🔍 User has regions:', regions);
+    const regions = user.adminScope.regions.map(r => getId(r));
+    console.log('🔍 User has regions array:', regions);
     
     if (user.role === 'district_admin') {
       // District admin can see applications from their district
       filter.district = { $in: regions };
-      console.log('🔍 District admin filter applied:', filter);
+      console.log('🔍 District admin filter applied (from regions):', filter);
     } else if (user.role === 'area_admin') {
       // Area admin can see applications from their area
       filter.area = { $in: regions };
-      console.log('🔍 Area admin filter applied:', filter);
+      console.log('🔍 Area admin filter applied (from regions):', filter);
     } else if (user.role === 'unit_admin') {
       // Unit admin can see applications from their unit
       filter.unit = { $in: regions };
-      console.log('🔍 Unit admin filter applied:', filter);
+      console.log('🔍 Unit admin filter applied (from regions):', filter);
     }
   } else {
-    console.log('🔍 No adminScope.regions found for user');
+    // Fallback: Check direct district/area/unit properties
+    const userUnitId = user.adminScope?.unit ? getId(user.adminScope.unit) : null;
+    const userAreaId = user.adminScope?.area ? getId(user.adminScope.area) : null;
+    const userDistrictId = user.adminScope?.district ? getId(user.adminScope.district) : null;
+    
+    if (user.role === 'unit_admin' && userUnitId) {
+      filter.unit = userUnitId;
+      console.log('🔍 Unit admin filter applied (from direct unit):', filter);
+    } else if (user.role === 'area_admin' && userAreaId) {
+      filter.area = userAreaId;
+      console.log('🔍 Area admin filter applied (from direct area):', filter);
+    } else if (user.role === 'district_admin' && userDistrictId) {
+      filter.district = userDistrictId;
+      console.log('🔍 District admin filter applied (from direct district):', filter);
+    } else {
+      console.log('🔍 No adminScope found for user - no filter applied');
+    }
   }
   
   return filter;
 };
 
 const hasAccessToApplication = (user, application) => {
-  if (user.role === 'super_admin' || user.role === 'state_admin') return true;
+  // Super admin and state admin have access to everything
+  if (user.role === 'super_admin' || user.role === 'state_admin') {
+    console.log(`✅ ${user.role} - full access granted`);
+    return true;
+  }
   
-  // Check if user has access based on their adminScope.regions
-  if (user.adminScope?.regions && user.adminScope.regions.length > 0) {
-    const userRegions = user.adminScope.regions.map(r => r.toString());
+  // Helper function to get ID from populated reference or direct ID
+  const getId = (ref) => {
+    if (!ref) return null;
+    if (typeof ref === 'object' && ref._id) return ref._id.toString();
+    return ref.toString();
+  };
+  
+  console.log('🔍 hasAccessToApplication check:', {
+    userRole: user.role,
+    hasAdminScope: !!user.adminScope,
+    adminScopeRegions: user.adminScope?.regions?.length || 0,
+    adminScopeDistrict: user.adminScope?.district ? getId(user.adminScope.district) : null,
+    adminScopeArea: user.adminScope?.area ? getId(user.adminScope.area) : null,
+    adminScopeUnit: user.adminScope?.unit ? getId(user.adminScope.unit) : null,
+    applicationDistrict: getId(application.district),
+    applicationArea: getId(application.area),
+    applicationUnit: getId(application.unit)
+  });
+  
+  // Handle both adminScope formats: regions array and direct district/area/unit
+  if (user.adminScope) {
+    // Format 1: Check adminScope.regions array
+    if (user.adminScope.regions && user.adminScope.regions.length > 0) {
+      const userRegions = user.adminScope.regions.map(r => r.toString());
+      const applicationDistrictId = getId(application.district);
+      const applicationAreaId = getId(application.area);
+      const applicationUnitId = getId(application.unit);
+      
+      if (user.role === 'district_admin') {
+        const hasAccess = applicationDistrictId && userRegions.includes(applicationDistrictId);
+        console.log(`🔍 District admin check: ${hasAccess ? '✅' : '❌'} (user regions: [${userRegions.join(', ')}], app district: ${applicationDistrictId})`);
+        return hasAccess;
+      } else if (user.role === 'area_admin') {
+        const hasAccess = applicationAreaId && userRegions.includes(applicationAreaId);
+        console.log(`🔍 Area admin check: ${hasAccess ? '✅' : '❌'} (user regions: [${userRegions.join(', ')}], app area: ${applicationAreaId})`);
+        return hasAccess;
+      } else if (user.role === 'unit_admin') {
+        const hasAccess = applicationUnitId && userRegions.includes(applicationUnitId);
+        console.log(`🔍 Unit admin check: ${hasAccess ? '✅' : '❌'} (user regions: [${userRegions.join(', ')}], app unit: ${applicationUnitId})`);
+        return hasAccess;
+      }
+    }
     
-    if (user.role === 'district_admin') {
-      return userRegions.includes(application.district?.toString());
-    } else if (user.role === 'area_admin') {
-      return userRegions.includes(application.area?.toString());
-    } else if (user.role === 'unit_admin') {
-      return userRegions.includes(application.unit?.toString());
+    // Format 2: Check direct adminScope.district/area/unit properties
+    const userDistrictId = user.adminScope.district ? getId(user.adminScope.district) : null;
+    const userAreaId = user.adminScope.area ? getId(user.adminScope.area) : null;
+    const userUnitId = user.adminScope.unit ? getId(user.adminScope.unit) : null;
+    
+    if (user.role === 'district_admin' && userDistrictId) {
+      const applicationDistrictId = getId(application.district);
+      const hasAccess = applicationDistrictId && userDistrictId === applicationDistrictId;
+      console.log(`🔍 District admin direct check: ${hasAccess ? '✅' : '❌'} (user district: ${userDistrictId}, app district: ${applicationDistrictId})`);
+      return hasAccess;
+    } else if (user.role === 'area_admin' && userAreaId) {
+      const applicationAreaId = getId(application.area);
+      const hasAccess = applicationAreaId && userAreaId === applicationAreaId;
+      console.log(`🔍 Area admin direct check: ${hasAccess ? '✅' : '❌'} (user area: ${userAreaId}, app area: ${applicationAreaId})`);
+      return hasAccess;
+    } else if (user.role === 'unit_admin' && userUnitId) {
+      const applicationUnitId = getId(application.unit);
+      const hasAccess = applicationUnitId && userUnitId === applicationUnitId;
+      console.log(`🔍 Unit admin direct check: ${hasAccess ? '✅' : '❌'} (user unit: ${userUnitId}, app unit: ${applicationUnitId})`);
+      return hasAccess;
     }
   }
+  
+  // If no adminScope or matching access, deny access
+  console.warn('❌ Access denied for application - no matching scope:', {
+    userId: user._id,
+    userRole: user.role,
+    hasAdminScope: !!user.adminScope,
+    adminScope: user.adminScope,
+    applicationId: application._id,
+    applicationDistrict: getId(application.district),
+    applicationArea: getId(application.area),
+    applicationUnit: getId(application.unit)
+  });
   
   return false;
 };

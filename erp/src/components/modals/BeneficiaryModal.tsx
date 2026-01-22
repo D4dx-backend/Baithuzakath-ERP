@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Search, FileText, ExternalLink, Eye } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/button';
@@ -63,9 +63,7 @@ export const BeneficiaryModal: React.FC<BeneficiaryModalProps> = ({
   mode,
   onClose
 }) => {
-  if (!isOpen) {
-    return null;
-  }
+  // All hooks must be called unconditionally (React Rules of Hooks)
   const { toast } = useToast();
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
@@ -95,6 +93,18 @@ export const BeneficiaryModal: React.FC<BeneficiaryModalProps> = ({
     district: '',
     area: '',
     unit: ''
+  });
+  const [dropdownOpen, setDropdownOpen] = useState({
+    state: false,
+    district: false,
+    area: false,
+    unit: false
+  });
+  const [fieldFocused, setFieldFocused] = useState({
+    state: false,
+    district: false,
+    area: false,
+    unit: false
   });
 
   const [loading, setLoading] = useState(false);
@@ -165,27 +175,33 @@ export const BeneficiaryModal: React.FC<BeneficiaryModalProps> = ({
   useEffect(() => {
     if (formData.state) {
       fetchDistricts(formData.state);
+      setDropdownOpen(prev => ({ ...prev, state: false }));
     } else {
       setLocations(prev => ({ ...prev, districts: [], areas: [], units: [] }));
       setFormData(prev => ({ ...prev, district: '', area: '', unit: '' }));
+      setDropdownOpen(prev => ({ ...prev, district: false, area: false, unit: false }));
     }
   }, [formData.state]);
 
   useEffect(() => {
     if (formData.district) {
       fetchAreas(formData.district);
+      setDropdownOpen(prev => ({ ...prev, district: false }));
     } else {
       setLocations(prev => ({ ...prev, areas: [], units: [] }));
       setFormData(prev => ({ ...prev, area: '', unit: '' }));
+      setDropdownOpen(prev => ({ ...prev, area: false, unit: false }));
     }
   }, [formData.district]);
 
   useEffect(() => {
     if (formData.area) {
       fetchUnits(formData.area);
+      setDropdownOpen(prev => ({ ...prev, area: false }));
     } else {
       setLocations(prev => ({ ...prev, units: [] }));
       setFormData(prev => ({ ...prev, unit: '' }));
+      setDropdownOpen(prev => ({ ...prev, unit: false }));
     }
   }, [formData.area]);
 
@@ -243,6 +259,8 @@ export const BeneficiaryModal: React.FC<BeneficiaryModalProps> = ({
   const handleLocationSelect = (type: string, locationId: string, locationName: string) => {
     setFormData(prev => ({ ...prev, [type]: locationId }));
     setSearchTerms(prev => ({ ...prev, [type]: locationName }));
+    // Close the dropdown after selection
+    setDropdownOpen(prev => ({ ...prev, [type]: false }));
   };
 
   const validateForm = () => {
@@ -305,6 +323,31 @@ export const BeneficiaryModal: React.FC<BeneficiaryModalProps> = ({
     }
   };
 
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      // Check if click is outside any location dropdown
+      if (!target.closest('.location-dropdown-container')) {
+        setDropdownOpen({
+          state: false,
+          district: false,
+          area: false,
+          unit: false
+        });
+      }
+    };
+
+    // Only add listener if any dropdown is open
+    if (Object.values(dropdownOpen).some(open => open)) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [dropdownOpen]);
+
   const renderLocationSelect = (
     type: 'state' | 'district' | 'area' | 'unit',
     label: string,
@@ -314,24 +357,59 @@ export const BeneficiaryModal: React.FC<BeneficiaryModalProps> = ({
     const filteredOptions = options.filter(option =>
       option.name.toLowerCase().includes(searchTerms[type].toLowerCase())
     );
+    // Show selected location name when not focused, otherwise show search term for editing
+    const selectedLocation = formData[type] 
+      ? options.find(opt => opt._id === formData[type])
+      : null;
+    const displayValue = !fieldFocused[type] && selectedLocation
+      ? selectedLocation.name
+      : searchTerms[type];
 
     return (
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
           {label} *
         </label>
-        <div className="relative">
+        <div className="relative location-dropdown-container">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
             <Input
               placeholder={`Search ${label.toLowerCase()}...`}
-              value={searchTerms[type]}
-              onChange={(e) => setSearchTerms(prev => ({ ...prev, [type]: e.target.value }))}
+              value={displayValue}
+              onChange={(e) => {
+                const newValue = e.target.value;
+                setSearchTerms(prev => ({ ...prev, [type]: newValue }));
+                setDropdownOpen(prev => ({ ...prev, [type]: true }));
+                // Clear selection if user is editing (typing something different from selected)
+                if (formData[type] && newValue !== selectedLocation?.name) {
+                  setFormData(prev => ({ ...prev, [type]: '' }));
+                }
+              }}
+              onFocus={() => {
+                if (!disabled && mode !== 'view') {
+                  setFieldFocused(prev => ({ ...prev, [type]: true }));
+                  setDropdownOpen(prev => ({ ...prev, [type]: true }));
+                  // When focusing, if there's a selection, populate searchTerms for editing
+                  if (formData[type] && selectedLocation && !searchTerms[type]) {
+                    setSearchTerms(prev => ({ ...prev, [type]: selectedLocation.name }));
+                  }
+                }
+              }}
+              onBlur={() => {
+                // Delay to allow click on dropdown option to register
+                setTimeout(() => {
+                  setFieldFocused(prev => ({ ...prev, [type]: false }));
+                  // On blur, if there's a selection, update searchTerms to show the name
+                  if (formData[type] && selectedLocation) {
+                    setSearchTerms(prev => ({ ...prev, [type]: selectedLocation.name }));
+                  }
+                }, 200);
+              }}
               disabled={disabled || mode === 'view'}
               className="pl-10"
             />
           </div>
-          {searchTerms[type] && filteredOptions.length > 0 && mode !== 'view' && (
+          {dropdownOpen[type] && filteredOptions.length > 0 && mode !== 'view' && !disabled && (
             <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
               {filteredOptions.map((option) => (
                 <button
@@ -362,6 +440,11 @@ export const BeneficiaryModal: React.FC<BeneficiaryModalProps> = ({
       default: return 'Beneficiary';
     }
   };
+
+  // Conditionally render content after all hooks are called
+  if (!isOpen) {
+    return null;
+  }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">

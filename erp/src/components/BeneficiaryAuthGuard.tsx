@@ -16,13 +16,22 @@ export default function BeneficiaryAuthGuard({
 
   useEffect(() => {
     const token = localStorage.getItem('beneficiary_token');
+    const adminToken = localStorage.getItem('token');
     const userRole = localStorage.getItem('user_role');
     const userStr = localStorage.getItem('beneficiary_user');
     
-    console.log('🔍 BeneficiaryAuthGuard - Token exists:', !!token);
+    console.log('🔍 BeneficiaryAuthGuard - Beneficiary token exists:', !!token);
+    console.log('🔍 BeneficiaryAuthGuard - Admin token exists:', !!adminToken);
     console.log('🔍 BeneficiaryAuthGuard - User role:', userRole);
     
-    // Check authentication
+    // If user has admin token but not beneficiary token, they shouldn't be here
+    if (adminToken && !token) {
+      console.log('⚠️ BeneficiaryAuthGuard - Admin user accessing beneficiary route, redirecting to admin dashboard');
+      navigate('/dashboard', { replace: true });
+      return;
+    }
+    
+    // Check authentication - must have beneficiary token AND user_role
     if (!token || userRole !== 'beneficiary') {
       console.log('❌ BeneficiaryAuthGuard - Authentication failed, redirecting to login');
       toast({
@@ -64,9 +73,22 @@ export default function BeneficiaryAuthGuard({
     console.log('✅ BeneficiaryAuthGuard - Authentication successful');
   }, [navigate, location.pathname, requireVerification]);
 
-  // Only render children if authenticated
+  // Only render children if authenticated as beneficiary
   const token = localStorage.getItem('beneficiary_token');
+  const adminToken = localStorage.getItem('token');
   const userRole = localStorage.getItem('user_role');
+  
+  // If user has admin token but not beneficiary token, redirect to admin dashboard
+  if (adminToken && !token) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p>Redirecting...</p>
+        </div>
+      </div>
+    );
+  }
   
   if (!token || userRole !== 'beneficiary') {
     return (

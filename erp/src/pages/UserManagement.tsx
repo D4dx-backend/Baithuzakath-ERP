@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Search, Filter, MoreHorizontal, Shield, Users, UserCheck, UserX, Loader2, AlertCircle, Edit, Trash2 } from "lucide-react";
+import { Plus, Search, Filter, MoreHorizontal, Shield, Users, UserCheck, UserX, Loader2, AlertCircle, Edit, Trash2, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,15 +9,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { EmptyState } from "@/components/ui/empty-state";
 import { UserModal } from "@/components/modals/UserModal";
 import { DeleteUserModal } from "@/components/modals/DeleteUserModal";
+import { UserDetailsModal } from "@/components/modals/UserDetailsModal";
 import { users as usersApi, locations, type User, type Location } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 import { useRBAC } from "@/hooks/useRBAC";
 
 // Role color mapping
-const roleColors: Record<string, string> = {
+export const roleColors: Record<string, string> = {
   super_admin: "bg-red-100 text-red-800 border-red-200",
   state_admin: "bg-purple-100 text-purple-800 border-purple-200",
   district_admin: "bg-blue-100 text-blue-800 border-blue-200",
@@ -29,7 +31,7 @@ const roleColors: Record<string, string> = {
 };
 
 // Role display names
-const roleNames: Record<string, string> = {
+export const roleNames: Record<string, string> = {
   super_admin: "Super Admin",
   state_admin: "State Admin",
   district_admin: "District Admin",
@@ -66,23 +68,9 @@ export default function UserManagement() {
   // Modal states
   const [showUserModal, setShowUserModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | undefined>(undefined);
   const [modalMode, setModalMode] = useState<"create" | "edit">("create");
-
-  // Access denied check
-  if (!canViewUsers) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-semibold mb-2">Access Denied</h3>
-          <p className="text-muted-foreground">
-            You don't have permission to view user management.
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   const loadUsers = async () => {
     try {
@@ -108,11 +96,6 @@ export default function UserManagement() {
       const response = await usersApi.getAll(params);
       
       if (response.success && response.data) {
-        console.log('👥 Loaded users:', response.data.users.length);
-        // Debug: Check first user's adminScope
-        if (response.data.users.length > 0) {
-          console.log('Sample user adminScope:', response.data.users[0].adminScope);
-        }
         setUserList(response.data.users);
         setTotalPages(response.data.pagination.pages);
         setTotalItems(response.data.pagination.total);
@@ -147,14 +130,31 @@ export default function UserManagement() {
       if (response.success && response.data) {
         const map = new Map<string, Location>();
         response.data.locations.forEach((loc: Location) => {
-          // Store by both id and _id for compatibility
-          map.set(loc.id, loc);
-          if ((loc as any)._id) {
-            map.set((loc as any)._id, loc);
+          // Store by both id and _id for compatibility (as strings)
+          const id = loc.id || (loc as any)._id;
+          const _id = (loc as any)._id || loc.id;
+          
+          if (id) {
+            // Store as string
+            map.set(String(id), loc);
+            // Also store as original type if it's not already a string
+            if (typeof id !== 'string') {
+              map.set(id as any, loc);
+            }
+          }
+          
+          if (_id && String(_id) !== String(id)) {
+            // Store as string
+            map.set(String(_id), loc);
+            // Also store as original type if it's not already a string
+            if (typeof _id !== 'string') {
+              map.set(_id as any, loc);
+            }
           }
         });
         console.log('📍 Loaded locations:', map.size, 'locations');
-        console.log('Sample location keys:', Array.from(map.keys()).slice(0, 3));
+        console.log('📍 Sample location keys:', Array.from(map.keys()).slice(0, 5));
+        console.log('📍 Sample location (first):', response.data.locations[0]);
         setLocationMap(map);
       }
     } catch (err: any) {
@@ -166,15 +166,33 @@ export default function UserManagement() {
 
   // Load locations once on mount
   useEffect(() => {
-    loadLocations();
-    loadStats();
-  }, []);
+    if (canViewUsers) {
+      loadLocations();
+      loadStats();
+    }
+  }, [canViewUsers]);
 
   // Load users when filters or page changes
   useEffect(() => {
-    loadUsers();
-  }, [currentPage, selectedRole, selectedStatus, searchTerm]);
+    if (canViewUsers) {
+      loadUsers();
+    }
+  }, [canViewUsers, currentPage, selectedRole, selectedStatus, searchTerm]);
 
+  // Access denied check - must be after all hooks
+  if (!canViewUsers) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+          <h3 className="text-lg font-semibold mb-2">Access Denied</h3>
+          <p className="text-muted-foreground">
+            You don't have permission to view user management.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // Modal handlers
   const handleAddUser = () => {
@@ -192,6 +210,11 @@ export default function UserManagement() {
   const handleDeleteUser = (user: User) => {
     setSelectedUser(user);
     setShowDeleteModal(true);
+  };
+
+  const handleViewDetails = (user: User) => {
+    setSelectedUser(user);
+    setShowDetailsModal(true);
   };
 
   const handleModalSave = () => {
@@ -236,6 +259,38 @@ export default function UserManagement() {
     });
   };
 
+  // Helper function to get location name from various formats
+  const getLocationName = (location: any): string | null => {
+    if (!location) return null;
+    
+    // If it's already a populated object with name
+    if (typeof location === 'object' && location !== null) {
+      return location.name || location.districtName || location.areaName || location.unitName || null;
+    }
+    
+    // If it's a string/primitive ID, try to look it up in locationMap
+    const locationId = String(location);
+    const loc = locationMap.get(locationId) || locationMap.get(location);
+    if (loc) {
+      return loc.name;
+    }
+    
+    return null;
+  };
+
+  // Helper function to get district/area/unit from user (checks both adminScope and profile.location)
+  const getUserDistrict = (user: User) => {
+    return user.adminScope?.district || user.profile?.location?.district;
+  };
+
+  const getUserArea = (user: User) => {
+    return user.adminScope?.area || user.profile?.location?.area;
+  };
+
+  const getUserUnit = (user: User) => {
+    return user.adminScope?.unit || user.profile?.location?.unit;
+  };
+
   return (
     <div className="space-y-6">
       {/* Modals */}
@@ -252,6 +307,12 @@ export default function UserManagement() {
         onOpenChange={setShowDeleteModal}
         user={selectedUser}
         onDelete={handleModalSave}
+      />
+
+      <UserDetailsModal
+        open={showDetailsModal}
+        onOpenChange={setShowDetailsModal}
+        user={selectedUser}
       />
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -367,9 +428,11 @@ export default function UserManagement() {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           ) : userList.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground">No users found matching your criteria.</p>
-            </div>
+            <EmptyState
+              icon={Users}
+              title="No Users Found"
+              description="No users match your current filters. Try adjusting your search criteria or creating a new user."
+            />
           ) : (
             <div className="space-y-4">
               <Table>
@@ -396,7 +459,9 @@ export default function UserManagement() {
                             {/* Status indicator */}
                             <div className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white ${user.isActive ? 'bg-green-500' : 'bg-gray-400'}`} title={user.isActive ? 'Active' : 'Inactive'} />
                             {user.isVerified && (
-                              <Shield className="absolute -top-1 -right-1 h-4 w-4 text-blue-600 bg-white rounded-full" title="Verified" />
+                              <div title="Verified">
+                                <Shield className="absolute -top-1 -right-1 h-4 w-4 text-blue-600 bg-white rounded-full" />
+                              </div>
                             )}
                           </div>
                           <div>
@@ -411,55 +476,60 @@ export default function UserManagement() {
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell>
-                        {(() => {
-                          // Try to get district name from populated object or lookup
-                          const district = user.adminScope?.district;
-                          if (!district) return <span className="text-sm text-muted-foreground">-</span>;
-                          
-                          // If it's already populated as an object
-                          if (typeof district === 'object' && (district as any).name) {
-                            return <span className="text-sm font-medium">{(district as any).name}</span>;
-                          }
-                          
-                          // Otherwise lookup in locationMap
-                          const loc = locationMap.get(district as string);
-                          if (loc) return <span className="text-sm font-medium">{loc.name}</span>;
-                          
-                          // Fallback: show loading or ID
-                          return loadingLocations ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className="text-xs text-muted-foreground">Loading...</span>;
-                        })()}
-                      </TableCell>
-                      <TableCell>
-                        {(() => {
-                          const area = user.adminScope?.area;
-                          if (!area) return <span className="text-sm text-muted-foreground">-</span>;
-                          
-                          if (typeof area === 'object' && (area as any).name) {
-                            return <span className="text-sm font-medium">{(area as any).name}</span>;
-                          }
-                          
-                          const loc = locationMap.get(area as string);
-                          if (loc) return <span className="text-sm font-medium">{loc.name}</span>;
-                          
-                          return loadingLocations ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className="text-xs text-muted-foreground">Loading...</span>;
-                        })()}
-                      </TableCell>
-                      <TableCell>
-                        {(() => {
-                          const unit = user.adminScope?.unit;
-                          if (!unit) return <span className="text-sm text-muted-foreground">-</span>;
-                          
-                          if (typeof unit === 'object' && (unit as any).name) {
-                            return <span className="text-sm font-medium">{(unit as any).name}</span>;
-                          }
-                          
-                          const loc = locationMap.get(unit as string);
-                          if (loc) return <span className="text-sm font-medium">{loc.name}</span>;
-                          
-                          return loadingLocations ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className="text-xs text-muted-foreground">Loading...</span>;
-                        })()}
-                      </TableCell>
+                       <TableCell>
+                         {(() => {
+                           const district = getUserDistrict(user);
+                           if (!district) {
+                             return <span className="text-sm text-muted-foreground">N/A</span>;
+                           }
+                           const locationName = getLocationName(district);
+                           if (locationName) {
+                             return <span className="text-sm font-medium">{locationName}</span>;
+                           }
+                           // If location is still loading and we have a district ID, show loading
+                           if (loadingLocations) {
+                             return <Loader2 className="h-3 w-3 animate-spin" />;
+                           }
+                           // If locations are loaded but we couldn't find it, show N/A
+                           return <span className="text-sm text-muted-foreground">N/A</span>;
+                         })()}
+                       </TableCell>
+                       <TableCell>
+                         {(() => {
+                           const area = getUserArea(user);
+                           if (!area) {
+                             return <span className="text-sm text-muted-foreground">N/A</span>;
+                           }
+                           const locationName = getLocationName(area);
+                           if (locationName) {
+                             return <span className="text-sm font-medium">{locationName}</span>;
+                           }
+                           // If location is still loading and we have an area ID, show loading
+                           if (loadingLocations) {
+                             return <Loader2 className="h-3 w-3 animate-spin" />;
+                           }
+                           // If locations are loaded but we couldn't find it, show N/A
+                           return <span className="text-sm text-muted-foreground">N/A</span>;
+                         })()}
+                       </TableCell>
+                       <TableCell>
+                         {(() => {
+                           const unit = getUserUnit(user);
+                           if (!unit) {
+                             return <span className="text-sm text-muted-foreground">N/A</span>;
+                           }
+                           const locationName = getLocationName(unit);
+                           if (locationName) {
+                             return <span className="text-sm font-medium">{locationName}</span>;
+                           }
+                           // If location is still loading and we have a unit ID, show loading
+                           if (loadingLocations) {
+                             return <Loader2 className="h-3 w-3 animate-spin" />;
+                           }
+                           // If locations are loaded but we couldn't find it, show N/A
+                           return <span className="text-sm text-muted-foreground">N/A</span>;
+                         })()}
+                       </TableCell>
                       <TableCell>
                         <p className="text-sm">{formatDate(user.createdAt)}</p>
                       </TableCell>
@@ -471,8 +541,13 @@ export default function UserManagement() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            {canManageUser(user) ? (
+                            <DropdownMenuItem onClick={() => handleViewDetails(user)}>
+                              <Eye className="mr-2 h-4 w-4" />
+                              View Details
+                            </DropdownMenuItem>
+                            {canManageUser(user) && (
                               <>
+                                <DropdownMenuSeparator />
                                 <DropdownMenuItem onClick={() => handleEditUser(user)}>
                                   <Edit className="mr-2 h-4 w-4" />
                                   Edit User
@@ -486,10 +561,6 @@ export default function UserManagement() {
                                   Delete User
                                 </DropdownMenuItem>
                               </>
-                            ) : (
-                              <DropdownMenuItem disabled>
-                                No actions available
-                              </DropdownMenuItem>
                             )}
                           </DropdownMenuContent>
                         </DropdownMenu>

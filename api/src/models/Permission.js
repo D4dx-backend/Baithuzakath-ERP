@@ -102,16 +102,6 @@ const permissionSchema = new mongoose.Schema({
       type: Number,
       min: 1,
       max: 5
-    },
-    
-    // Rate limiting
-    rateLimit: {
-      maxRequests: Number,
-      timeWindow: Number, // in minutes
-      enabled: {
-        type: Boolean,
-        default: false
-      }
     }
   },
   

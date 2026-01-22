@@ -76,7 +76,12 @@ export function UserModal({ open, onOpenChange, user, mode, onSave }: UserModalP
   useEffect(() => {
     if (open) {
       if (mode === 'edit' && user) {
-        initializeEditMode();
+        // Call initializeEditMode when modal opens in edit mode
+        // Add a small delay to ensure user prop is fully set
+        const timer = setTimeout(() => {
+          initializeEditMode();
+        }, 0);
+        return () => clearTimeout(timer);
       } else {
         // Reset form for create mode
         loadAvailableLocations();
@@ -97,62 +102,110 @@ export function UserModal({ open, onOpenChange, user, mode, onSave }: UserModalP
           selectedSchemes: [],
         });
       }
+    } else {
+      // Reset form when modal closes
+      setFormData({
+        name: '',
+        email: '',
+        phone: '',
+        role: 'beneficiary',
+        isActive: true,
+        selectedRegion: '',
+        selectedDistrict: '',
+        selectedArea: '',
+        selectedProjects: [],
+        selectedSchemes: [],
+      });
     }
-  }, [open, mode, user]);
+  }, [open, mode, user]); // Use full user object to trigger when user changes
 
   const initializeEditMode = async () => {
-    if (!user) return;
-    
-    // Load all necessary data first
-    await Promise.all([
-      loadAvailableLocations(),
-      loadAvailableDistricts(),
-      loadAvailableProjects(),
-      loadAvailableSchemes()
-    ]);
-    
-    // Extract IDs from adminScope (handle both populated objects and plain IDs)
-    const getIdFromField = (field: any) => {
-      if (!field) return '';
-      if (typeof field === 'string') return field;
-      return field._id || field.id || '';
-    };
-    
-    const districtId = getIdFromField(user.adminScope?.district);
-    const areaId = getIdFromField(user.adminScope?.area);
-    const unitId = getIdFromField(user.adminScope?.unit);
-    const selectedRegionId = user.adminScope?.regions?.[0] 
-      ? getIdFromField(user.adminScope.regions[0])
-      : unitId || areaId || districtId || '';
-    
-    // Load cascading data based on role
-    if (user.role === 'area_admin' && districtId) {
-      await loadAreasByDistrict(districtId);
-    } else if (user.role === 'unit_admin') {
-      if (districtId) {
-        await loadAreasByDistrict(districtId);
-      }
-      if (areaId) {
-        await loadUnitsByArea(areaId);
-      }
+    if (!user || !user.id) {
+      console.warn('⚠️ initializeEditMode called but user is not defined');
+      return;
     }
     
-    // Extract project and scheme IDs
-    const projectIds = (user.adminScope?.projects || []).map(getIdFromField);
-    const schemeIds = (user.adminScope?.schemes || []).map(getIdFromField);
-    
-    setFormData({
-      name: user.name || '',
-      email: user.email || '',
-      phone: user.phone || '',
-      role: user.role || 'beneficiary',
-      isActive: user.isActive ?? true,
-      selectedRegion: selectedRegionId,
-      selectedDistrict: districtId,
-      selectedArea: areaId,
-      selectedProjects: projectIds,
-      selectedSchemes: schemeIds,
-    });
+    setLoading(true);
+    try {
+      console.log('🔄 Initializing edit mode for user:', user.name, user.id);
+      
+      // Fetch full user details to ensure we have populated adminScope data
+      // The user from the table might not have fully populated adminScope
+      let userData = user;
+      try {
+        const fullUserResponse = await usersApi.getById(user.id);
+        if (fullUserResponse.success && fullUserResponse.data?.user) {
+          userData = fullUserResponse.data.user;
+          console.log('✅ Fetched full user data with populated adminScope');
+        }
+      } catch (fetchError) {
+        console.warn('⚠️ Failed to fetch full user data, using provided user data:', fetchError);
+      }
+      
+      // Load all necessary data first
+      await Promise.all([
+        loadAvailableLocations(),
+        loadAvailableDistricts(),
+        loadAvailableProjects(),
+        loadAvailableSchemes()
+      ]);
+      
+      // Extract IDs from adminScope (handle both populated objects and plain IDs)
+      const getIdFromField = (field: any) => {
+        if (!field) return '';
+        if (typeof field === 'string') return field;
+        return field._id || field.id || '';
+      };
+      
+      const districtId = getIdFromField(userData.adminScope?.district);
+      const areaId = getIdFromField(userData.adminScope?.area);
+      const unitId = getIdFromField(userData.adminScope?.unit);
+      const selectedRegionId = userData.adminScope?.regions?.[0] 
+        ? getIdFromField(userData.adminScope.regions[0])
+        : unitId || areaId || districtId || '';
+      
+      // Load cascading data based on role
+      if (userData.role === 'area_admin' && districtId) {
+        await loadAreasByDistrict(districtId);
+      } else if (userData.role === 'unit_admin') {
+        if (districtId) {
+          await loadAreasByDistrict(districtId);
+        }
+        if (areaId) {
+          await loadUnitsByArea(areaId);
+        }
+      }
+      
+      // Extract project and scheme IDs
+      const projectIds = (userData.adminScope?.projects || []).map(getIdFromField);
+      const schemeIds = (userData.adminScope?.schemes || []).map(getIdFromField);
+      
+      // Set form data with user information
+      const formDataToSet = {
+        name: userData.name || '',
+        email: userData.email || '',
+        phone: userData.phone || '',
+        role: userData.role || 'beneficiary',
+        isActive: userData.isActive ?? true,
+        selectedRegion: selectedRegionId,
+        selectedDistrict: districtId,
+        selectedArea: areaId,
+        selectedProjects: projectIds,
+        selectedSchemes: schemeIds,
+      };
+      
+      console.log('✅ Setting form data:', formDataToSet);
+      setFormData(formDataToSet);
+    } catch (error) {
+      console.error('❌ Error initializing edit mode:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load user data",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const loadAvailableLocations = async () => {
@@ -316,11 +369,16 @@ export function UserModal({ open, onOpenChange, user, mode, onSave }: UserModalP
       // Prepare user data
       const userData: any = {
         name: formData.name.trim(),
-        email: formData.email.trim() || undefined,
         phone: formData.phone.trim(),
         role: formData.role,
         isActive: formData.isActive,
       };
+
+      // Only include email if it's provided and not empty
+      const trimmedEmail = formData.email.trim();
+      if (trimmedEmail) {
+        userData.email = trimmedEmail;
+      }
 
       // Add admin scope for roles that need it (not super_admin, state_admin, or beneficiary)
       if (formData.role !== 'beneficiary' && 

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, AlertTriangle } from 'lucide-react';
 import { Button } from '../ui/button';
-import { api } from '../../lib/api';
+import { beneficiaries } from '../../lib/api';
 import { useToast } from '@/hooks/use-toast';
 
 interface Beneficiary {
@@ -32,7 +32,7 @@ export const DeleteBeneficiaryModal: React.FC<DeleteBeneficiaryModalProps> = ({
   const handleDelete = async () => {
     setLoading(true);
     try {
-      await api.delete(`/beneficiaries/${beneficiary._id}`);
+      await beneficiaries.delete(beneficiary._id);
       toast({
         title: "Success",
         description: "Beneficiary deleted successfully"
@@ -42,7 +42,7 @@ export const DeleteBeneficiaryModal: React.FC<DeleteBeneficiaryModalProps> = ({
       console.error('Error deleting beneficiary:', error);
       toast({
         title: "Error",
-        description: error.response?.data?.message || "Failed to delete beneficiary",
+        description: error.message || error.response?.data?.message || "Failed to delete beneficiary",
         variant: "destructive"
       });
     } finally {

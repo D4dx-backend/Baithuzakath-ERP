@@ -60,7 +60,7 @@ export default function WebsiteSettings() {
         
         setAboutTitle(settings.aboutUs?.title || "");
         setAboutDescription(settings.aboutUs?.description || "");
-        setCounters(settings.counts || []);
+        setCounters(Array.isArray(settings.counts) ? settings.counts : []);
         setPhone(settings.contactDetails?.phone || "");
         setEmail(settings.contactDetails?.email || "");
         setAddress(settings.contactDetails?.address || "");

@@ -1,62 +1,82 @@
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight, Calendar, IndianRupee, Users } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ArrowRight, Calendar, IndianRupee, Users, Loader2, AlertCircle, LogIn } from "lucide-react";
 import logo from "@/assets/logo.png";
+import { beneficiaryApi } from "@/services/beneficiaryApi";
 
-const mockSchemes = [
-  {
-    id: "1",
-    name: "Education Support Scheme",
-    description: "Financial assistance for students from economically weaker sections",
-    amount: "₹10,000 - ₹50,000",
-    deadline: "2025-12-31",
-    beneficiaries: 150,
-    status: "Open",
-  },
-  {
-    id: "2",
-    name: "Healthcare Assistance",
-    description: "Medical support for critical health conditions and surgeries",
-    amount: "₹25,000 - ₹1,00,000",
-    deadline: "2025-11-30",
-    beneficiaries: 89,
-    status: "Open",
-  },
-  {
-    id: "3",
-    name: "Small Business Grant",
-    description: "Startup capital for small entrepreneurs and self-employment",
-    amount: "₹50,000 - ₹2,00,000",
-    deadline: "2025-10-15",
-    beneficiaries: 45,
-    status: "Open",
-  },
-  {
-    id: "4",
-    name: "Housing Support",
-    description: "Financial aid for housing construction and renovation",
-    amount: "₹1,00,000 - ₹3,00,000",
-    deadline: "2026-01-31",
-    beneficiaries: 67,
-    status: "Open",
-  },
-];
+interface Scheme {
+  _id: string;
+  name: string;
+  description: string;
+  category: string;
+  benefits: {
+    type: string;
+    amount?: number;
+    minAmount?: number;
+    maxAmount?: number;
+  };
+  applicationSettings: {
+    endDate: string;
+  };
+  statistics?: {
+    totalBeneficiaries?: number;
+  };
+}
 
 export default function PublicSchemes() {
   const navigate = useNavigate();
+  const [schemes, setSchemes] = useState<Scheme[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const isLoggedIn = localStorage.getItem("beneficiary_token");
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      loadSchemes();
+    } else {
+      setLoading(false);
+    }
+  }, [isLoggedIn]);
+
+  const loadSchemes = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await beneficiaryApi.getAvailableSchemes();
+      if (response.schemes && Array.isArray(response.schemes)) {
+        setSchemes(response.schemes);
+      } else {
+        setSchemes([]);
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to load schemes");
+      setSchemes([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSchemeClick = (schemeId: string) => {
-    // Check if user is logged in (mock check)
-    const isLoggedIn = localStorage.getItem("user_role");
-    
     if (!isLoggedIn) {
-      // Navigate directly to beneficiary login
       navigate("/beneficiary-login");
     } else {
       navigate(`/beneficiary/apply/${schemeId}`);
     }
+  };
+
+  const formatAmount = (scheme: Scheme) => {
+    if (scheme.beneficiaries?.minAmount && scheme.beneficiaries?.maxAmount) {
+      return `₹${scheme.beneficiaries.minAmount.toLocaleString()} - ₹${scheme.beneficiaries.maxAmount.toLocaleString()}`;
+    }
+    if (scheme.beneficiaries?.amount) {
+      return `₹${scheme.beneficiaries.amount.toLocaleString()}`;
+    }
+    return "Amount varies";
   };
 
   return (
@@ -97,45 +117,77 @@ export default function PublicSchemes() {
       {/* Schemes Grid */}
       <section className="py-12">
         <div className="container mx-auto px-4">
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {mockSchemes.map((scheme) => (
-              <Card 
-                key={scheme.id} 
-                className="hover:shadow-elegant transition-all duration-300 hover:-translate-y-1 cursor-pointer"
-                onClick={() => handleSchemeClick(scheme.id)}
-              >
-                <CardHeader>
-                  <div className="flex justify-between items-start mb-2">
-                    <CardTitle className="text-xl">{scheme.name}</CardTitle>
-                    <Badge variant="default" className="bg-green-600">
-                      {scheme.status}
-                    </Badge>
-                  </div>
-                  <CardDescription className="line-clamp-2">
-                    {scheme.description}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex items-center gap-2 text-sm">
-                    <IndianRupee className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-semibold">{scheme.amount}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Calendar className="h-4 w-4" />
-                    <span>Deadline: {new Date(scheme.deadline).toLocaleDateString()}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Users className="h-4 w-4" />
-                    <span>{scheme.beneficiaries} Beneficiaries</span>
-                  </div>
-                  <Button className="w-full mt-4" variant="default">
-                    Apply Now
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin mr-2" />
+              <span className="text-muted-foreground">Loading schemes...</span>
+            </div>
+          ) : error ? (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          ) : !isLoggedIn ? (
+            <EmptyState
+              icon={LogIn}
+              title="Login Required"
+              description="Please log in to view available schemes and apply for assistance programs."
+              action={{
+                label: "Go to Login",
+                onClick: () => navigate("/beneficiary-login"),
+              }}
+            />
+          ) : schemes.length === 0 ? (
+            <EmptyState
+              icon={Users}
+              title="No Schemes Available"
+              description="There are currently no active schemes available. Please check back later."
+            />
+          ) : (
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {schemes.map((scheme) => (
+                <Card 
+                  key={scheme._id} 
+                  className="hover:shadow-elegant transition-all duration-300 hover:-translate-y-1 cursor-pointer"
+                  onClick={() => handleSchemeClick(scheme._id)}
+                >
+                  <CardHeader>
+                    <div className="flex justify-between items-start mb-2">
+                      <CardTitle className="text-xl">{scheme.name}</CardTitle>
+                      <Badge variant="default" className="bg-green-600">
+                        Active
+                      </Badge>
+                    </div>
+                    <CardDescription className="line-clamp-2">
+                      {scheme.description}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex items-center gap-2 text-sm">
+                      <IndianRupee className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-semibold">{formatAmount(scheme)}</span>
+                    </div>
+                    {scheme.applicationSettings?.endDate && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Calendar className="h-4 w-4" />
+                        <span>Deadline: {new Date(scheme.applicationSettings.endDate).toLocaleDateString()}</span>
+                      </div>
+                    )}
+                    {scheme.statistics?.totalBeneficiaries && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Users className="h-4 w-4" />
+                        <span>{scheme.statistics.totalBeneficiaries} Beneficiaries</span>
+                      </div>
+                    )}
+                    <Button className="w-full mt-4" variant="default">
+                      Apply Now
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
