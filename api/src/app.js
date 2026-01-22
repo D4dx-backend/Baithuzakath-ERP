@@ -1,6 +1,10 @@
 // Load environment variables first
 require('dotenv').config();
 
+// Validate environment variables BEFORE loading any other modules
+const { validateAndLog } = require('./config/validateEnv');
+validateAndLog();
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -24,10 +28,13 @@ connectDB();
 app.use(helmet({
   contentSecurityPolicy: false, // Disable CSP for serving static files
 }));
+// CORS configuration - use FRONTEND_URL from environment
+const corsOrigins = config.NODE_ENV === 'development'
+  ? process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim()) : [config.FRONTEND_URL]
+  : [config.FRONTEND_URL];
+
 app.use(cors({
-  origin: config.NODE_ENV === 'development' 
-    ? ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:8080', 'http://127.0.0.1:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080']
-    : config.FRONTEND_URL,
+  origin: corsOrigins,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']

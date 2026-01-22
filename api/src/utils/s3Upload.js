@@ -1,16 +1,26 @@
 const AWS = require('aws-sdk');
 const fs = require('fs');
+const { getOptionalEnvVar } = require('../config/validateEnv');
 
 // Configure AWS SDK for DigitalOcean Spaces
-const spacesEndpoint = new AWS.Endpoint(process.env.SPACES_ENDPOINT || 'blr1.digitaloceanspaces.com');
+// All values must come from environment variables - no fallbacks
+const spacesEndpointValue = getOptionalEnvVar('SPACES_ENDPOINT');
+const regionValue = getOptionalEnvVar('REGION');
+const bucketNameValue = getOptionalEnvVar('SPACES_BUCKET_NAME');
+
+if (!spacesEndpointValue || !process.env.SPACES_ACCESS_KEY_ID || !process.env.SPACES_SECRET_ACCESS_KEY || !bucketNameValue) {
+  throw new Error('DigitalOcean Spaces configuration incomplete. Required: SPACES_ENDPOINT, SPACES_ACCESS_KEY_ID, SPACES_SECRET_ACCESS_KEY, SPACES_BUCKET_NAME');
+}
+
+const spacesEndpoint = new AWS.Endpoint(spacesEndpointValue);
 const s3 = new AWS.S3({
   endpoint: spacesEndpoint,
   accessKeyId: process.env.SPACES_ACCESS_KEY_ID,
   secretAccessKey: process.env.SPACES_SECRET_ACCESS_KEY,
-  region: process.env.REGION || 'blr1'
+  region: regionValue || 'blr1'
 });
 
-const bucketName = process.env.SPACES_BUCKET_NAME || 'baithuzakath';
+const bucketName = bucketNameValue;
 
 /**
  * Upload file to DigitalOcean Spaces

@@ -12,6 +12,8 @@ pnpm-debug.log*
 .env.test.local
 .env.production.local
 .env.example
+api/.env
+erp/.env
 
 # Runtime data
 pids

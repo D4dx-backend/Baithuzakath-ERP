@@ -26,7 +26,11 @@ class DXingWhatsappOperations {
         throw new Error('Invalid phone number format');
       }
 
-      const path = config.DXING_WHATSAPP_SEND_PATH || '/whatsapp/send';
+      // Path must come from environment - no fallback
+      if (!config.DXING_WHATSAPP_SEND_PATH) {
+        throw new Error('DXING_WHATSAPP_SEND_PATH environment variable is required');
+      }
+      const path = config.DXING_WHATSAPP_SEND_PATH;
 
       const payload = {
         sender_id: this.client.getSenderId(),
