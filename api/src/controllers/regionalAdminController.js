@@ -35,16 +35,22 @@ class RegionalAdminController {
         return ResponseHelper.error(res, 'No admin account found for this phone number', 404);
       }
 
-      // Generate OTP
-      const otp = staticOTPConfig.USE_STATIC_OTP 
+      // PRODUCTION SAFEGUARD: Prevent static OTP in production
+      if (staticOTPConfig.NODE_ENV === 'production' && staticOTPConfig.USE_STATIC_OTP) {
+        throw new Error('SECURITY ERROR: Static OTP is not allowed in production mode. Please use real OTP service (WhatsApp or SMS).');
+      }
+
+      // Generate OTP (use static OTP only in development)
+      const otp = (staticOTPConfig.USE_STATIC_OTP && staticOTPConfig.isStaticOTPAllowed())
         ? staticOTPConfig.STATIC_OTP 
         : whatsappOTPService.generateOTP(6);
 
       // Send OTP
       let sendResult = { success: true, messageId: 'dev-test-message-id' };
       
-      if (staticOTPConfig.USE_STATIC_OTP) {
-        console.log(`🔑 STATIC OTP MODE: OTP for ${phone} is: ${otp}`);
+      if (staticOTPConfig.USE_STATIC_OTP && staticOTPConfig.isStaticOTPAllowed()) {
+        // Static OTP mode for testing (development only, no external service)
+        console.log(`🔑 STATIC OTP MODE (DEV): OTP for ${phone} is: ${otp}`);
         sendResult = { success: true, messageId: 'static-otp-mode' };
       } else if (staticOTPConfig.USE_WHATSAPP_OTP && staticOTPConfig.WHATSAPP_ENABLED) {
         console.log(`📱 Sending OTP via WhatsApp to ${phone}...`);
@@ -80,9 +86,9 @@ class RegionalAdminController {
         messageId: sendResult.messageId
       };
 
-      if (staticOTPConfig.USE_STATIC_OTP) {
+      if (staticOTPConfig.USE_STATIC_OTP && staticOTPConfig.isStaticOTPAllowed()) {
         response.staticOTP = otp;
-        response.note = 'Static OTP enabled for testing';
+        response.note = 'Static OTP enabled for testing (development mode only)';
       }
 
       return ResponseHelper.success(res, response, 'OTP sent successfully');

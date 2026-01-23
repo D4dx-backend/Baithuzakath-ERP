@@ -131,17 +131,22 @@ class AuthService {
         }
       }
 
-      // Generate OTP (use static OTP if enabled, otherwise generate dynamic OTP)
-      const otp = staticOTPConfig.USE_STATIC_OTP 
+      // PRODUCTION SAFEGUARD: Prevent static OTP in production
+      if (staticOTPConfig.NODE_ENV === 'production' && staticOTPConfig.USE_STATIC_OTP) {
+        throw new Error('SECURITY ERROR: Static OTP is not allowed in production mode. Please use real OTP service (WhatsApp or SMS).');
+      }
+
+      // Generate OTP (use static OTP if enabled in development, otherwise generate dynamic OTP)
+      const otp = staticOTPConfig.USE_STATIC_OTP && staticOTPConfig.isStaticOTPAllowed()
         ? staticOTPConfig.STATIC_OTP 
         : whatsappOTPService.generateOTP(6);
       
       // Send OTP based on configuration
       let sendResult = { success: true, messageId: 'dev-test-message-id' };
       
-      if (staticOTPConfig.USE_STATIC_OTP) {
-        // Static OTP mode for testing (no external service)
-        console.log(`🔑 STATIC OTP MODE: OTP for ${phone} is: ${otp}`);
+      if (staticOTPConfig.USE_STATIC_OTP && staticOTPConfig.isStaticOTPAllowed()) {
+        // Static OTP mode for testing (development only, no external service)
+        console.log(`🔑 STATIC OTP MODE (DEV): OTP for ${phone} is: ${otp}`);
         sendResult = { success: true, messageId: 'static-otp-mode' };
       } else if (staticOTPConfig.USE_WHATSAPP_OTP && staticOTPConfig.WHATSAPP_ENABLED) {
         // WhatsApp OTP service
@@ -211,19 +216,19 @@ class AuthService {
         expiresAt: user.otp.expiresAt,
         attemptsRemaining: Math.max(0, 5 - user.otp.attempts),
         purpose,
-        deliveryMethod: staticOTPConfig.USE_STATIC_OTP 
+        deliveryMethod: (staticOTPConfig.USE_STATIC_OTP && staticOTPConfig.isStaticOTPAllowed())
           ? 'static' 
           : staticOTPConfig.USE_WHATSAPP_OTP 
             ? 'whatsapp' 
             : 'sms'
       };
 
-      // Include OTP in response if static mode is enabled (for development)
-      if (staticOTPConfig.USE_STATIC_OTP) {
+      // Include OTP in response if static mode is enabled (development only)
+      if (staticOTPConfig.USE_STATIC_OTP && staticOTPConfig.isStaticOTPAllowed()) {
         response.staticOTP = otp;
-        response.note = 'Static OTP enabled for testing';
-      } else if (!staticOTPConfig.USE_WHATSAPP_OTP && !staticOTPConfig.SMS_ENABLED) {
-        // Development mode - include OTP in response
+        response.note = 'Static OTP enabled for testing (development mode only)';
+      } else if (!staticOTPConfig.USE_WHATSAPP_OTP && !staticOTPConfig.SMS_ENABLED && staticOTPConfig.NODE_ENV === 'development') {
+        // Development mode - include OTP in response (only if no service enabled)
         response.developmentOTP = otp;
         response.note = 'Development mode - OTP included in response';
       }

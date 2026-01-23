@@ -316,7 +316,13 @@ userSchema.methods.canAccessUser = function (targetUser) {
 
 // Method to generate and set OTP
 userSchema.methods.generateOTP = function (purpose = 'login') {
-  const otp = staticOTPConfig.USE_STATIC_OTP 
+  // PRODUCTION SAFEGUARD: Prevent static OTP in production
+  if (staticOTPConfig.NODE_ENV === 'production' && staticOTPConfig.USE_STATIC_OTP) {
+    throw new Error('SECURITY ERROR: Static OTP is not allowed in production mode. Please use real OTP service (WhatsApp or SMS).');
+  }
+
+  // Generate OTP (use static OTP only in development mode)
+  const otp = (staticOTPConfig.USE_STATIC_OTP && staticOTPConfig.isStaticOTPAllowed())
     ? staticOTPConfig.STATIC_OTP 
     : Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit OTP
   const expiresAt = new Date(Date.now() + staticOTPConfig.OTP_EXPIRY_MINUTES * 60 * 1000);
