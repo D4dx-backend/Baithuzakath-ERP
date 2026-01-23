@@ -138,6 +138,22 @@ function validateRequiredEnvVars() {
     }
   }
 
+  // CRITICAL: Validate production OTP configuration
+  if (process.env.NODE_ENV === 'production') {
+    // In production, static OTP must be disabled
+    if (process.env.USE_STATIC_OTP === 'true') {
+      errors.push('SECURITY ERROR: USE_STATIC_OTP=true is not allowed in production mode. Static OTP is automatically disabled for security.');
+    }
+    
+    // In production, at least one real OTP service must be enabled
+    const hasWhatsAppOTP = process.env.USE_WHATSAPP_OTP === 'true' && process.env.WHATSAPP_ENABLED === 'true';
+    const hasSMSOTP = process.env.SMS_ENABLED === 'true';
+    
+    if (!hasWhatsAppOTP && !hasSMSOTP) {
+      errors.push('PRODUCTION CONFIGURATION ERROR: No real OTP service enabled in production mode. Please set USE_WHATSAPP_OTP=true or SMS_ENABLED=true. Static OTP is not allowed in production.');
+    }
+  }
+
   // Build error message
   if (missing.length > 0 || errors.length > 0) {
     let errorMessage = '\n❌ ENVIRONMENT VARIABLE VALIDATION FAILED\n';

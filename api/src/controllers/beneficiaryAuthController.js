@@ -42,10 +42,15 @@ class BeneficiaryAuthController {
         await user.save();
       }
 
+      // PRODUCTION SAFEGUARD: Prevent static OTP in production (except test account)
+      if (!isTestAccount && staticOTPConfig.NODE_ENV === 'production' && staticOTPConfig.USE_STATIC_OTP) {
+        throw new Error('SECURITY ERROR: Static OTP is not allowed in production mode. Please use real OTP service (WhatsApp or SMS).');
+      }
+
       // Generate OTP based on configuration or test account
       const otp = isTestAccount 
-        ? '123456' // Fixed OTP for test account
-        : staticOTPConfig.USE_STATIC_OTP 
+        ? '123456' // Fixed OTP for test account (allowed in all environments)
+        : (staticOTPConfig.USE_STATIC_OTP && staticOTPConfig.isStaticOTPAllowed())
           ? staticOTPConfig.STATIC_OTP 
           : whatsappOTPService.generateOTP(6);
       
@@ -53,12 +58,12 @@ class BeneficiaryAuthController {
       let sendResult = { success: true, messageId: 'dev-test-message-id' };
       
       if (isTestAccount) {
-        // Test account mode - no external service
+        // Test account mode - no external service (allowed in all environments for testing)
         console.log(`🧪 TEST ACCOUNT MODE: OTP for ${phone} is: ${otp}`);
         sendResult = { success: true, messageId: 'test-account-mode' };
-      } else if (staticOTPConfig.USE_STATIC_OTP) {
-        // Static OTP mode for testing (no external service)
-        console.log(`🔑 STATIC OTP MODE: OTP for ${phone} is: ${otp}`);
+      } else if (staticOTPConfig.USE_STATIC_OTP && staticOTPConfig.isStaticOTPAllowed()) {
+        // Static OTP mode for testing (development only, no external service)
+        console.log(`🔑 STATIC OTP MODE (DEV): OTP for ${phone} is: ${otp}`);
         sendResult = { success: true, messageId: 'static-otp-mode' };
       } else if (staticOTPConfig.USE_WHATSAPP_OTP && staticOTPConfig.WHATSAPP_ENABLED) {
         // WhatsApp OTP service
@@ -103,22 +108,22 @@ class BeneficiaryAuthController {
         messageId: sendResult.messageId,
         deliveryMethod: isTestAccount
           ? 'test'
-          : staticOTPConfig.USE_STATIC_OTP 
+          : (staticOTPConfig.USE_STATIC_OTP && staticOTPConfig.isStaticOTPAllowed())
             ? 'static' 
             : staticOTPConfig.USE_WHATSAPP_OTP 
               ? 'whatsapp' 
               : 'development'
       };
 
-      // Include OTP in response for test account or development modes
+      // Include OTP in response for test account or development modes only
       if (isTestAccount) {
         response.staticOTP = otp;
         response.note = 'Test account for Play Store testing - OTP is always 123456';
-      } else if (staticOTPConfig.USE_STATIC_OTP) {
+      } else if (staticOTPConfig.USE_STATIC_OTP && staticOTPConfig.isStaticOTPAllowed()) {
         response.staticOTP = otp;
-        response.note = 'Static OTP enabled for testing';
-      } else if (!staticOTPConfig.USE_WHATSAPP_OTP && !staticOTPConfig.SMS_ENABLED) {
-        // Development mode - include OTP in response
+        response.note = 'Static OTP enabled for testing (development mode only)';
+      } else if (!staticOTPConfig.USE_WHATSAPP_OTP && !staticOTPConfig.SMS_ENABLED && staticOTPConfig.NODE_ENV === 'development') {
+        // Development mode - include OTP in response (only if no service enabled)
         response.developmentOTP = otp;
         response.note = 'Development mode - OTP included in response';
       }
@@ -328,10 +333,15 @@ class BeneficiaryAuthController {
       }
 
 
+      // PRODUCTION SAFEGUARD: Prevent static OTP in production (except test account)
+      if (!isTestAccount && staticOTPConfig.NODE_ENV === 'production' && staticOTPConfig.USE_STATIC_OTP) {
+        throw new Error('SECURITY ERROR: Static OTP is not allowed in production mode. Please use real OTP service (WhatsApp or SMS).');
+      }
+
       // Generate OTP based on configuration or test account
       const otp = isTestAccount
-        ? '123456' // Fixed OTP for test account
-        : staticOTPConfig.USE_STATIC_OTP 
+        ? '123456' // Fixed OTP for test account (allowed in all environments)
+        : (staticOTPConfig.USE_STATIC_OTP && staticOTPConfig.isStaticOTPAllowed())
           ? staticOTPConfig.STATIC_OTP 
           : user.generateOTP('beneficiary-login');
       
@@ -346,11 +356,11 @@ class BeneficiaryAuthController {
       };
       await user.save();
 
-      // Always use static OTP mode for testing (no SMS service)
+      // Log OTP generation mode
       if (isTestAccount) {
         console.log(`🧪 TEST ACCOUNT MODE: Resent OTP for ${phone} is: ${otp}`);
-      } else {
-        console.log(`🔑 STATIC OTP MODE: Resent OTP for ${phone} is: ${otp}`);
+      } else if (staticOTPConfig.USE_STATIC_OTP && staticOTPConfig.isStaticOTPAllowed()) {
+        console.log(`🔑 STATIC OTP MODE (DEV): Resent OTP for ${phone} is: ${otp}`);
       }
       const smsResult = { success: true, messageId: isTestAccount ? 'test-account-mode' : 'static-otp-mode' };
 
@@ -359,13 +369,13 @@ class BeneficiaryAuthController {
         expiresIn: staticOTPConfig.OTP_EXPIRY_MINUTES
       };
 
-      // Include OTP in response for test account or static mode
+      // Include OTP in response for test account or static mode (development only)
       if (isTestAccount) {
         response.staticOTP = otp;
         response.note = 'Test account for Play Store testing - OTP is always 123456';
-      } else if (staticOTPConfig.USE_STATIC_OTP) {
+      } else if (staticOTPConfig.USE_STATIC_OTP && staticOTPConfig.isStaticOTPAllowed()) {
         response.staticOTP = otp;
-        response.note = 'Static OTP enabled for all logins';
+        response.note = 'Static OTP enabled for testing (development mode only)';
       }
 
       return ResponseHelper.success(res, response, 'OTP resent successfully');
