@@ -69,6 +69,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       
       if (data.success && data.data.user && data.data.tokens) {
         const { user: userData, tokens } = data.data;
+
+        if (userData.role === 'beneficiary') {
+          // Block beneficiary login through admin portal
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          localStorage.removeItem('refreshToken');
+          localStorage.removeItem('beneficiary_token');
+          localStorage.removeItem('beneficiary_user');
+          localStorage.removeItem('user_role');
+          throw new Error('Beneficiary accounts must use the beneficiary login portal.');
+        }
         
         setUser(userData);
         setToken(tokens.accessToken);

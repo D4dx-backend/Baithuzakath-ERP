@@ -23,6 +23,14 @@ class AuthController {
         return ResponseHelper.error(res, 'Invalid OTP purpose', 400);
       }
 
+      // Block beneficiary accounts from admin login flow
+      if (purpose === 'login') {
+        const existingUser = await User.findOne({ phone });
+        if (existingUser && existingUser.role === 'beneficiary') {
+          return ResponseHelper.error(res, 'Beneficiary accounts must use the beneficiary login portal.', 403);
+        }
+      }
+
       // Generate and send OTP
       const result = await authService.generateAndSendOTP(phone, purpose);
 
@@ -65,6 +73,14 @@ class AuthController {
       // Validate input
       if (!phone || !otp) {
         return ResponseHelper.error(res, 'Phone number and OTP are required', 400);
+      }
+
+      // Block beneficiary accounts from admin login flow
+      if (purpose === 'login') {
+        const existingUser = await User.findOne({ phone });
+        if (existingUser && existingUser.role === 'beneficiary') {
+          return ResponseHelper.error(res, 'Beneficiary accounts must use the beneficiary login portal.', 403);
+        }
       }
 
       // Verify OTP and authenticate

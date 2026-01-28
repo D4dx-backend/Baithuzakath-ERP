@@ -6,6 +6,18 @@ const config = require('../config/environment');
 const staticOTPConfig = require('../config/staticOTP');
 const whatsappOTPService = require('../utils/whatsappOtpService');
 
+const ADMIN_ROLES = new Set([
+  'super_admin',
+  'state_admin',
+  'district_admin',
+  'area_admin',
+  'unit_admin',
+  'project_coordinator',
+  'scheme_coordinator'
+]);
+
+const isAdminRole = (role) => ADMIN_ROLES.has(role);
+
 class AuthService {
   /**
    * Generate single JWT token (for beneficiary auth)
@@ -101,6 +113,10 @@ class AuthService {
       // Handle different purposes
       if (purpose === 'login' && !user) {
         throw new Error('No account found with this phone number. Please register first.');
+      }
+
+      if (purpose === 'login' && user && !isAdminRole(user.role)) {
+        throw new Error('Beneficiary accounts must use the beneficiary login portal.');
       }
 
       if (purpose === 'registration' && user && user.isActive) {
@@ -253,6 +269,10 @@ class AuthService {
       
       if (!user) {
         throw new Error('No account found with this phone number');
+      }
+
+      if (!isAdminRole(user.role)) {
+        throw new Error('Beneficiary accounts must use the beneficiary login portal.');
       }
 
       // Check if user account is locked
