@@ -46,7 +46,7 @@ const activityLogSchema = new mongoose.Schema({
       
       // System actions
       'system_backup', 'system_restore', 'data_export', 'data_import',
-      'settings_updated', 'configuration_changed', 'data_accessed',
+      'settings_updated', 'configuration_changed', 'data_accessed', 'profile_accessed',
       
       // Security actions
       'permission_denied', 'unauthorized_access', 'suspicious_activity'
