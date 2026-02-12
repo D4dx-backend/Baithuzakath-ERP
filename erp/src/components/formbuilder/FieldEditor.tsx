@@ -18,6 +18,9 @@ interface Field {
   options?: string[];
   validation?: string;
   columns?: number;
+  rows?: number;
+  rowTitles?: string[];
+  columnTitles?: string[];
   conditionalLogic?: {
     field: number;
     operator: string;
@@ -62,14 +65,17 @@ export function FieldEditor({ field, onUpdate, onDelete, onMoveUp, onMoveDown, a
                   <SelectItem value="email">Email</SelectItem>
                   <SelectItem value="phone">Phone</SelectItem>
                   <SelectItem value="date">Date</SelectItem>
+                  <SelectItem value="time">Time</SelectItem>
                   <SelectItem value="checkbox">Checkbox</SelectItem>
                   <SelectItem value="select">Dropdown</SelectItem>
+                  <SelectItem value="dropdown">Dropdown (Alt)</SelectItem>
                   <SelectItem value="multiselect">Multi-Select</SelectItem>
                   <SelectItem value="radio">Radio</SelectItem>
+                  <SelectItem value="yesno">Yes/No</SelectItem>
                   <SelectItem value="file">File Upload</SelectItem>
                   <SelectItem value="title">Title/Heading</SelectItem>
-                  <SelectItem value="html">HTML Editor</SelectItem>
-                  <SelectItem value="group">Field Group</SelectItem>
+                  {/* <SelectItem value="html">HTML Editor</SelectItem> */}
+                  {/* <SelectItem value="group">Field Group</SelectItem> */}
                   <SelectItem value="row">Row/Column</SelectItem>
                 </SelectContent>
               </Select>
@@ -139,16 +145,110 @@ export function FieldEditor({ field, onUpdate, onDelete, onMoveUp, onMoveDown, a
               )}
 
               {field.type === "row" && (
-                <div className="flex items-center gap-2">
-                  <Label className="text-xs">Columns:</Label>
-                  <Input
-                    type="number"
-                    min="1"
-                    max="4"
-                    value={field.columns || 2}
-                    onChange={(e) => onUpdate({ ...field, columns: parseInt(e.target.value) })}
-                    className="h-8 w-20 text-sm"
-                  />
+                <div className="space-y-3 p-3 border rounded-md bg-muted/30">
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <Label className="text-xs">Columns:</Label>
+                      <Input
+                        type="number"
+                        min="1"
+                        value={field.columns || 2}
+                        onChange={(e) => {
+                          const cols = Math.max(1, parseInt(e.target.value) || 1);
+                          const currentTitles = field.columnTitles || [];
+                          const columnTitles = Array.from({ length: cols }, (_, i) => currentTitles[i] || "");
+                          onUpdate({ ...field, columns: cols, columnTitles });
+                        }}
+                        className="h-8 w-20 text-sm"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Label className="text-xs">Rows:</Label>
+                      <Input
+                        type="number"
+                        min="1"
+                        value={field.rows || 2}
+                        onChange={(e) => {
+                          const rows = Math.max(1, parseInt(e.target.value) || 1);
+                          const currentTitles = field.rowTitles || [];
+                          const rowTitles = Array.from({ length: rows }, (_, i) => currentTitles[i] || "");
+                          onUpdate({ ...field, rows, rowTitles });
+                        }}
+                        className="h-8 w-20 text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium">Column Headers:</Label>
+                    <div className="flex gap-2 flex-wrap">
+                      {Array.from({ length: field.columns || 2 }, (_, i) => (
+                        <Input
+                          key={i}
+                          value={field.columnTitles?.[i] || ""}
+                          onChange={(e) => {
+                            const titles = [...(field.columnTitles || Array(field.columns || 2).fill(""))];
+                            titles[i] = e.target.value;
+                            onUpdate({ ...field, columnTitles: titles });
+                          }}
+                          placeholder={`Col ${i + 1}`}
+                          className="h-7 text-xs flex-1 min-w-[80px]"
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium">Row Labels (optional):</Label>
+                    <div className="flex gap-2 flex-wrap">
+                      {Array.from({ length: field.rows || 2 }, (_, i) => (
+                        <Input
+                          key={i}
+                          value={field.rowTitles?.[i] || ""}
+                          onChange={(e) => {
+                            const titles = [...(field.rowTitles || Array(field.rows || 2).fill(""))];
+                            titles[i] = e.target.value;
+                            onUpdate({ ...field, rowTitles: titles });
+                          }}
+                          placeholder={`Row ${i + 1}`}
+                          className="h-7 text-xs flex-1 min-w-[80px]"
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Live table preview */}
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium text-muted-foreground">Preview:</Label>
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse border border-gray-300 text-xs">
+                        <thead>
+                          <tr>
+                            {field.rowTitles?.some(t => t) && <th className="border border-gray-300 p-1 bg-gray-100"></th>}
+                            {Array.from({ length: field.columns || 2 }, (_, i) => (
+                              <th key={i} className="border border-gray-300 p-1 bg-gray-100 font-medium">
+                                {field.columnTitles?.[i] || `Col ${i + 1}`}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {Array.from({ length: field.rows || 2 }, (_, rowIdx) => (
+                            <tr key={rowIdx}>
+                              {field.rowTitles?.some(t => t) && (
+                                <td className="border border-gray-300 p-1 bg-gray-50 font-medium">
+                                  {field.rowTitles?.[rowIdx] || `Row ${rowIdx + 1}`}
+                                </td>
+                              )}
+                              {Array.from({ length: field.columns || 2 }, (_, colIdx) => (
+                                <td key={colIdx} className="border border-gray-300 p-1 text-muted-foreground text-center">—</td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 </div>
               )}
 
