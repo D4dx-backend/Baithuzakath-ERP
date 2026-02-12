@@ -16,6 +16,9 @@ interface Field {
   options?: string[];
   validation?: string;
   columns?: number;
+  rows?: number;
+  rowTitles?: string[];
+  columnTitles?: string[];
   conditionalLogic?: {
     field: number;
     operator: string;
@@ -106,7 +109,8 @@ export function FormCanvas({ pages, onUpdatePages, onAddField }: FormCanvasProps
       type: fieldType,
       required: false,
       enabled: true,
-      pageId
+      pageId,
+      ...(fieldType === "row" ? { columns: 2, rows: 2, columnTitles: ["", ""], rowTitles: ["", ""] } : {})
     };
 
     const newPages = pages.map(page => {
