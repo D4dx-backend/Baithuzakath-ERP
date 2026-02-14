@@ -1,5 +1,22 @@
 import { useState, useEffect } from "react";
-import { Plus, Calendar, IndianRupee, Target, Users, Loader2, AlertCircle, Clock, Edit, Trash2, Eye, Settings, GitBranch, ChevronDown, ChevronUp } from "lucide-react";
+import {
+  Plus,
+  Calendar,
+  IndianRupee,
+  Target,
+  Users,
+  Loader2,
+  AlertCircle,
+  Clock,
+  Edit,
+  Trash2,
+  Eye,
+  Settings,
+  GitBranch,
+  ChevronDown,
+  ChevronUp,
+  FileText, // ← add this
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -472,7 +489,9 @@ export default function Schemes() {
                       <div className="flex items-center justify-between text-sm">
                         <div>
                           <span className="text-muted-foreground">Project: </span>
-                          <span className="font-medium">{scheme.project.name}</span>
+                          <span className="font-medium">
+                            {scheme.project?.name || 'Unassigned'}
+                          </span>
                         </div>
                         <div>
                           <span className="text-muted-foreground">Coverage: </span>
@@ -499,6 +518,10 @@ export default function Schemes() {
                         )}
                         {canManageSchemes && (
                           <>
+                            <Button variant="outline" size="sm" onClick={() => navigate(`/form-builder?schemeId=${scheme.id}&schemeName=${encodeURIComponent(scheme.name)}`)}>
+                              <FileText className="mr-1 h-3 w-3" />
+                              Configure Form
+                            </Button>
                             <Button variant="outline" size="sm" onClick={() => handleConfigureTimeline(scheme)}>
                               <GitBranch className="mr-1 h-3 w-3" />
                               Timeline

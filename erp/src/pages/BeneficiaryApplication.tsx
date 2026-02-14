@@ -31,6 +31,9 @@ interface FormField {
     customMessage?: string;
   };
   columns?: number;
+  rows?: number;
+  rowTitles?: string[];
+  columnTitles?: string[];
   conditionalLogic?: {
     field: number;
     operator: string;
@@ -455,6 +458,7 @@ export default function BeneficiaryApplication() {
         );
 
       case "select":
+      case "dropdown":
         return (
           <div key={field.id} className="space-y-2">
             <Label htmlFor={fieldKey}>
@@ -466,7 +470,7 @@ export default function BeneficiaryApplication() {
                 <SelectValue placeholder={field.placeholder || `Select ${field.label.toLowerCase()}`} />
               </SelectTrigger>
               <SelectContent>
-                {field.options?.map((option) => (
+                {field.options?.filter((option) => option !== "").map((option) => (
                   <SelectItem key={option} value={option}>
                     {option}
                   </SelectItem>
@@ -478,8 +482,118 @@ export default function BeneficiaryApplication() {
           </div>
         );
 
-      case "date":
-      case "datetime":
+      case "yesno":
+        return (
+          <div key={field.id} className="space-y-2">
+            <Label htmlFor={fieldKey}>
+              {field.label}
+              {field.required && <span className="text-red-500 ml-1">*</span>}
+            </Label>
+            <Select value={value} onValueChange={(val) => handleInputChange(fieldKey, val)}>
+              <SelectTrigger className={error ? "border-red-500" : ""}>
+                <SelectValue placeholder={field.placeholder || "Select Yes or No"} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Yes">Yes</SelectItem>
+                <SelectItem value="No">No</SelectItem>
+              </SelectContent>
+            </Select>
+            {field.helpText && <p className="text-xs text-muted-foreground">{field.helpText}</p>}
+            {error && <p className="text-sm text-red-500">{error}</p>}
+          </div>
+        );
+
+      case "checkbox":
+        return (
+          <div key={field.id} className="space-y-2">
+            <Label>
+              {field.label}
+              {field.required && <span className="text-red-500 ml-1">*</span>}
+            </Label>
+            <div className="space-y-2">
+              {field.options?.filter((option) => option !== "").map((option) => (
+                <div key={option} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`${fieldKey}-${option}`}
+                    checked={Array.isArray(value) ? value.includes(option) : false}
+                    onCheckedChange={(checked) => {
+                      const currentValues = Array.isArray(formData[fieldKey]) ? formData[fieldKey] : [];
+                      if (checked === true) {
+                        handleInputChange(fieldKey, [...currentValues, option]);
+                      } else {
+                        handleInputChange(fieldKey, currentValues.filter((v: string) => v !== option));
+                      }
+                    }}
+                  />
+                  <Label htmlFor={`${fieldKey}-${option}`} className="font-normal">{option}</Label>
+                </div>
+              ))}
+            </div>
+            {field.helpText && <p className="text-xs text-muted-foreground">{field.helpText}</p>}
+            {error && <p className="text-sm text-red-500">{error}</p>}
+          </div>
+        );
+
+      case "radio":
+        return (
+          <div key={field.id} className="space-y-2">
+            <Label>
+              {field.label}
+              {field.required && <span className="text-red-500 ml-1">*</span>}
+            </Label>
+            <div className="space-y-2">
+              {field.options?.filter((option) => option !== "").map((option) => (
+                <div key={option} className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    id={`${fieldKey}-${option}`}
+                    name={fieldKey}
+                    value={option}
+                    checked={value === option}
+                    onChange={(e) => handleInputChange(fieldKey, e.target.value)}
+                    className="h-4 w-4"
+                  />
+                  <Label htmlFor={`${fieldKey}-${option}`} className="font-normal">{option}</Label>
+                </div>
+              ))}
+            </div>
+            {field.helpText && <p className="text-xs text-muted-foreground">{field.helpText}</p>}
+            {error && <p className="text-sm text-red-500">{error}</p>}
+          </div>
+        );
+
+      case "multiselect":
+        return (
+          <div key={field.id} className="space-y-2">
+            <Label>
+              {field.label}
+              {field.required && <span className="text-red-500 ml-1">*</span>}
+            </Label>
+            <div className="space-y-2">
+              {field.options?.filter((option) => option !== "").map((option) => (
+                <div key={option} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`${fieldKey}-${option}`}
+                    checked={Array.isArray(value) ? value.includes(option) : false}
+                    onCheckedChange={(checked) => {
+                      const currentValues = Array.isArray(formData[fieldKey]) ? formData[fieldKey] : [];
+                      if (checked === true) {
+                        handleInputChange(fieldKey, [...currentValues, option]);
+                      } else {
+                        handleInputChange(fieldKey, currentValues.filter((v: string) => v !== option));
+                      }
+                    }}
+                  />
+                  <Label htmlFor={`${fieldKey}-${option}`} className="font-normal">{option}</Label>
+                </div>
+              ))}
+            </div>
+            {field.helpText && <p className="text-xs text-muted-foreground">{field.helpText}</p>}
+            {error && <p className="text-sm text-red-500">{error}</p>}
+          </div>
+        );
+
+      case "time":
         return (
           <div key={field.id} className="space-y-2">
             <Label htmlFor={fieldKey}>
@@ -488,7 +602,7 @@ export default function BeneficiaryApplication() {
             </Label>
             <Input
               id={fieldKey}
-              type={field.type === "datetime" ? "datetime-local" : "date"}
+              type="time"
               value={value}
               onChange={(e) => handleInputChange(fieldKey, e.target.value)}
               className={error ? "border-red-500" : ""}
@@ -512,7 +626,6 @@ export default function BeneficiaryApplication() {
                 const file = e.target.files?.[0];
                 if (file) {
                   handleInputChange(fieldKey, file.name);
-                  // Handle file upload here
                 }
               }}
               className={error ? "border-red-500" : ""}
@@ -523,8 +636,104 @@ export default function BeneficiaryApplication() {
           </div>
         );
 
+      case "title":
+        return (
+          <div key={field.id} className="pt-2">
+            <h3 className="text-lg font-semibold">{field.label}</h3>
+          </div>
+        );
+
+      case "html":
+        return (
+          <div key={field.id} className="space-y-2">
+            <div
+              className="prose prose-sm max-w-none"
+              dangerouslySetInnerHTML={{ __html: field.placeholder || field.label }}
+            />
+          </div>
+        );
+
+      case "row":
+      case "column": {
+        const numCols = field.columns || 2;
+        const numRows = field.rows || 2;
+        const tableData: string[][] = Array.isArray(formData[fieldKey])
+          ? formData[fieldKey]
+          : Array.from({ length: numRows }, () => Array(numCols).fill(""));
+
+        return (
+          <div key={field.id} className="space-y-2">
+            <Label>
+              {field.label}
+              {field.required && <span className="text-red-500 ml-1">*</span>}
+            </Label>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse border border-gray-300">
+                <thead>
+                  <tr>
+                    {field.rowTitles && field.rowTitles.length > 0 && <th className="border border-gray-300 p-2 bg-gray-50 text-sm font-medium"></th>}
+                    {Array.from({ length: numCols }, (_, colIdx) => (
+                      <th key={colIdx} className="border border-gray-300 p-2 bg-gray-50 text-sm font-medium">
+                        {field.columnTitles?.[colIdx] || `Column ${colIdx + 1}`}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {Array.from({ length: numRows }, (_, rowIdx) => (
+                    <tr key={rowIdx}>
+                      {field.rowTitles && field.rowTitles.length > 0 && (
+                        <td className="border border-gray-300 p-2 bg-gray-50 text-sm font-medium">
+                          {field.rowTitles[rowIdx] || `Row ${rowIdx + 1}`}
+                        </td>
+                      )}
+                      {Array.from({ length: numCols }, (_, colIdx) => (
+                        <td key={colIdx} className="border border-gray-300 p-1">
+                          <Input
+                            value={tableData[rowIdx]?.[colIdx] || ""}
+                            onChange={(e) => {
+                              const newData = tableData.map((row) => [...row]);
+                              if (!newData[rowIdx]) {
+                                newData[rowIdx] = Array(numCols).fill("");
+                              }
+                              newData[rowIdx][colIdx] = e.target.value;
+                              handleInputChange(fieldKey, newData);
+                            }}
+                            className="border-0 h-8 text-sm"
+                            placeholder=""
+                          />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {field.helpText && <p className="text-xs text-muted-foreground">{field.helpText}</p>}
+            {error && <p className="text-sm text-red-500">{error}</p>}
+          </div>
+        );
+      }
+
       default:
-        return null;
+        return (
+          <div key={field.id} className="space-y-2">
+            <Label htmlFor={fieldKey}>
+              {field.label}
+              {field.required && <span className="text-red-500 ml-1">*</span>}
+            </Label>
+            <Input
+              id={fieldKey}
+              type="text"
+              value={value}
+              onChange={(e) => handleInputChange(fieldKey, e.target.value)}
+              placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
+              className={error ? "border-red-500" : ""}
+            />
+            {field.helpText && <p className="text-xs text-muted-foreground">{field.helpText}</p>}
+            {error && <p className="text-sm text-red-500">{error}</p>}
+          </div>
+        );
     }
   };
 
@@ -627,7 +836,7 @@ export default function BeneficiaryApplication() {
                 <Checkbox
                   id="terms"
                   checked={agreedToTerms}
-                  onCheckedChange={setAgreedToTerms}
+                  onCheckedChange={(checked) => setAgreedToTerms(checked === true)}
                 />
                 <div className="grid gap-1.5 leading-none">
                   <Label

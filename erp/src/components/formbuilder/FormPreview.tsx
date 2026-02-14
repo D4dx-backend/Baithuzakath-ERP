@@ -19,6 +19,9 @@ interface Field {
   placeholder?: string;
   options?: string[];
   columns?: number;
+  rows?: number;
+  rowTitles?: string[];
+  columnTitles?: string[];
 }
 
 interface Page {
@@ -208,14 +211,45 @@ export function FormPreview({ formTitle, formDescription, pages, schemeId, isLiv
         );
 
       case "row":
-      case "column":
+      case "column": {
+        const numCols = field.columns || 2;
+        const numRows = field.rows || 2;
         return (
-          <div key={field.id} className="border-2 border-dashed rounded-lg p-4">
-            <p className="text-sm text-muted-foreground text-center">
-              {field.type === "row" ? "Row" : "Column"} Container ({field.columns || 2} columns)
-            </p>
+          <div key={field.id} className="space-y-2">
+            {label}
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse border border-gray-300 text-sm">
+                <thead>
+                  <tr>
+                    {field.rowTitles?.some(t => t) && <th className="border border-gray-300 p-2 bg-gray-50"></th>}
+                    {Array.from({ length: numCols }, (_, i) => (
+                      <th key={i} className="border border-gray-300 p-2 bg-gray-50 font-medium">
+                        {field.columnTitles?.[i] || `Column ${i + 1}`}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {Array.from({ length: numRows }, (_, rowIdx) => (
+                    <tr key={rowIdx}>
+                      {field.rowTitles?.some(t => t) && (
+                        <td className="border border-gray-300 p-2 bg-gray-50 font-medium">
+                          {field.rowTitles?.[rowIdx] || `Row ${rowIdx + 1}`}
+                        </td>
+                      )}
+                      {Array.from({ length: numCols }, (_, colIdx) => (
+                        <td key={colIdx} className="border border-gray-300 p-1">
+                          <Input placeholder="" disabled className="border-0 h-8 text-sm" />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         );
+      }
 
       default:
         return (
